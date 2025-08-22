@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "tsc",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "migrate:create": "node-pg-migrate create",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +23,11 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "@types/bcrypt": "^6.0.0",
+    "@types/pg": "^8.15.5",
+    "bcrypt": "^6.0.0",
+    "express": "^5.1.0",
+    "node-pg-migrate": "^8.0.3",
+    "pg": "^8.16.3"
   }
 }
