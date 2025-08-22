@@ -65,7 +65,9 @@ services:
       - minio_data:/data
 
   ollama:
-    image: ollama/ollama
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
     ports:
       - "11434:11434"
     volumes:
