@@ -4,9 +4,14 @@ const JWT_SECRET: Secret = process.env.JWT_SECRET || "supersecret";
 
 export function signJwt(
   payload: object,
-  expiresIn = process.env.JWT_EXPIRES_IN!
+  expiresIn: string | number | undefined = process.env.JWT_EXPIRES_IN
 ) {
-  const options: SignOptions = { expiresIn: Number(expiresIn) };
+  const options: SignOptions = {};
+  if (expiresIn !== undefined) {
+    options.expiresIn = Number(expiresIn);
+  } else {
+    options.expiresIn = "15m";
+  }
   return jwt.sign(payload, JWT_SECRET, options);
 }
 
