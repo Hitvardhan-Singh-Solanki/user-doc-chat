@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { downloadFile } from "../service/minio";
+import { downloadFile } from "../services/minio.service";
 import { Readable } from "stream";
 import { Client } from "minio";
 

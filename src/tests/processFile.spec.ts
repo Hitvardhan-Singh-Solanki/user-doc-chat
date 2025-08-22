@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Worker } from "bullmq";
-import { downloadFile } from "../service/minio";
-import { chunkText, embedText } from "../service/embeddings";
-import { upsertVectors } from "../service/pinecone";
-import * as workerModule from "../service/processFile";
+import { downloadFile } from "../services/minio.service";
+import { chunkText, embedText } from "../services/embeddings.service";
+import { upsertVectors } from "../services/pinecone.service";
+import * as workerModule from "../services/processFile.service";
 
 describe("Worker startWorker", () => {
   beforeEach(() => {

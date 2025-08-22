@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { Worker, ConnectionOptions } from "bullmq";
-import { downloadFile } from "./minio";
-import { chunkText, embedText } from "./embeddings";
-import { upsertVectors } from "./pinecone";
-import { FileJob, Vector } from "../types/job";
+import { downloadFile } from "./minio.service";
+import { chunkText, embedText } from "./embeddings.service";
+import { upsertVectors } from "./pinecone.service";
+import { FileJob, Vector } from "../types";
 
 const queueName = "file-processing";
 
@@ -18,7 +18,7 @@ function parseRedisUrl(url: string): ConnectionOptions {
   };
 }
 
-async function startWorker() {
+export async function startWorker() {
   const redisUrl = process.env.REDIS_URL!;
   console.log("Connecting to Redis:", redisUrl);
 
