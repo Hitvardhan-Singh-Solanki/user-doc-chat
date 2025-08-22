@@ -12,9 +12,12 @@ export function signJwt(
   } else {
     options.expiresIn = "15m";
   }
+
+  options.algorithm = "HS256";
+
   return jwt.sign(payload, JWT_SECRET, options);
 }
 
-export function verifyJwt(token: string) {
-  return jwt.verify(token, JWT_SECRET);
+export function verifyJwt<T extends object = jwt.JwtPayload>(token: string) {
+  return jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as T;
 }
