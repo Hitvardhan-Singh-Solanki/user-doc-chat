@@ -1,4 +1,5 @@
 import { Client } from "minio";
+import { Readable } from "stream";
 
 const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT!,
@@ -17,4 +18,18 @@ export async function uploadFileToMinio(
   if (!exists) await minioClient.makeBucket(bucket);
 
   await minioClient.putObject(bucket, key, buffer);
+}
+
+export async function downloadFile(
+  bucket: string,
+  key: string
+): Promise<Buffer> {
+  const stream: Readable = await minioClient.getObject(bucket, key);
+  const chunks: Buffer[] = [];
+
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
 }
