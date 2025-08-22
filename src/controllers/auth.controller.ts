@@ -17,7 +17,8 @@ export async function signUp(req: Request, res: Response) {
       return res.status(400).json({ error: "Email and password are required" });
     }
     const user = await authService.signUp(email, password);
-    return res.status(201).json(user);
+    const token = signJwt({ userId: user.id, email: user.email });
+    return res.status(201).json(token);
   } catch (err: unknown) {
     if (authService.isPgUniqueViolation(err)) {
       return res.status(409).json({ error: "Email already in use" });
@@ -41,7 +42,9 @@ export async function login(req: Request, res: Response) {
       return res.status(400).json({ error: "Email and password are required" });
     }
     const user = await authService.login(email, password);
-    return res.status(200).json(user);
+    const token = signJwt({ userId: user.id, email: user.email });
+
+    return res.status(200).json(token);
   } catch (_err: unknown) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
