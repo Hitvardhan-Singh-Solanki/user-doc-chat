@@ -12,13 +12,33 @@ export async function upsertVectors(vectors: Vector[]) {
     throw new Error("Pinecone index name is not set in environment variables.");
   }
 
+  if (!Array.isArray(vectors) || vectors.length === 0) {
+    return { upsertedCount: 0 };
+  }
+
   const index = pinecone.index(indexName);
+  const toRecord = (v: Vector): PineconeRecord => ({
+    id: v.id,
+    values: v.values,
+    metadata: v.metadata,
+  });
 
-  const records: PineconeRecord[] = vectors.map((vector) => ({
-    id: vector.id,
-    values: vector.values,
-    metadata: vector.metadata,
-  }));
+  const chunkSize = Number(process.env.CHUNK_SIZE || 100);
+  const chunks: PineconeRecord[][] = [];
+  for (let i = 0; i < vectors.length; i = chunkSize) {
+    chunks.push(vectors.slice(i, i + chunkSize).map(toRecord));
+  }
 
-  await index.upsert(records);
+  let total = 0;
+  for (const batch of chunks) {
+    try {
+      await index.upsert(batch);
+      total = batch.length;
+    } catch (e: any) {
+      throw new Error(
+        `Pinecone upsert failed after ${total} records: ${e?.message || e}`
+      );
+    }
+  }
+  return { upsertedCount: total };
 }
