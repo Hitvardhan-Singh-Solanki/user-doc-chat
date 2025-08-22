@@ -10,8 +10,14 @@ docker-compose -f docker-compose.dev.yml up --build -d
 docker-compose up --build -d
 ```
 
-#for stopping
+## for stopping
 
 ```shell
 docker-compose down
+```
+
+## migrations
+
+```shell
+docker compose run --rm backend npx node-pg-migrate up
 ```

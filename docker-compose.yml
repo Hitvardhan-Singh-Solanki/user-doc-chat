@@ -31,34 +31,6 @@ services:
       timeout: 5s
       retries: 5
 
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    command: ["npm", "run", "start"]
-    depends_on:
-      redis:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    environment:
-      DATABASE_URL: postgres://user:password@db:5432/ai_chat
-      REDIS_URL: redis://redis:6379
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      PINECONE_API_KEY: ${PINECONE_API_KEY}
-      OLLAMA_URL: http://ollama:11434
-    volumes:
-      - ./worker:/app
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   db:
     image: postgres:16
     environment:
@@ -74,7 +46,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  
   redis:
     image: redis:7-alpine
     ports:
