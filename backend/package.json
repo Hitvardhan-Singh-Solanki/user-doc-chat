@@ -15,7 +15,9 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.0",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
@@ -23,10 +25,14 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@types/bcrypt": "^6.0.0",
+    "@types/multer": "^2.0.0",
     "@types/pg": "^8.15.5",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.58.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "minio": "^8.0.5",
+    "multer": "^2.0.2",
     "node-pg-migrate": "^8.0.3",
     "pg": "^8.16.3"
   }
