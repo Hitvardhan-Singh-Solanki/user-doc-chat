@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { chunkText, embedText } from "../service/embeddings";
+import { chunkText, embedText } from "../services/embeddings.service";
 
 describe("chunkText", () => {
   it("should split text into default chunks", () => {
