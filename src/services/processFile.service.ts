@@ -18,7 +18,7 @@ function parseRedisUrl(url: string): ConnectionOptions {
   };
 }
 
-async function startWorker() {
+export async function startWorker() {
   const redisUrl = process.env.REDIS_URL!;
   console.log("Connecting to Redis:", redisUrl);
 

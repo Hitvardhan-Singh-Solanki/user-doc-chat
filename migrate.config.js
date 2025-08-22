@@ -1,8 +1,7 @@
 require("dotenv").config();
 
 module.exports = {
-  migrationFolder: "migrations",
-  direction: "up",
+  dir: "migrations",
   databaseUrl: process.env.DATABASE_URL,
   migrationsTable: "pgmigrations",
 };
