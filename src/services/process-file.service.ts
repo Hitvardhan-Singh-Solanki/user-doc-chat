@@ -74,9 +74,9 @@ export async function startWorker() {
           `
           UPDATE user_files
           SET error_message = $1, status = $2
-          WHERE id = $2
+          WHERE id = $3
           `,
-          [(error as Error).message, "failed"]
+          [(error as Error).message, "failed", (job.data as FileJob).fileId]
         );
         throw error;
       }
