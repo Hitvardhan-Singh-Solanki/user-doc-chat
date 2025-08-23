@@ -154,3 +154,138 @@ describe("fileUploadAsync", () => {
  *     import { describe, it, expect, vi, beforeEach } from "vitest";
  *     Replace jest.fn() with vi.fn(), jest.mock with vi.mock, etc.
  */
+describe("fileUploadAsync - additional scenarios", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("queues upload and responds 201 for zero-byte file (edge: empty content)", async () => {
+    const mockFile = {
+      originalname: "empty.json",
+      buffer: Buffer.from(""),
+      mimetype: "application/json",
+      size: 0,
+    };
+    const req = { file: mockFile, user: { id: "user-empty" } } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).toHaveBeenCalledTimes(1);
+    expect(fileUpload).toHaveBeenCalledWith(mockFile, "user-empty");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: "File uploaded and queued" });
+  });
+
+  it("passes undefined userId when user object lacks id (edge: malformed user)", async () => {
+    const mockFile = {
+      originalname: "no-id.csv",
+      buffer: Buffer.from("col1,col2"),
+      mimetype: "text/csv",
+      size: 10,
+    };
+    const req = { file: mockFile, user: {} } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).toHaveBeenCalledTimes(1);
+    // Second argument should be undefined if user.id is absent
+    expect((fileUpload as jest.Mock).mock.calls[0][1]).toBeUndefined();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: "File uploaded and queued" });
+  });
+
+  it("invokes service even if optional file fields (originalname) are missing", async () => {
+    const mockFile = {
+      buffer: Buffer.from("xyz"),
+      mimetype: "application/octet-stream",
+      size: 3,
+    };
+    const req = { file: mockFile, user: { id: "user-no-name" } } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).toHaveBeenCalledWith(mockFile, "user-no-name");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: "File uploaded and queued" });
+  });
+
+  it("returns 500 and generic error body without leaking internal error message", async () => {
+    const mockFile = {
+      originalname: "secret.docx",
+      buffer: Buffer.from([0x01, 0x02]),
+      mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      size: 2,
+    };
+    const req = { file: mockFile, user: { id: "user-int" } } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockRejectedValueOnce(new Error("internal queue timeout"));
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(500);
+    // Ensures public-facing message is stable and generic
+    expect(res.json).toHaveBeenCalledWith({ error: "Failed to upload file" });
+  });
+
+  it("handles request with no user property at all (edge: missing user)", async () => {
+    const mockFile = {
+      originalname: "nouser.bin",
+      buffer: Buffer.from([1, 2, 3, 4]),
+      mimetype: "application/octet-stream",
+      size: 4,
+    };
+    const req = { file: mockFile } as unknown as Request; // no 'user' key
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await fileUploadAsync(req, res);
+
+    // userId should be undefined when req.user is absent
+    expect((fileUpload as jest.Mock).mock.calls[0][1]).toBeUndefined();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: "File uploaded and queued" });
+  });
+
+  it("does not call service and returns 400 when req.file is null (edge: explicit null)", async () => {
+    const req = { file: null, user: { id: "user-null" } } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "No file uploaded" });
+  });
+
+  it("treats non-Buffer buffer field gracefully by still forwarding file object to service", async () => {
+    const mockFile = {
+      originalname: "stringbuf.txt",
+      // @ts-expect-error deliberately non-Buffer to test robustness
+      buffer: "not-a-buffer",
+      mimetype: "text/plain",
+      size: 13,
+    };
+    const req = { file: mockFile, user: { id: "user-weird" } } as unknown as Request;
+    const res = (createMockRes() as unknown) as Response;
+
+    (fileUpload as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await fileUploadAsync(req, res);
+
+    expect(fileUpload).toHaveBeenCalledWith(mockFile, "user-weird");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: "File uploaded and queued" });
+  });
+});
