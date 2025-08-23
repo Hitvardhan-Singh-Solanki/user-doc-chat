@@ -6,7 +6,7 @@ import createHttpError from "http-errors";
 export async function fileUploadAsync(req: Request, res: Response) {
   try {
     const file = req.file as MulterFile;
-    const userId = req.user?.id as string;
+    const userId = (req.user as any)?.userId as string;
 
     if (!file)
       throw createHttpError({ status: 400, message: "No file uploaded" });
