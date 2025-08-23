@@ -53,7 +53,7 @@ export async function startWorker() {
           vectors.push({
             id: `${payload.key}-chunk-${i}`,
             values: embedding,
-            metadata: { userId: payload.userId },
+            metadata: { userId: payload.userId, fileId: payload.fileId },
           });
         }
 
