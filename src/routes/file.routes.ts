@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
-import { Queue } from "bullmq";
 
 import { requireAuth } from "../middleware/auth.middleware";
 import { fileUploadAsync } from "../controllers/fileUpload.controller";

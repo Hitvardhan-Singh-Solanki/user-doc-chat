@@ -1,9 +1,6 @@
-import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
+import { PineconeRecord } from "@pinecone-database/pinecone";
 import { Vector } from "../types";
-
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!,
-});
+import { pinecone } from "../repos/pinecone.repo";
 
 export async function upsertVectors(vectors: Vector[]) {
   const indexName = process.env.PINECONE_INDEX_NAME;
