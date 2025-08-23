@@ -9,20 +9,29 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
-  pgm.createTable("users", {
+  pgm.createTable("file_embeddings", {
     id: {
       type: "uuid",
       primaryKey: true,
       default: pgm.func("gen_random_uuid()"),
     },
-    email: { type: "varchar(255)", notNull: true, unique: true },
-    password_hash: { type: "varchar(255)", notNull: true },
+    file_id: {
+      type: "uuid",
+      notNull: true,
+      references: "user_files(id)",
+      onDelete: "CASCADE",
+    },
+    chunk_index: { type: "int", notNull: true },
+    pinecone_id: { type: "text", notNull: true },
+    vector_dimensions: { type: "int", notNull: true },
     created_at: {
       type: "timestamp",
       notNull: true,
-      default: pgm.func("current_timestamp"),
+      default: pgm.func("NOW()"),
     },
   });
+
+  pgm.createIndex("file_embeddings", "file_id");
 };
 
 /**
@@ -31,5 +40,5 @@ export const up = (pgm) => {
  * @returns {Promise<void> | void}
  */
 export const down = (pgm) => {
-  pgm.dropTable("users");
+  pgm.dropTable("file_embeddings");
 };

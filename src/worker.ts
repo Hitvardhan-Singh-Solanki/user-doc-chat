@@ -1,3 +1,8 @@
-import "./services/processFile.service";
+import { startWorker } from "./services/process-file.service";
 
-console.log("Worker started and waiting for jobs...");
+startWorker()
+  .then(() => console.log("Worker started and waiting for jobs..."))
+  .catch((err) => {
+    console.error("Worker failed:", err);
+    process.exitCode = 1;
+  });

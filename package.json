@@ -28,6 +28,7 @@
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.0",
+    "@types/pdf-parse": "^1.1.5",
     "@vitest/coverage-v8": "^3.2.4",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
@@ -44,12 +45,16 @@
     "concurrently": "^9.2.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "file-type": "^21.0.0",
+    "mammoth": "^1.10.0",
     "express-jwt": "^8.5.1",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.0",
     "minio": "^8.0.5",
     "multer": "^2.0.2",
     "node-pg-migrate": "^8.0.3",
-    "pg": "^8.16.3"
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3",
+    "uuid": "^11.1.0"
   }
 }
