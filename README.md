@@ -20,4 +20,5 @@ docker-compose down
 
 ```shell
 docker compose run --rm backend npx node-pg-migrate up
+docker compose -f docker-compose.dev.yml run --rm backend npx node-pg-migrate up
 ```
