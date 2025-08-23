@@ -17,3 +17,9 @@ export interface MulterFile {
   path?: string;
   buffer?: Buffer;
 }
+
+export interface JwtPayload {
+  id: string;
+  email: string;
+  role?: string;
+}
