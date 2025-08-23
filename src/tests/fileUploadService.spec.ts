@@ -198,3 +198,80 @@ describe("fileUpload()", () => {
     expect(mockedFileQueueAdd).not.toHaveBeenCalled();
   });
 });
+// -----------------------------------------------------------------------------
+// Additional unit tests for fileUpload() to broaden coverage.
+// Testing library/framework detected: Jest (+ ts-jest).
+// If your repo uses Vitest, replace jest.mock(...) with vi.mock(...)
+// and casts to jest.Mock with vi.Mock where applicable.
+// -----------------------------------------------------------------------------
+
+describe("fileUpload() - additional cases", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("throws Unauthorized when userId is null", async () => {
+    const file = makeFile("doc.pdf");
+    await expect(fileUpload(file as any, null as any)).rejects.toThrow("Unauthorized");
+    expect(mockedFileTypeFromBuffer).not.toHaveBeenCalled();
+    expect(mockedUploadFileToMinio).not.toHaveBeenCalled();
+    expect(mockedDbQuery).not.toHaveBeenCalled();
+    expect(mockedFileQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("propagates error when queue job creation fails after successful upload and DB insert", async () => {
+    const originalname = "report 2024-01-01 (final).txt";
+    const buffer = Buffer.from("body");
+    const file = makeFile(originalname, 321, buffer);
+
+    mockedUuid.mockReturnValue("uuid-xyz");
+    mockedFileTypeFromBuffer.mockResolvedValue({ mime: "text/plain" } as any);
+    mockedUploadFileToMinio.mockResolvedValue(undefined);
+    mockedDbQuery.mockResolvedValue({ rows: [{ id: 7 }] });
+    mockedFileQueueAdd.mockRejectedValue(new Error("Queue failure"));
+
+    await expect(fileUpload(file as any, "user-7")).rejects.toThrow("Queue failure");
+
+    const expectedKey = `uuid-xyz-${originalname}`;
+    expect(mockedFileTypeFromBuffer).toHaveBeenCalledWith(buffer);
+    expect(mockedUploadFileToMinio).toHaveBeenCalledWith(expectedKey, buffer);
+    expect(mockedDbQuery).toHaveBeenCalledTimes(1);
+    expect(mockedFileQueueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls uuid exactly once per successful upload and uses it in the object key (complex filename)", async () => {
+    const buffer = Buffer.from("abc");
+    const file = makeFile("weird path/with spaces & symbols.txt", 456, buffer);
+
+    mockedFileTypeFromBuffer.mockResolvedValue({ mime: "text/plain" } as any);
+    mockedUuid.mockReturnValueOnce("once-1");
+    mockedUploadFileToMinio.mockResolvedValue(undefined);
+    mockedDbQuery.mockResolvedValue({ rows: [{ id: 9 }] });
+    mockedFileQueueAdd.mockResolvedValue(undefined);
+
+    await expect(fileUpload(file as any, "user-9")).resolves.toBeUndefined();
+
+    expect(mockedUuid).toHaveBeenCalledTimes(1);
+    const expectedKey = "once-1-weird path/with spaces & symbols.txt";
+    expect(mockedUploadFileToMinio).toHaveBeenCalledWith(expectedKey, buffer);
+    expect(mockedFileQueueAdd).toHaveBeenCalledWith("process-file", {
+      key: expectedKey,
+      userId: "user-9",
+      fileId: 9,
+    });
+  });
+
+  it("rejects when file.buffer is missing (file-type invoked with undefined) and avoids side-effects", async () => {
+    const fileWithoutBuffer = { originalname: "no-buffer.pdf", size: 10 } as any;
+
+    // Simulate file-type library rejecting when buffer is invalid
+    mockedFileTypeFromBuffer.mockRejectedValue(new TypeError("Expected a Buffer"));
+
+    await expect(fileUpload(fileWithoutBuffer as any, "user-10")).rejects.toThrow();
+
+    expect(mockedFileTypeFromBuffer).toHaveBeenCalledWith(undefined);
+    expect(mockedUploadFileToMinio).not.toHaveBeenCalled();
+    expect(mockedDbQuery).not.toHaveBeenCalled();
+    expect(mockedFileQueueAdd).not.toHaveBeenCalled();
+  });
+});
