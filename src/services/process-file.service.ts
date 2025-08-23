@@ -6,6 +6,7 @@ import { upsertVectors } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
 import { sanitizeFile } from "../utils/sanitize-file";
 import { queueName } from "../repos/bullmq.repo";
+import { db } from "../repos/db.repo";
 
 function parseRedisUrl(url: string): ConnectionOptions {
   const { hostname, port, username, password } = new URL(url);
@@ -26,27 +27,59 @@ export async function startWorker() {
   const worker = new Worker(
     queueName,
     async (job) => {
-      const payload = job.data as FileJob;
-      const fileBuffer = await downloadFile(payload.key);
+      try {
+        console.log("Processing job:", job.id, job.data);
+        db.query(
+          `
+          UPDATE user_files
+          SET status = $1, processing_started_at = NOW()
+          WHERE id = $2
+          `,
+          ["processing", (job.data as FileJob).fileId]
+        );
 
-      // Sanitize file based on type
-      const sanitizedText = await sanitizeFile(fileBuffer);
+        const payload = job.data as FileJob;
+        const fileBuffer = await downloadFile(payload.key);
 
-      // Chunk sanitized content
-      const chunks = chunkText(sanitizedText);
+        // Sanitize file based on type
+        const sanitizedText = await sanitizeFile(fileBuffer);
 
-      const vectors: Vector[] = [];
-      for (let i = 0; i < chunks.length; i++) {
-        const embedding = await embedText(chunks[i]);
-        vectors.push({
-          id: `${payload.key}-chunk-${i}`,
-          values: embedding,
-          metadata: { userId: payload.userId },
-        });
+        // Chunk sanitized content
+        const chunks = chunkText(sanitizedText);
+
+        const vectors: Vector[] = [];
+        for (let i = 0; i < chunks.length; i++) {
+          const embedding = await embedText(chunks[i]);
+          vectors.push({
+            id: `${payload.key}-chunk-${i}`,
+            values: embedding,
+            metadata: { userId: payload.userId, fileId: payload.fileId },
+          });
+        }
+
+        await upsertVectors(vectors);
+        console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
+
+        await db.query(
+          `
+          UPDATE user_files
+          SET status = $1, processing_finished_at = NOW()
+          WHERE id = $2
+          `,
+          ["processed", payload.fileId]
+        );
+      } catch (error) {
+        console.error("Error processing job:", job.id, error);
+        await db.query(
+          `
+          UPDATE user_files
+          SET error_message = $1, status = $2
+          WHERE id = $3
+          `,
+          [(error as Error).message, "failed", (job.data as FileJob).fileId]
+        );
+        throw error;
       }
-
-      await upsertVectors(vectors);
-      console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
     },
     { connection: connectionOptions }
   );
