@@ -15,7 +15,10 @@ const acceptedMimeTypes = [
 export async function fileUpload(file: MulterFile, userId: string) {
   try {
     if (!file?.buffer || file.buffer.length === 0) {
-      throw createHttpError({status: 400, message: "No file content uploaded"});
+      throw createHttpError({
+        status: 400,
+        message: "No file content uploaded",
+      });
     }
 
     const type = await fileTypeFromBuffer(file.buffer!);
@@ -37,10 +40,11 @@ export async function fileUpload(file: MulterFile, userId: string) {
     const fileRecord = result.rows[0];
 
     const job: FileJob = { key, userId, fileId: fileRecord.id };
+    console.log("Adding job to queue:", job);
     await fileQueue.add("process-file", job);
   } catch (error) {
     console.error("File upload failed:", error);
-    if(error instanceof createHttpError.HttpError) {
+    if (error instanceof createHttpError.HttpError) {
       throw error;
     }
 
