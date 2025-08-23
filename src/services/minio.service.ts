@@ -15,8 +15,17 @@ export async function downloadFile(key: string): Promise<Buffer> {
   const chunks: Buffer[] = [];
 
   return new Promise((resolve, reject) => {
-    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
+    let total = 0;
+    stream.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      chunks.push(chunk);
+    });
+    stream.once("end", () => resolve(Buffer.concat(chunks)));
+    stream.once("error", (err) => {
+      try {
+        stream.destroy();
+      } catch {}
+      reject(err);
+    });
   });
 }
