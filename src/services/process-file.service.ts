@@ -4,12 +4,11 @@ import { downloadFile } from "./minio.service";
 import { chunkText, embedText } from "./embeddings.service";
 import { upsertVectors } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
-
-const queueName = "file-processing";
+import { sanitizeFile } from "../utils/sanitize-file";
+import { queueName } from "../repos/bullmq.repo";
 
 function parseRedisUrl(url: string): ConnectionOptions {
   const { hostname, port, username, password } = new URL(url);
-
   return {
     host: hostname,
     port: Number(port),
@@ -21,17 +20,19 @@ function parseRedisUrl(url: string): ConnectionOptions {
 export async function startWorker() {
   const redisUrl = process.env.REDIS_URL!;
   console.log("Connecting to Redis:", redisUrl);
-
   const connectionOptions = parseRedisUrl(redisUrl);
 
   const worker = new Worker(
     queueName,
     async (job) => {
       const payload = job.data as FileJob;
-      const fileBuffer = await downloadFile(payload.bucket, payload.key);
-      const text = fileBuffer.toString("utf-8");
+      const fileBuffer = await downloadFile(payload.key);
 
-      const chunks = chunkText(text);
+      // Sanitize file based on type
+      const sanitizedText = await sanitizeFile(fileBuffer);
+
+      // Chunk sanitized content
+      const chunks = chunkText(sanitizedText);
 
       const vectors: Vector[] = [];
       for (let i = 0; i < chunks.length; i++) {
@@ -44,7 +45,6 @@ export async function startWorker() {
       }
 
       await upsertVectors(vectors);
-
       console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
     },
     { connection: connectionOptions }
@@ -53,6 +53,7 @@ export async function startWorker() {
   console.log("Worker started successfully", worker.id);
 }
 
+// Start worker after short delay to ensure Redis is ready
 setTimeout(() => {
   startWorker().catch((err) => console.error("Worker failed:", err));
 }, 3000);

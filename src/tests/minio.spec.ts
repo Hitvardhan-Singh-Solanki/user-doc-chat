@@ -26,7 +26,7 @@ describe("downloadFile", () => {
 
     getObjectMock.mockResolvedValueOnce(fakeStream);
 
-    const result = await downloadFile("my-bucket", "my-key");
+    const result = await downloadFile("my-key");
 
     expect(result.toString()).toBe("mock text");
   });

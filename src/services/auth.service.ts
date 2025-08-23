@@ -1,21 +1,10 @@
+import { db } from "../repos/db.repo";
 import { hashPassword, comparePassword } from "../utils/hash";
-import { Pool } from "pg";
-
-const { DATABASE_URL, PG_SSL } = process.env;
-
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
-
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: PG_SSL === "true" ? { rejectUnauthorized: false } : false,
-});
 
 export async function signUp(email: string, password: string) {
   try {
     const hashed = await hashPassword(password);
-    const result = await pool.query(
+    const result = await db.query(
       "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at",
       [email, hashed]
     );
@@ -29,7 +18,7 @@ export async function signUp(email: string, password: string) {
 }
 
 export async function login(email: string, password: string) {
-  const result = await pool.query(
+  const result = await db.query(
     "SELECT id, email, password_hash, created_at FROM users WHERE email = $1",
     [email]
   );

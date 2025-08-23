@@ -3,7 +3,7 @@ import { Worker } from "bullmq";
 import { downloadFile } from "../services/minio.service";
 import { chunkText, embedText } from "../services/embeddings.service";
 import { upsertVectors } from "../services/pinecone.service";
-import * as workerModule from "../services/processFile.service";
+import * as workerModule from "../services/process-file.service";
 
 describe("Worker startWorker", () => {
   beforeEach(() => {
@@ -25,10 +25,7 @@ describe("Worker startWorker", () => {
     await startWorkerFn();
 
     expect(Worker).toHaveBeenCalled();
-    expect(downloadFile).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String)
-    );
+    expect(downloadFile).toHaveBeenCalledWith(expect.any(String));
     expect(chunkText).toHaveBeenCalledWith("Hello world");
     expect(embedText).toHaveBeenCalledWith("Hello world");
     expect(upsertVectors).toHaveBeenCalledWith([
