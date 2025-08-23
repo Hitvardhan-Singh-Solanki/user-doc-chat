@@ -19,7 +19,8 @@ function parseRedisUrl(url: string): ConnectionOptions {
 
 export async function startWorker() {
   const redisUrl = process.env.REDIS_URL!;
-  console.log("Connecting to Redis:", redisUrl);
+  const { hostname, port } = new URL(redisUrl);
+  console.log("Connecting to Redis:", `${hostname}:${port}`);
   const connectionOptions = parseRedisUrl(redisUrl);
 
   const worker = new Worker(
@@ -52,8 +53,3 @@ export async function startWorker() {
 
   console.log("Worker started successfully", worker.id);
 }
-
-// Start worker after short delay to ensure Redis is ready
-setTimeout(() => {
-  startWorker().catch((err) => console.error("Worker failed:", err));
-}, 3000);

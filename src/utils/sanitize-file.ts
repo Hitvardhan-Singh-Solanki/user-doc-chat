@@ -2,9 +2,11 @@ import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import { fileTypeFromBuffer } from "file-type";
 
+const CONTROL_CHARS = new RegExp("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "g");
+
 // Sanitize text content
 function sanitizeText(content: string): string {
-  return content.replace(/[\x00-\x1F\x7F]/g, "");
+  return content.replace(CONTROL_CHARS, "");
 }
 
 // Sanitize PDF content

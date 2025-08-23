@@ -16,7 +16,7 @@ services:
       - db
       - redis
       - minio
-      - ollama
+#      - ollama
 
   db:
     image: postgres:16
@@ -48,17 +48,17 @@ services:
     volumes:
       - minio_data:/data
 
-  ollama:
-    build:
-      context: .
-      dockerfile: Dockerfile.ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
+#  ollama:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.ollama
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ollama_models:/root/.ollama
 
 volumes:
   db_data:
   redis_data:
   minio_data:
-  ollama_models:
+#  ollama_models:
