@@ -5,3 +5,9 @@ export interface FileJob {
 }
 
 export type Vector = { id: string; values: number[]; metadata?: any };
+
+export interface JwtPayload {
+  id: string;
+  email: string;
+  role?: string;
+}
