@@ -1,9 +1,6 @@
-import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
+import { PineconeRecord } from "@pinecone-database/pinecone";
 import { Vector } from "../types";
-
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!,
-});
+import { pinecone } from "../repos/pinecone.repo";
 
 export async function upsertVectors(vectors: Vector[]) {
   const indexName = process.env.PINECONE_INDEX_NAME;
@@ -23,9 +20,11 @@ export async function upsertVectors(vectors: Vector[]) {
     metadata: v.metadata,
   });
 
-  const chunkSize = Number(process.env.CHUNK_SIZE || 100);
+  const rawChunk = Number(process.env.CHUNK_SIZE);
+  const chunkSize =
+    Number.isFinite(rawChunk) && rawChunk > 0 ? Math.floor(rawChunk) : 100;
   const chunks: PineconeRecord[][] = [];
-  for (let i = 0; i < vectors.length; i = chunkSize) {
+  for (let i = 0; i < vectors.length; i += chunkSize) {
     chunks.push(vectors.slice(i, i + chunkSize).map(toRecord));
   }
 
@@ -33,7 +32,7 @@ export async function upsertVectors(vectors: Vector[]) {
   for (const batch of chunks) {
     try {
       await index.upsert(batch);
-      total = batch.length;
+      total += batch.length;
     } catch (e: any) {
       throw new Error(
         `Pinecone upsert failed after ${total} records: ${e?.message || e}`
