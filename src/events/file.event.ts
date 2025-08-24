@@ -28,14 +28,22 @@ fileEvents.on("completed", async ({ jobId, returnvalue }) => {
 });
 
 fileEvents.on("failed", async ({ jobId, failedReason }) => {
-  const job = await fileQueue.getJob(jobId);
-  const { userId, fileId } = job.data;
-
-  sseEmitter.send(userId, "file-failed", {
-    fileId,
-    status: "failed",
-    error: failedReason,
-  });
+  try {
+    const job = await fileQueue.getJob(jobId);
+    if (!job) {
+      console.warn(`Job ${jobId} not found in failed handler`);
+      return;
+    }
+    const { userId, fileId } = (job.data || {}) as { userId?: string; fileId?: string };
+    if (!userId || !fileId) return;
+    sseEmitter.send(userId, "file-failed", {
+      fileId,
+      status: "failed",
+      error: failedReason || "Unknown error",
+    });
+  } catch (err) {
+    console.error(`QueueEvents.failed handler error for job ${jobId}`, err);
+  }
 });
 
 fileEvents.on("progress", async ({ jobId, data }) => {
