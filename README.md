@@ -77,9 +77,6 @@ sequenceDiagram
 - [x] **Queue System**
   - Basic file queue implemented
   - Worker picks files for processing
-
----
-
 - [x] **File Processing Logic**
   - Extract text, sanitise content, and prepare for downstream use
 - [x] **Database Storage**
@@ -99,8 +96,6 @@ sequenceDiagram
 - Send retrieved chunks + question to LLM for generating the answer
 - Return the answer to the user via API or WebSocket
 - Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
-
----
 
 ## 📝 Backlog / Future Features
 
