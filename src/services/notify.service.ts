@@ -4,17 +4,33 @@ import { redisPub, redisSub } from "../repos/redis.repo";
 class SSEEmitter {
   private clients: Map<string, Client[]> = new Map();
 
+class SSEEmitter {
+  private clients: Map<string, Client[]> = new Map();
+
   constructor() {
-    // Subscribe to Redis channel and forward to local clients
-    redisSub.subscribe("sse-events", (message: string) => {
+    const subscribe = async () => {
       try {
-        const { userId, event, data } = JSON.parse(message);
-        this.sendLocal(userId, event, data);
+        await redisSub.subscribe("sse-events", (message: string) => {
+          try {
+            const { userId, event, data } = JSON.parse(message);
+            this.sendLocal(userId, event, data);
+          } catch (err) {
+            console.error("Failed to parse SSE Redis message", err);
+          }
+        });
+        console.log("SSEEmitter: subscribed to sse-events");
       } catch (err) {
-        console.error("Failed to parse SSE Redis message", err);
+        console.error("SSEEmitter: failed to subscribe to sse-events", err);
       }
-    });
+    };
+    // Subscribe when the Redis sub client is ready
+    if ((redisSub as any).isOpen) {
+      void subscribe();
+    } else {
+      redisSub.once("ready", () => void subscribe());
+    }
   }
+}
 
   /** Add new SSE connection for a user */
   addClient(userId: string, res: any) {
