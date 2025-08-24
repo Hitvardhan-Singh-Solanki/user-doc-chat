@@ -29,6 +29,39 @@ Users can ask natural language questions about the uploaded documents, and the c
 
 ---
 
+## file upload flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Express as Express Server
+    participant BullMQQueue as BullMQ Queue
+    participant Worker
+    participant RedisPubSub as Redis Pub/Sub
+    participant SSEEmitter as SSEEmitter
+
+    Client->>Express: POST /upload (file)
+    Express->>BullMQQueue: Add "process-file" job
+    BullMQQueue->>Worker: Job picked up
+    Worker->>Worker: Download file
+    Worker->>Worker: Sanitize & Chunk file
+    Worker->>Worker: Generate embeddings
+    Worker->>Worker: Upsert vectors
+    Worker->>Worker: Update progress via job.updateProgress
+    Worker->>BullMQQueue: Job completed (return {userId, fileId})
+
+    Client->>Express: GET /file/status/:fileId (SSE)
+    Express->>SSEEmitter: addClient(userId, res)
+
+    BullMQQueue->>RedisPubSub: QueueEvents "progress" & "completed"
+    RedisPubSub->>SSEEmitter: Publish events
+    SSEEmitter->>SSEEmitter: sendLocal() -> find connected clients
+    SSEEmitter->>Client: SSE event (progress / completed / failed)
+
+```
+
+---
+
 ## 📦 Setup
 
 ```bash
