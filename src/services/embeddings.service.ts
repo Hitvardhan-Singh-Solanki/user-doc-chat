@@ -12,6 +12,11 @@ export function chunkText(
   return chunks;
 }
 
+/**
+ * @deprecated Use llmService.embedText instead, we are moving away from Ollama
+ * @param text
+ * @returns Promise<number[]>
+ */
 export async function embedText(text: string): Promise<number[]> {
   if (!process.env.OLLAMA_URL) {
     throw new Error("OLLAMA_URL environment variable is not set");

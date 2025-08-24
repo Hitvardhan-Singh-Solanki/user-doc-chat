@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: docker/Dockerfile.dev
     volumes:
       - .:/app
       - /app/node_modules
@@ -13,8 +13,25 @@ services:
     depends_on:
       - db
       - redis
+      - llm_service
       - minio
-#      - ollama
+
+  llm_service:
+    build:
+      context: ./llm_service
+      dockerfile: ../docker/Dockerfile.llm
+    volumes:
+      - ./llm_service:/app 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
 
   db:
     image: postgres:16
@@ -53,17 +70,7 @@ services:
     env_file:
       - .env
 
-#  ollama:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.ollama
-#    ports:
-#      - "11434:11434"
-#    volumes:
-#      - ollama_models:/root/.ollama
-
 volumes:
   db_data:
   redis_data:
   minio_data:
-#  ollama_models:
