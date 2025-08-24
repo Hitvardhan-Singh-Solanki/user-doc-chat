@@ -23,3 +23,12 @@ export interface JwtPayload {
   email: string;
   role?: string;
 }
+
+export type Client = { res: any };
+
+export type SSEData = {
+  fileId: string;
+  status: "failed" | "processed" | "processing";
+  progress?: string | boolean | number | object;
+  error: string | null;
+};
