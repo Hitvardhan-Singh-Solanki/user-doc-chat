@@ -1,8 +1,14 @@
 import { startWorker } from "./services/process-file.service";
+import { llmService } from "./services/llm.service";
 
-startWorker()
-  .then(() => console.log("Worker started and waiting for jobs..."))
-  .catch((err) => {
-    console.error("Worker failed:", err);
-    process.exitCode = 1;
-  });
+(async function () {
+  try {
+    await llmService.init();
+    console.log("LLM Service initialized successfully");
+    await startWorker();
+    console.log("Worker started and waiting for jobs...");
+  } catch (err) {
+    console.error("Error starting worker:", err);
+    process.exit(1);
+  }
+})();
