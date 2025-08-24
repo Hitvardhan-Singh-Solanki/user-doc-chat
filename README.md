@@ -29,6 +29,99 @@ Users can ask natural language questions about the uploaded documents, and the c
 
 ---
 
+## file upload flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Express as Express Server
+    participant BullMQQueue as BullMQ Queue
+    participant Worker
+    participant RedisPubSub as Redis Pub/Sub
+    participant SSEEmitter as SSEEmitter
+
+    Client->>Express: POST /upload (file)
+    Express->>BullMQQueue: Add "process-file" job
+    BullMQQueue->>Worker: Job picked up
+    Worker->>Worker: Download file
+    Worker->>Worker: Sanitize & Chunk file
+    Worker->>Worker: Generate embeddings
+    Worker->>Worker: Upsert vectors
+    Worker->>Worker: Update progress via job.updateProgress
+    Worker->>BullMQQueue: Job completed (return {userId, fileId})
+
+    Client->>Express: GET /file/status/:fileId (SSE)
+    Express->>SSEEmitter: addClient(userId, res)
+
+    BullMQQueue->>RedisPubSub: QueueEvents "progress" & "completed"
+    RedisPubSub->>SSEEmitter: Publish events
+    SSEEmitter->>SSEEmitter: sendLocal() -> find connected clients
+    SSEEmitter->>Client: SSE event (progress / completed / failed)
+
+```
+
+---
+
+## Product features
+
+## ✅ Completed Features
+
+- [x] **User Auth**
+  - Implemented login/signup with **JWT-based auth**
+  - Protected routes using `express-jwt`
+  - Middleware `requireAuth` in place for secure API endpoints
+- [x] **File Upload**
+  - Users can upload files via `/upload`
+  - Multer integration for handling file uploads
+  - Files saved and queued for processing
+- [x] **Queue System**
+  - Basic file queue implemented
+  - Worker picks files for processing
+
+---
+
+- [x] **File Processing Logic**
+  - Extract text, sanitise content, and prepare for downstream use
+- [x] **Database Storage**
+  - Save processed file metadata into Postgres
+- [x] Server sent event setup
+  - [x] the client can open a SSE connection to the server
+  - [x] The client receives the message from the server once the file is processed/failed
+- [x] **Job Status Tracking**
+  - [x] Users can query file/job status (queued, processing, done, error)
+
+## 🚧 In Progress / Next Steps
+
+- [ ] **Document Question-Answer Flow**
+- User submits a question related to their uploaded files
+- Backend embeds the question using **Ollama embedding model**
+- Query Pinecone for most relevant document chunks (`top-k`)
+- Send retrieved chunks + question to LLM for generating the answer
+- Return the answer to the user via API or WebSocket
+- Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
+
+---
+
+## 📝 Backlog / Future Features
+
+- [ ] **Token Refresh Flow**
+  - Add refresh tokens to reduce login frequency
+- [ ] **WebSocket Authentication**
+  - Secure socket connections for chat functionality
+  - Approach:
+    - Client includes `JWT` in WS connection (`?token=xxx`)
+    - On `connection`, server verifies token using `verifyJwt`
+    - Attach user to socket context for authenticated messaging
+- [ ] **Chat Functionality**
+  - Real-time interaction with processed documents
+- [ ] Retry logic for failed file uploads, embedding and upserts to pinecone
+- [ ] **Role-based Access**
+  - Different user roles (e.g., admin vs regular users)
+- [ ] **Monitoring & Logging**
+  - Add request logging, error tracking, and metrics
+
+---
+
 ## 📦 Setup
 
 ```bash
