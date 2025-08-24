@@ -1,4 +1,5 @@
 import express from "express";
+import "./events/file.event";
 import authRoutes from "./routes/auth.routes";
 import healthRoutes from "./routes/health.route";
 import fileRoutes from "./routes/file.routes";

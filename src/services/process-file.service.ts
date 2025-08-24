@@ -19,17 +19,19 @@ export async function startWorker() {
 async function processJob(job: Job) {
   try {
     console.log("Processing job:", job.id, job.data);
-    db.query(
+    const payload = job.data as FileJob;
+    if (!payload?.fileId || !payload?.userId || !payload?.key)
+      throw new Error("Invalid job data");
+    await db.query(
       `
           UPDATE user_files
           SET status = $1, processing_started_at = NOW()
           WHERE id = $2
           `,
-      ["processing", (job.data as FileJob).fileId]
+      ["processing", payload.fileId]
     );
 
     job.updateProgress(10);
-    const payload = job.data as FileJob;
     const fileBuffer = await downloadFile(payload.key);
 
     job.updateProgress(30);
