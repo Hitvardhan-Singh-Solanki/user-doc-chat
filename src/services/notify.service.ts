@@ -4,9 +4,6 @@ import { redisPub, redisSub } from "../repos/redis.repo";
 class SSEEmitter {
   private clients: Map<string, Client[]> = new Map();
 
-class SSEEmitter {
-  private clients: Map<string, Client[]> = new Map();
-
   constructor() {
     const subscribe = async () => {
       try {
@@ -30,7 +27,6 @@ class SSEEmitter {
       redisSub.once("ready", () => void subscribe());
     }
   }
-}
 
   /** Add new SSE connection for a user */
   addClient(userId: string, res: any) {
