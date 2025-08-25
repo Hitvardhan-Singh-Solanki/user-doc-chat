@@ -11,12 +11,9 @@ _tokenizer = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _model, _tokenizer
-    print("[DEBUG] Lifespan startup: loading model...")
     _tokenizer = AutoTokenizer.from_pretrained(model_name)
     _model = AutoModel.from_pretrained(model_name)
-    print("[DEBUG] Model loaded successfully")
     yield 
-    print("[DEBUG] Lifespan shutdown: cleaning up model...")
     _model = None
     _tokenizer = None
 
@@ -31,7 +28,6 @@ async def health():
 
 @app.post("/embed")
 async def embed_text(req: dict):
-    print("[DEBUG] /embed called with:", req)
     text = req.get("text")
     if not text:
         return {"error": "No text provided"}
@@ -44,5 +40,4 @@ async def embed_text(req: dict):
             return model(**inputs).last_hidden_state.mean(dim=1).squeeze().tolist()
 
     embeddings = await asyncio.to_thread(run_inference)
-    print("[DEBUG] Returning embeddings")
     return {"embedding": embeddings}
