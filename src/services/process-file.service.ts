@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Job, Worker } from "bullmq";
 import { downloadFile } from "./minio.service";
-import { chunkText } from "./embeddings.service";
+import { chunkText, embeddingPython } from "./embeddings.service";
 import { upsertVectors } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
 import { sanitizeFile } from "../utils/sanitize-file";
@@ -43,7 +43,7 @@ async function processJob(job: Job) {
 
     const vectors: Vector[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      const embedding = await llmService.embedText(chunks[i]);
+      const embedding = await embeddingPython(chunks[i]);
       vectors.push({
         id: `${payload.key}-chunk-${i}`,
         values: embedding,
