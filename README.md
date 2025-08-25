@@ -37,16 +37,27 @@ sequenceDiagram
     participant Express as Express Server
     participant BullMQQueue as BullMQ Queue
     participant Worker
+    participant Minio
     participant RedisPubSub as Redis Pub/Sub
     participant SSEEmitter as SSEEmitter
+    participant PineCone
+    participant HuggingFace
+    participant FastAPI
+    participant postgres
 
     Client->>Express: POST /upload (file)
+    Express ->> Minio: Uploads Raw file bytes
+    Express ->> Postgres: Inserts file metadata
     Express->>BullMQQueue: Add "process-file" job
     BullMQQueue->>Worker: Job picked up
-    Worker->>Worker: Download file
+    Worker<<->>Minio: Download file
     Worker->>Worker: Sanitize & Chunk file
-    Worker->>Worker: Generate embeddings
-    Worker->>Worker: Upsert vectors
+    alt Use Node HuggingFace
+        Worker->>HuggingFace: Generate embeddings
+    else Use Python API
+        Worker->>FastAPI: POST /embed
+    end
+    Worker->>PineCone: Upsert vectors
     Worker->>Worker: Update progress via job.updateProgress
     Worker->>BullMQQueue: Job completed (return {userId, fileId})
 
