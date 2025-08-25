@@ -1,13 +1,12 @@
 import "dotenv/config";
 import { Job, Worker } from "bullmq";
 import { downloadFile } from "./minio.service";
-import { chunkText, embeddingPython } from "./embeddings.service";
+import { chunkText, embeddingHF } from "./embeddings.service";
 import { upsertVectors } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
 import { sanitizeFile } from "../utils/sanitize-file";
 import { connectionOptions, queueName } from "../repos/bullmq.repo";
 import { db } from "../repos/db.repo";
-import { llmService } from "./llm.service";
 
 export async function startWorker() {
   const worker = new Worker(queueName, processJob, {
@@ -43,7 +42,7 @@ async function processJob(job: Job) {
 
     const vectors: Vector[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      const embedding = await embeddingPython(chunks[i]);
+      const embedding = await embeddingHF(chunks[i]);
       vectors.push({
         id: `${payload.key}-chunk-${i}`,
         values: embedding,
