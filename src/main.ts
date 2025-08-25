@@ -6,20 +6,27 @@ import fileRoutes from "./routes/file.routes";
 import { connectRedis } from "./repos/redis.repo";
 
 (async () => {
-  console.log("Bootstrapping application...");
+  try {
+    console.log("Bootstrapping application...");
+    console.log("Connecting to Redis...");
+    await connectRedis();
 
-  await connectRedis();
+    const app = express();
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
-  const app = express();
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+    console.log("Setting up routes...");
+    app.use("/health", healthRoutes);
+    app.use("/auth", authRoutes);
+    app.use("/file", fileRoutes);
 
-  app.use("/health", healthRoutes);
-  app.use("/auth", authRoutes);
-  app.use("/file", fileRoutes);
-
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`Backend running on port ${PORT}`);
-  });
+    console.log("Starting server...");
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(`Backend running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Error during application bootstrap:", error);
+    process.exit(1);
+  }
 })();

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Worker } from "bullmq";
 import { downloadFile } from "../services/minio.service";
-import { chunkText, embedText } from "../services/embeddings.service";
+import { chunkText } from "../services/embeddings.service";
 import { upsertVectors } from "../services/pinecone.service";
 import * as workerModule from "../services/process-file.service";
+import { llmService } from "../services/llm.service";
 
 describe("Worker startWorker", () => {
   beforeEach(() => {
@@ -18,7 +19,7 @@ describe("Worker startWorker", () => {
   it("should start the worker successfully", async () => {
     (downloadFile as any).mockResolvedValue(Buffer.from("Hello world"));
     (chunkText as any).mockReturnValue(["Hello world"]);
-    (embedText as any).mockResolvedValue([0.1, 0.2, 0.3]);
+    (llmService.embedText as any).mockResolvedValue([0.1, 0.2, 0.3]);
     (upsertVectors as any).mockResolvedValue(undefined);
 
     const startWorkerFn = (workerModule as any).startWorker;
@@ -27,7 +28,7 @@ describe("Worker startWorker", () => {
     expect(Worker).toHaveBeenCalled();
     expect(downloadFile).toHaveBeenCalledWith(expect.any(String));
     expect(chunkText).toHaveBeenCalledWith("Hello world");
-    expect(embedText).toHaveBeenCalledWith("Hello world");
+    expect(llmService.embedText).toHaveBeenCalledWith("Hello world");
     expect(upsertVectors).toHaveBeenCalledWith([
       {
         id: expect.stringContaining("-chunk-0"),
@@ -49,7 +50,7 @@ describe("Worker startWorker - extended coverage", () => {
   it("processes multiple chunks and upserts vectors for each chunk", async () => {
     (downloadFile as any).mockResolvedValue(Buffer.from("Alpha Beta"));
     (chunkText as any).mockReturnValue(["Alpha", "Beta"]);
-    (embedText as any)
+    (llmService.embedText as any)
       .mockResolvedValueOnce([0.1, 0.2, 0.3])
       .mockResolvedValueOnce([0.4, 0.5, 0.6]);
     (upsertVectors as any).mockResolvedValue(undefined);
@@ -58,9 +59,9 @@ describe("Worker startWorker - extended coverage", () => {
     await startWorkerFn();
 
     // Each chunk should be embedded individually
-    expect(embedText).toHaveBeenCalledTimes(2);
-    expect(embedText).toHaveBeenNthCalledWith(1, "Alpha");
-    expect(embedText).toHaveBeenNthCalledWith(2, "Beta");
+    expect(llmService.embedText).toHaveBeenCalledTimes(2);
+    expect(llmService.embedText).toHaveBeenNthCalledWith(1, "Alpha");
+    expect(llmService.embedText).toHaveBeenNthCalledWith(2, "Beta");
 
     // Upsert should include one vector per chunk with indexed IDs and metadata
     const upsertCalls = (upsertVectors as any).mock.calls;
@@ -84,48 +85,50 @@ describe("Worker startWorker - extended coverage", () => {
   it("skips embedding and upsert when chunkText returns no chunks", async () => {
     (downloadFile as any).mockResolvedValue(Buffer.from(""));
     (chunkText as any).mockReturnValue([]);
-    (embedText as any).mockResolvedValue([0.9, 0.9, 0.9]); // should not be used
+    (llmService.embedText as any).mockResolvedValue([0.9, 0.9, 0.9]); // should not be used
     (upsertVectors as any).mockResolvedValue(undefined);
 
     const startWorkerFn = (workerModule as any).startWorker;
     await startWorkerFn();
 
     expect(chunkText).toHaveBeenCalled();
-    expect(embedText).not.toHaveBeenCalled();
+    expect(llmService.embedText).not.toHaveBeenCalled();
     expect(upsertVectors).not.toHaveBeenCalled();
   });
 
   it("handles download errors and does not call downstream services", async () => {
     (downloadFile as any).mockRejectedValue(new Error("download failed"));
     (chunkText as any).mockReturnValue(["should-not-be-used"]);
-    (embedText as any).mockResolvedValue([1, 2, 3]);
+    (llmService.embedText as any).mockResolvedValue([1, 2, 3]);
     (upsertVectors as any).mockResolvedValue(undefined);
 
     const startWorkerFn = (workerModule as any).startWorker;
     await startWorkerFn();
 
     expect(chunkText).not.toHaveBeenCalled();
-    expect(embedText).not.toHaveBeenCalled();
+    expect(llmService.embedText).not.toHaveBeenCalled();
     expect(upsertVectors).not.toHaveBeenCalled();
   });
 
   it("propagates embedding failures and avoids upsert", async () => {
     (downloadFile as any).mockResolvedValue(Buffer.from("Hello world"));
     (chunkText as any).mockReturnValue(["Hello world"]);
-    (embedText as any).mockRejectedValue(new Error("embedding failed"));
+    (llmService.embedText as any).mockRejectedValue(
+      new Error("embedding failed")
+    );
     (upsertVectors as any).mockResolvedValue(undefined);
 
     const startWorkerFn = (workerModule as any).startWorker;
     await startWorkerFn();
 
-    expect(embedText).toHaveBeenCalledTimes(1);
+    expect(llmService.embedText).toHaveBeenCalledTimes(1);
     expect(upsertVectors).not.toHaveBeenCalled();
   });
 
   it("attempts upsert and surfaces failure (no retries expected here)", async () => {
     (downloadFile as any).mockResolvedValue(Buffer.from("Hello world"));
     (chunkText as any).mockReturnValue(["Hello world"]);
-    (embedText as any).mockResolvedValue([0.1, 0.2, 0.3]);
+    (llmService.embedText as any).mockResolvedValue([0.1, 0.2, 0.3]);
     (upsertVectors as any).mockRejectedValue(new Error("upsert error"));
 
     const startWorkerFn = (workerModule as any).startWorker;
