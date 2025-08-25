@@ -1,4 +1,5 @@
 import { InferenceClient } from "@huggingface/inference";
+import { mainPrompt } from "../utils/prompt";
 
 export class LLMService {
   private hfToken: string;
@@ -90,21 +91,9 @@ export class LLMService {
     question: string,
     chatHistory: string[]
   ): string {
-    // Trim chat history to fit within token limits
     const historyStr = this.trimChatHistory(chatHistory);
 
-    return `
-    You are an AI assistant. Answer the question using ONLY the context and chat history below.
-    If the context does not contain the answer, respond with "I don't know".
-
-    Chat History:
-    ${historyStr}
-    Context:
-    ${context}
-
-    Question: ${question}
-    Answer:
-    `.trim();
+    return mainPrompt(context, question, historyStr);
   }
 
   private trimChatHistory(chatHistory: string[]): string {
