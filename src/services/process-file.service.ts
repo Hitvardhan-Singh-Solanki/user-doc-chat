@@ -8,6 +8,14 @@ import { sanitizeFile } from "../utils/sanitize-file";
 import { connectionOptions, queueName } from "../repos/bullmq.repo";
 import { db } from "../repos/db.repo";
 
+/**
+ * Starts a BullMQ Worker to process jobs from the configured queue.
+ *
+ * Creates a new Worker bound to `queueName` using `processJob` as the processor and `connectionOptions` for Redis,
+ * then logs the worker id. The function does not block; worker runs asynchronously after startup.
+ *
+ * @returns A promise that resolves once the worker has been created.
+ */
 export async function startWorker() {
   const worker = new Worker(queueName, processJob, {
     connection: connectionOptions,
@@ -16,6 +24,19 @@ export async function startWorker() {
   console.log("Worker started successfully", worker.id);
 }
 
+/**
+ * Processes a file ingestion job: downloads, sanitizes, chunks, embeds, upserts vectors, and updates DB progress/status.
+ *
+ * The function expects `job.data` to be a FileJob containing `fileId`, `userId`, and `key`. It updates the file record to
+ * "processing", reports incremental progress to the job, downloads and sanitizes the file, splits text into chunks,
+ * obtains embeddings for each chunk via the LLM service, upserts the resulting vectors into the vector store, and marks the
+ * file as "processed" when complete. On error it records the error message and sets the file status to "failed" before
+ * rethrowing.
+ *
+ * @returns An object with the processed file's `userId` and `fileId`.
+ * @throws Error if required job payload fields are missing (invalid job data) or if processing fails (errors are logged,
+ * recorded to the DB, and rethrown).
+ */
 async function processJob(job: Job) {
   try {
     console.log("Processing job:", job.id, job.data);
