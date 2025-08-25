@@ -155,4 +155,9 @@ docker-compose down
 ## migrations
 docker compose run --rm backend npx node-pg-migrate up
 docker compose -f docker-compose.dev.yml run --rm backend npx node-pg-migrate up
+
+## python embedding endpoint
+pip install -r requirements.txt
+cd llm_service
+uvicorn main:app --port 8000
 ```
