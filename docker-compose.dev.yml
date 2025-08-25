@@ -13,25 +13,25 @@ services:
     depends_on:
       - db
       - redis
-      - llm_service
+      # - llm_service
       - minio
 
-  llm_service:
-    build:
-      context: ./llm_service
-      dockerfile: ../docker/Dockerfile.llm
-    volumes:
-      - ./llm_service:/app 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 1m30s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
+#  Uncomment if you want to run the LLM service as part of the dev setup
+# will need to ensure you have enough resources (RAM/VRAM)
+# will revist this later, for now you can run it separately using: uvicorn llm_app.main:app --port 8000 --reload
+  # llm_service:
+  #   build:
+  #     context: ./llm_service
+  #     dockerfile: ../docker/Dockerfile.llm
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "8000:8000"
 
   db:
     image: postgres:16

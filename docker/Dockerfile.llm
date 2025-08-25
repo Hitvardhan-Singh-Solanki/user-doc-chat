@@ -2,11 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV TRANSFORMERS_CACHE=/models
+
+# Install deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download model so it's baked into the image
+RUN mkdir -p /models && \
+    python -c "from transformers import AutoTokenizer, AutoModel; \
+    AutoTokenizer.from_pretrained('sentence-transformers/all-mpnet-base-v2'); \
+    AutoModel.from_pretrained('sentence-transformers/all-mpnet-base-v2')"
+
+
 COPY . .
 
-EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
