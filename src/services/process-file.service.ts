@@ -25,17 +25,15 @@ export async function startWorker() {
 }
 
 /**
- * Processes a file ingestion job: downloads, sanitizes, chunks, embeds, upserts vectors, and updates DB progress/status.
+ * Process a file ingestion job: download, sanitize, chunk, embed, upsert vectors, and update DB progress/status.
  *
- * The function expects `job.data` to be a FileJob containing `fileId`, `userId`, and `key`. It updates the file record to
- * "processing", reports incremental progress to the job, downloads and sanitizes the file, splits text into chunks,
- * obtains embeddings for each chunk via the LLM service, upserts the resulting vectors into the vector store, and marks the
- * file as "processed" when complete. On error it records the error message and sets the file status to "failed" before
- * rethrowing.
+ * Expects `job.data` to be a FileJob with `fileId`, `userId`, and `key`. The function updates the corresponding
+ * user_files row to "processing", reports incremental progress to the job, downloads and sanitizes the file,
+ * splits the text into chunks via LLMService, obtains embeddings for each chunk, upserts vectors to the vector store
+ * via PineconeService, and marks the file "processed" on success. On error it records the error message and status
+ * "failed" in the DB and rethrows the error.
  *
- * @returns An object with the processed file's `userId` and `fileId`.
- * @throws Error if required job payload fields are missing (invalid job data) or if processing fails (errors are logged,
- * recorded to the DB, and rethrown).
+ * @returns An object containing the processed `userId` and `fileId`.
  */
 async function processJob(job: Job) {
   try {
