@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { chunkText, embedText } from "../services/embeddings.service";
+import { chunkText, embedText } from "../services/llm.service";
 
 describe("chunkText", () => {
   it("should split text into default chunks", () => {
@@ -158,7 +158,10 @@ describe("embedText - additional coverage", () => {
     } as any);
 
     // @ts-expect-no-error: If embedText accepts a second param for model, this will validate; otherwise harmless in TS with any signature
-    const result = await (embedText as any)("override model text", "some-other-model");
+    const result = await (embedText as any)(
+      "override model text",
+      "some-other-model"
+    );
     expect(mockFetch).toHaveBeenCalledWith(
       "http://mock-ollama/api/embeddings",
       expect.objectContaining({
@@ -214,7 +217,9 @@ describe("embedText - additional coverage", () => {
     } as any);
 
     // @ts-ignore - exercise potential third parameter for options if available
-    await (embedText as any)("hi", undefined, { headers: { Authorization: "Bearer TEST" } });
+    await (embedText as any)("hi", undefined, {
+      headers: { Authorization: "Bearer TEST" },
+    });
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(opts.headers).toMatchObject({
