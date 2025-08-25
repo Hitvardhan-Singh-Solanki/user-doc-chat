@@ -49,3 +49,27 @@ export async function embedText(text: string): Promise<number[]> {
 
   return data.embeddings[0];
 }
+
+export async function embeddingPython(text: string): Promise<number[]> {
+  console.log("Requesting embedding from Python service");
+  if (!process.env.PYTHON_LLM_URL) {
+    throw new Error("PYTHON_LLM_URL environment variable is not set");
+  }
+  const res = await fetch(`${process.env.PYTHON_LLM_URL.trim()}}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(
+      `Python embed API request failed: ${res.status} ${res.statusText} - ${errText}`
+    );
+  }
+
+  const data = await res.json();
+  console.log("Embedding from Python service:", data);
+
+  return data.embedding;
+}
