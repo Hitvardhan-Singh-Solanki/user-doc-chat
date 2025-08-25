@@ -11,5 +11,5 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.post("/upload", requireAuth, upload.single("file"), fileUploadAsync);
-router.get("/file/status/:fileId", requireAuth, getFileStatus);
+router.get("/status/:fileId", requireAuth, getFileStatus);
 export default router;
