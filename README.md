@@ -97,27 +97,26 @@ sequenceDiagram
   - [x] The client receives the message from the server once the file is processed/failed
 - [x] **Job Status Tracking**
   - [x] Users can query file/job status (queued, processing, done, error)
-
-## 🚧 In Progress / Next Steps
-
-- [ ] **Document Question-Answer Flow**
-- User submits a question related to their uploaded files
-- Backend embeds the question using **Ollama embedding model**
-- Query Pinecone for most relevant document chunks (`top-k`)
-- Send retrieved chunks + question to LLM for generating the answer
-- Return the answer to the user via API or WebSocket
-- Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
-
-## 📝 Backlog / Future Features
-
-- [ ] **Token Refresh Flow**
-  - Add refresh tokens to reduce login frequency
-- [ ] **WebSocket Authentication**
+- [x] **Document Question-Answer Flow**
+  - User submits a question related to their uploaded files
+  - Backend embeds the question using **Ollama embedding model**
+  - Query Pinecone for most relevant document chunks (`top-k`)
+  - Send retrieved chunks + question to LLM for generating the answer
+  - Return the answer to the user via API or WebSocket
+  - Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
+- [x] **WebSocket Authentication**
   - Secure socket connections for chat functionality
   - Approach:
     - Client includes `JWT` in WS connection (`?token=xxx`)
     - On `connection`, server verifies token using `verifyJwt`
     - Attach user to socket context for authenticated messaging
+
+## 🚧 In Progress / Next Steps
+
+## 📝 Backlog / Future Features
+
+- [ ] **Token Refresh Flow**
+  - Add refresh tokens to reduce login frequency
 - [ ] **Chat Functionality**
   - Real-time interaction with processed documents
 - [ ] Retry logic for failed file uploads, embedding and upserts to pinecone
