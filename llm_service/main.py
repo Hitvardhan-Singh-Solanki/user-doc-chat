@@ -27,7 +27,7 @@ async def get_model():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model_loaded": _model is not None and _tokenizer is not None}
 
 @app.post("/embed")
 async def embed_text(req: dict):
