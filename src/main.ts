@@ -4,6 +4,7 @@ import authRoutes from "./routes/auth.routes";
 import healthRoutes from "./routes/health.route";
 import fileRoutes from "./routes/file.routes";
 import { connectRedis } from "./repos/redis.repo";
+import { SocketIOService } from "./services/socket-io.service";
 
 (async () => {
   try {
@@ -20,10 +21,14 @@ import { connectRedis } from "./repos/redis.repo";
     app.use("/auth", authRoutes);
     app.use("/file", fileRoutes);
 
+    console.log("Connecting to web-socket service...");
+    const socketService = SocketIOService.getInstance(app);
+
     console.log("Starting server...");
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Backend running on port ${PORT}`);
+    socketService.getServer().listen(PORT, () => {
+      console.log(`🚀 Backend running on port ${PORT}`);
+      console.log(`✅ Express routes available at http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error("Error during application bootstrap:", error);

@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { Job, Worker } from "bullmq";
 import { downloadFile } from "./minio.service";
-import { chunkText, embeddingPython } from "./embeddings.service";
-import { upsertVectors } from "./pinecone.service";
+import { PineconeService } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
 import { sanitizeFile } from "../utils/sanitize-file";
 import { connectionOptions, queueName } from "../repos/bullmq.repo";
 import { db } from "../repos/db.repo";
+import { LLMService } from "./llm.service";
 
 /**
  * Starts a BullMQ Worker to process jobs from the configured queue.
@@ -58,12 +58,14 @@ async function processJob(job: Job) {
     job.updateProgress(30);
     const sanitizedText = await sanitizeFile(fileBuffer);
 
+    const llmService = new LLMService();
+
     job.updateProgress(50);
-    const chunks = chunkText(sanitizedText);
+    const chunks = llmService.chunkText(sanitizedText);
 
     const vectors: Vector[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      const embedding = await embeddingPython(chunks[i]);
+      const embedding = await llmService.embeddingPython(chunks[i]);
       vectors.push({
         id: `${payload.key}-chunk-${i}`,
         values: embedding,
@@ -73,8 +75,9 @@ async function processJob(job: Job) {
       const progress = 50 + Math.floor(((i + 1) / chunks.length) * 40);
       job.updateProgress(progress);
     }
+    const pineconeService = new PineconeService();
 
-    await upsertVectors(vectors);
+    await pineconeService.upsertVectors(vectors);
     console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
     job.updateProgress(95);
 
