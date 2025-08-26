@@ -1,4 +1,4 @@
-import { startWorker } from "./services/process-file.service";
+import { startWorker } from "../services/process-file.service";
 
 (async function () {
   try {
