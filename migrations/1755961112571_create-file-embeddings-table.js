@@ -9,6 +9,7 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
+  pgm.createExtension("pgcrypto", { ifNotExists: true });
   pgm.createTable("file_embeddings", {
     id: {
       type: "uuid",

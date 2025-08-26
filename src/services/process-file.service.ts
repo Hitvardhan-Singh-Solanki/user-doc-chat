@@ -4,20 +4,20 @@ import { downloadFile } from "./minio.service";
 import { PineconeService } from "./pinecone.service";
 import { FileJob, Vector } from "../types";
 import { sanitizeFile } from "../utils/sanitize-file";
-import { connectionOptions, queueName } from "../repos/bullmq.repo";
+import { connectionOptions, fileQueueName } from "../repos/bullmq.repo";
 import { db } from "../repos/db.repo";
 import { LLMService } from "./llm.service";
 
 /**
  * Starts a BullMQ Worker to process jobs from the configured queue.
  *
- * Creates a new Worker bound to `queueName` using `processJob` as the processor and `connectionOptions` for Redis,
+ * Creates a new Worker bound to `fileQueueName` using `processJob` as the processor and `connectionOptions` for Redis,
  * then logs the worker id. The function does not block; worker runs asynchronously after startup.
  *
  * @returns A promise that resolves once the worker has been created.
  */
 export async function startWorker() {
-  const worker = new Worker(queueName, processJob, {
+  const worker = new Worker(fileQueueName, processJob, {
     connection: connectionOptions,
   });
 
@@ -65,9 +65,13 @@ async function processJob(job: Job) {
     for (let i = 0; i < chunks.length; i++) {
       const embedding = await llmService.embeddingPython(chunks[i]);
       vectors.push({
-        id: `${payload.key}-chunk-${i}`,
+        id: `${payload.key}-${i}`,
         values: embedding,
-        metadata: { userId: payload.userId, fileId: payload.fileId },
+        metadata: {
+          userId: payload.userId,
+          fileId: payload.fileId,
+          key: payload.key,
+        },
       });
 
       const progress = 50 + Math.floor(((i + 1) / chunks.length) * 40);
