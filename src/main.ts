@@ -4,7 +4,7 @@ import authRoutes from "./routes/auth.routes";
 import healthRoutes from "./routes/health.route";
 import fileRoutes from "./routes/file.routes";
 import { connectRedis } from "./repos/redis.repo";
-import { SocketIOService } from "./services/socket-io.service";
+import { WebsocketService } from "./services/websocket.service";
 
 (async () => {
   try {
@@ -22,7 +22,7 @@ import { SocketIOService } from "./services/socket-io.service";
     app.use("/file", fileRoutes);
 
     console.log("Connecting to web-socket service...");
-    const socketService = SocketIOService.getInstance(app);
+    const socketService = WebsocketService.getInstance(app);
 
     console.log("Starting server...");
     const PORT = process.env.PORT || 3000;

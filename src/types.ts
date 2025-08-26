@@ -4,6 +4,14 @@ export interface FileJob {
   fileId: string;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export type VectorStoreType = "pinecone" | "pgvector";
+
 export type Vector = { id: string; values: number[]; metadata?: any };
 
 export interface MulterFile {
