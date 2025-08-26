@@ -32,3 +32,23 @@ export type SSEData = {
   progress?: string | boolean | number | object;
   error: string | null;
 };
+
+export interface LegalDocument {
+  id: string;
+  source_name: string;
+  source_url: string;
+  law_type: string | null;
+  jurisdiction: string | null;
+  last_crawled: string | null; // ISO timestamp string
+  last_updated: string | null; // ISO timestamp string
+  status: "new" | "processing" | "processed" | "failed";
+  created_at: string; // ISO timestamp string
+  updated_at: string; // ISO timestamp string
+}
+
+export interface LegalDocumentJobData {
+  id: string;
+  source_url: string;
+  law_type?: string;
+  jurisdiction?: string;
+}
