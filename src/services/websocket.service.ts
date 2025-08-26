@@ -3,15 +3,15 @@ import { Express } from "express";
 import { Server } from "socket.io";
 import { verifyJwt } from "../utils/jwt";
 import { LLMService } from "./llm.service";
-import { PineconeService } from "./pinecone.service";
+import { VectorStoreService } from "./vector-store.service";
 import { redisChatHistory } from "../repos/redis.repo";
 
-export class SocketIOService {
-  private static instance: SocketIOService;
+export class WebsocketService {
+  private static instance: WebsocketService;
   public io: Server;
   private server: http.Server;
   private llmmService: LLMService;
-  private pineconeService: PineconeService;
+  private pineconeService: VectorStoreService;
 
   private constructor(app: Express) {
     this.server = http.createServer(app);
@@ -24,17 +24,17 @@ export class SocketIOService {
     });
 
     this.llmmService = new LLMService();
-    this.pineconeService = new PineconeService();
+    this.pineconeService = new VectorStoreService();
 
     this.authVerification();
     this.onConnection();
   }
 
-  public static getInstance(app: Express): SocketIOService {
-    if (!SocketIOService.instance) {
-      SocketIOService.instance = new SocketIOService(app);
+  public static getInstance(app: Express): WebsocketService {
+    if (!WebsocketService.instance) {
+      WebsocketService.instance = new WebsocketService(app);
     }
-    return SocketIOService.instance;
+    return WebsocketService.instance;
   }
 
   authVerification() {

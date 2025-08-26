@@ -49,18 +49,23 @@ services:
   #         memory: "2G"
 
   db:
-    image: postgres:16
-    volumes:
-      - db_data:/var/lib/postgresql/data
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pg
+    container_name: db
+    restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./docker/init-db.d:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d ai_chat"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    env_file:
-      - .env
 
   redis:
     image: redis:7
