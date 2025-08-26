@@ -33,17 +33,20 @@ export type SSEData = {
   error: string | null;
 };
 
+export type DocStatus = "new" | "processing" | "processed" | "failed";
+export type ISODateString = string;
+
 export interface LegalDocument {
   id: string;
   source_name: string;
   source_url: string;
   law_type: string | null;
   jurisdiction: string | null;
-  last_crawled: string | null; // ISO timestamp string
-  last_updated: string | null; // ISO timestamp string
-  status: "new" | "processing" | "processed" | "failed";
-  created_at: string; // ISO timestamp string
-  updated_at: string; // ISO timestamp string
+  last_crawled: ISODateString | null;
+  last_updated: ISODateString | null;
+  status: DocStatus;
+  created_at: ISODateString;
+  updated_at: ISODateString;
 }
 
 export interface LegalDocumentJobData {
