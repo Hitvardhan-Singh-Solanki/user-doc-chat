@@ -43,7 +43,7 @@ export class FileUploadService {
         `
         INSERT INTO user_files (file_name, file_size, owner_id, status)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, file_name, file_size, status, created_at
+        RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
         `,
         [file.originalname, file.size, userId, "uploaded"]
       );
