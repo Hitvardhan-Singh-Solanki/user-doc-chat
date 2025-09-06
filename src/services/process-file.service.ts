@@ -58,14 +58,18 @@ export class FileWorkerService {
         vectors.push({
           id: `${payload.key}-chunk-${i}`,
           values: embedding,
-          metadata: { userId: payload.userId, fileId: payload.fileId },
+          metadata: {
+            userId: payload.userId,
+            fileId: payload.fileId,
+            text: chunks[i],
+          },
         });
 
         const progress = 50 + Math.floor(((i + 1) / chunks.length) * 40);
         job.updateProgress(progress);
       }
 
-      const vectorStore = new VectorStoreService(); // Can also inject different store
+      const vectorStore = new VectorStoreService();
       await vectorStore.upsertVectors(vectors);
 
       console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
