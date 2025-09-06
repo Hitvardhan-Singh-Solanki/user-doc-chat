@@ -60,9 +60,11 @@
     "node-pg-migrate": "^8.0.3",
     "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
+    "rate-limiter-flexible": "^7.3.0",
     "redis": "^5.8.2",
     "socket.io": "^4.8.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
   },
   "engines": {
     "node": ">=22.0.0"
