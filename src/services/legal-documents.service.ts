@@ -2,7 +2,7 @@ import { Job, Worker } from "bullmq";
 import { db } from "../repos/db.repo";
 import { LegalDocument, LegalDocumentJobData } from "../types";
 import { LLMService } from "./llm.service";
-import { PineconeService } from "./pinecone.service";
+import { VectorStoreService } from "./vector-store.service";
 import cheerio from "cheerio";
 import {
   legalDocumentsQueueName,
@@ -14,12 +14,12 @@ import { PoolClient } from "pg";
 
 export class LegalDocumentsService {
   private llmService: LLMService;
-  private pineconeService: PineconeService;
+  private pineconeService: VectorStoreService;
   private worker?: Worker;
 
   constructor(private concurrency: number = 5, private batchSize: number = 10) {
     this.llmService = new LLMService();
-    this.pineconeService = new PineconeService();
+    this.pineconeService = new VectorStoreService();
   }
 
   /** Start BullMQ worker */

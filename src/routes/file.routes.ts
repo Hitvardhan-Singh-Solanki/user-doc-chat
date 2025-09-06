@@ -1,15 +1,20 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import multer from "multer";
-
 import { requireAuth } from "../middleware/auth.middleware";
-import {
-  fileUploadAsync,
-  getFileStatus,
-} from "../controllers/file-upload.controller";
+import { FileController } from "../controllers/file-upload.controller";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.post("/upload", requireAuth, upload.single("file"), fileUploadAsync);
-router.get("/status/:fileId", requireAuth, getFileStatus);
+const fileController = new FileController();
+
+router.post(
+  "/upload",
+  requireAuth,
+  upload.single("file"),
+  fileController.fileUploadAsync
+);
+
+router.get("/status/:fileId", requireAuth, fileController.getFileStatus);
+
 export default router;
