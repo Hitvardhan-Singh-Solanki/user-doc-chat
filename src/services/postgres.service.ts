@@ -27,6 +27,7 @@ export class PostgresService implements IDBStore, IVectorStore {
   async upsertVectors(vectors: Vector[]) {
     const client = await this.pool.connect();
     try {
+      await client.query("BEGIN");
       for (const v of vectors) {
         await client.query(
           `INSERT INTO vectors(id, embedding, metadata)
@@ -35,10 +36,19 @@ export class PostgresService implements IDBStore, IVectorStore {
           [v.id, v.values, v.metadata]
         );
       }
+      await client.query("COMMIT");
       return { upsertedCount: vectors.length };
+    } catch (e) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback errors
+      }
+      throw e;
     } finally {
       client.release();
     }
+  }
   }
 
   async queryVector(
@@ -59,8 +69,25 @@ export class PostgresService implements IDBStore, IVectorStore {
     return { matches: rows };
   }
 
-  withTransaction<R>(fn: (tx: IDBStore) => Promise<R>): Promise<R> {
-    // todo: create this method.
-    return new Promise((res) => res({} as R));
+  async withTransaction<R>(fn: (tx: IDBStore) => Promise<R>): Promise<R> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const tx: IDBStore = {
+        query: async <T = unknown>(sql: string, params?: ReadonlyArray<unknown>) => {
+          const result: QueryResult = await client.query(sql, params);
+          return { rows: result.rows as T[], rowCount: result.rowCount };
+        },
+        withTransaction: <R2>(inner: (tx2: IDBStore) => Promise<R2>) => inner(tx),
+      };
+      const out = await fn(tx);
+      await client.query("COMMIT");
+      return out;
+    } catch (e) {
+      try { await client.query("ROLLBACK"); } catch {}
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 }
