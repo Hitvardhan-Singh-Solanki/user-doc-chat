@@ -45,7 +45,7 @@ export class LegalDocumentsService {
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const embedding = await this.llmService.embeddingPython(chunk);
+        const embedding = await this.llmService.embeddingHF(chunk);
         await this.pineconeService.upsertVectors([
           {
             id: `${doc.id}-${i}`,

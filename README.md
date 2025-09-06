@@ -183,3 +183,12 @@ pip install -r requirements.txt
 cd llm_service
 uvicorn main:app --port 8000
 ```
+
+---
+
+Copyright (c) 2025 Hitvardhan Singh Solanki  
+All rights reserved.  
+This software is proprietary and confidential.  
+Unauthorized copying, modification, distribution, or use is prohibited without explicit written permission.
+
+---

@@ -96,7 +96,7 @@ export class WebsocketService {
     userId: string,
     fileId: string
   ) {
-    const qEmbedding = await this.llmmService.embeddingPython(question);
+    const qEmbedding = await this.llmmService.embeddingHF(question);
     const results = await this.pineconeService.query(
       qEmbedding,
       userId,

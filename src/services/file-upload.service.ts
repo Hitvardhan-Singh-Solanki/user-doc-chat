@@ -1,6 +1,6 @@
 import { fileTypeFromBuffer } from "file-type";
 import { uploadFileToMinio } from "./minio.service";
-import { FileJob, MulterFile } from "../types";
+import { FileJob, MulterFile, UserFileRecord } from "../types";
 import { fileQueue } from "../repos/bullmq.repo";
 import { v4 as uuid } from "uuid";
 import createHttpError from "http-errors";
@@ -39,7 +39,7 @@ export class FileUploadService {
       const key = `${uuid()}-${file.originalname}`;
       await uploadFileToMinio(key, file.buffer!);
 
-      const result = await this.db.query(
+      const result = await this.db.query<UserFileRecord>(
         `
         INSERT INTO user_files (file_name, file_size, owner_id, status)
         VALUES ($1, $2, $3, $4)

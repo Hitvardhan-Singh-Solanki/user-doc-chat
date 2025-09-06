@@ -3,6 +3,7 @@ import { LLMService } from "./llm.service";
 import { PineconeVectorStore } from "./pinecone.service";
 import { IVectorStore } from "../interfaces/vector-store.interface";
 import { PostgresService } from "./postgres.service";
+import { lowPrompt } from "../utils/prompt";
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;
@@ -74,13 +75,10 @@ export class VectorStoreService {
   ): Promise<string> {
     if (!lowRelevance.length) return "";
 
-    const lowPrompt = `
-      Summarize the following content concisely for context usage in a Q&A system:
-      ${lowRelevance.join("\n\n")}
-    `.trim();
-
     let summary = "";
-    for await (const token of this.llm.generateAnswerStream(lowPrompt)) {
+    for await (const token of this.llm.generateAnswerStream(
+      lowPrompt(lowRelevance)
+    )) {
       summary += token;
     }
 

@@ -58,4 +58,9 @@ export class PostgresService implements IDBStore, IVectorStore {
     );
     return { matches: rows };
   }
+
+  withTransaction<R>(fn: (tx: IDBStore) => Promise<R>): Promise<R> {
+    // todo: create this method.
+    return new Promise((res) => res({} as R));
+  }
 }
