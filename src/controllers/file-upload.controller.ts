@@ -20,7 +20,8 @@ export class FileController {
   public fileUploadAsync = async (req: Request, res: Response) => {
     try {
       const file = req.file as MulterFile;
-      const userId = (req.user as any)?.userId as string;
+      const userId = ((req.user as any)?.userId ??
+        (req.user as any)?.id) as string;
 
       if (!file)
         throw createHttpError({ status: 400, message: "No file uploaded" });

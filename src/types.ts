@@ -63,3 +63,16 @@ export interface LegalDocumentJobData {
   law_type?: string;
   jurisdiction?: string;
 }
+
+export interface UserFileRecord {
+  id: string;
+  file_name: string;
+  file_size: string;
+  owner_id: string;
+  status: "uploaded" | "processing" | "processed" | "failed";
+  error_message?: string | null;
+  processing_started_at?: string | null;
+  processing_finished_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}

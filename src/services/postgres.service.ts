@@ -27,6 +27,7 @@ export class PostgresService implements IDBStore, IVectorStore {
   async upsertVectors(vectors: Vector[]) {
     const client = await this.pool.connect();
     try {
+      await client.query("BEGIN");
       for (const v of vectors) {
         await client.query(
           `INSERT INTO vectors(id, embedding, metadata)
@@ -35,7 +36,15 @@ export class PostgresService implements IDBStore, IVectorStore {
           [v.id, v.values, v.metadata]
         );
       }
+      await client.query("COMMIT");
       return { upsertedCount: vectors.length };
+    } catch (e) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback errors
+      }
+      throw e;
     } finally {
       client.release();
     }
@@ -57,5 +66,11 @@ export class PostgresService implements IDBStore, IVectorStore {
       [embedding, userId, fileId, topK]
     );
     return { matches: rows };
+  }
+
+  async withTransaction<R>(fn: (tx: IDBStore) => Promise<R>): Promise<R> {
+    // TODO: Not using this function right now.
+    // TODO: Need to impletment this method
+    return new Promise((res) => res);
   }
 }

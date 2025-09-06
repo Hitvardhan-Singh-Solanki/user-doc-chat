@@ -1,6 +1,6 @@
 import { fileTypeFromBuffer } from "file-type";
 import { uploadFileToMinio } from "./minio.service";
-import { FileJob, MulterFile } from "../types";
+import { FileJob, MulterFile, UserFileRecord } from "../types";
 import { fileQueue } from "../repos/bullmq.repo";
 import { v4 as uuid } from "uuid";
 import createHttpError from "http-errors";
@@ -9,7 +9,7 @@ import { IDBStore } from "../interfaces/db-store.interface";
 const acceptedMimeTypes = [
   "application/pdf",
   "text/plain",
-  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 export class FileUploadService {
@@ -28,8 +28,9 @@ export class FileUploadService {
         });
       }
 
-      const type = await fileTypeFromBuffer(file.buffer!);
-      if (!type || !acceptedMimeTypes.includes(type.mime)) {
+      const detected = await fileTypeFromBuffer(file.buffer!);
+      const mime = detected?.mime ?? file.mimetype;
+      if (!mime || !acceptedMimeTypes.includes(mime)) {
         throw createHttpError({
           status: 400,
           message: "Unsupported file type",
@@ -39,11 +40,11 @@ export class FileUploadService {
       const key = `${uuid()}-${file.originalname}`;
       await uploadFileToMinio(key, file.buffer!);
 
-      const result = await this.db.query(
+      const result = await this.db.query<UserFileRecord>(
         `
         INSERT INTO user_files (file_name, file_size, owner_id, status)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, file_name, file_size, status, created_at
+        RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
         `,
         [file.originalname, file.size, userId, "uploaded"]
       );
@@ -51,8 +52,15 @@ export class FileUploadService {
 
       const job: FileJob = { key, userId, fileId: fileRecord.id };
       console.log("Adding job to queue:", job);
-      await fileQueue.add("process-file", job);
-
+      try {
+        await fileQueue.add("process-file", job);
+      } catch (e) {
+        await this.db.query(
+          `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
+          ["failed", (e as Error).message, fileRecord.id]
+        );
+        throw e;
+      }
       return fileRecord;
     } catch (error) {
       console.error("File upload failed:", error);
