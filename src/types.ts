@@ -32,3 +32,26 @@ export type SSEData = {
   progress?: string | boolean | number | object;
   error: string | null;
 };
+
+export type DocStatus = "new" | "processing" | "processed" | "failed";
+export type ISODateString = string;
+
+export interface LegalDocument {
+  id: string;
+  source_name: string;
+  source_url: string;
+  law_type: string | null;
+  jurisdiction: string | null;
+  last_crawled: ISODateString | null;
+  last_updated: ISODateString | null;
+  status: DocStatus;
+  created_at: ISODateString;
+  updated_at: ISODateString;
+}
+
+export interface LegalDocumentJobData {
+  id: string;
+  source_url: string;
+  law_type?: string;
+  jurisdiction?: string;
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Worker } from "bullmq";
 import { downloadFile } from "../services/minio.service";
-import { chunkText } from "../services/embeddings.service";
+import { chunkText } from "../services/llm.service";
 import { upsertVectors } from "../services/pinecone.service";
 import * as workerModule from "../services/process-file.service";
 import { llmService } from "../services/llm.service";

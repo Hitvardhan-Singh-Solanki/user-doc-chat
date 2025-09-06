@@ -97,34 +97,56 @@ sequenceDiagram
   - [x] The client receives the message from the server once the file is processed/failed
 - [x] **Job Status Tracking**
   - [x] Users can query file/job status (queued, processing, done, error)
-
-## 🚧 In Progress / Next Steps
-
-- [ ] **Document Question-Answer Flow**
-- User submits a question related to their uploaded files
-- Backend embeds the question using **Ollama embedding model**
-- Query Pinecone for most relevant document chunks (`top-k`)
-- Send retrieved chunks + question to LLM for generating the answer
-- Return the answer to the user via API or WebSocket
-- Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
-
-## 📝 Backlog / Future Features
-
-- [ ] **Token Refresh Flow**
-  - Add refresh tokens to reduce login frequency
-- [ ] **WebSocket Authentication**
+- [x] **Document Question-Answer Flow**
+  - User submits a question related to their uploaded files
+  - Backend embeds the question using **Ollama embedding model**
+  - Query Pinecone for most relevant document chunks (`top-k`)
+  - Send retrieved chunks + question to LLM for generating the answer
+  - Return the answer to the user via API or WebSocket
+  - Ensure **multi-user isolation** using `userId` metadata filter in Pinecone
+- [x] **WebSocket Authentication**
   - Secure socket connections for chat functionality
   - Approach:
     - Client includes `JWT` in WS connection (`?token=xxx`)
     - On `connection`, server verifies token using `verifyJwt`
     - Attach user to socket context for authenticated messaging
+- [x] **Redis Integration**
+  - Connected Redis for pub/sub and chat history storage
+  - `rPush` used for appending messages, with expiry to auto-clean old history
+  - Pub/Sub channels reused for SSE notifications
+
+## 🚧 In Progress / Next Steps
+
 - [ ] **Chat Functionality**
   - Real-time interaction with processed documents
-- [ ] Retry logic for failed file uploads, embedding and upserts to pinecone
+  - Use Redis-based chat history instead of in-memory storage
+  - Stream answers via SSE or WebSocket
+- [ ] Retry logic for failed file uploads, embedding, and upserts to Pinecone
+- [ ] **Token Refresh Flow**
+  - Add refresh tokens to reduce login frequency
+
+## 📝 Backlog / Future Features
+
 - [ ] **Role-based Access**
   - Different user roles (e.g., admin vs regular users)
 - [ ] **Monitoring & Logging**
   - Add request logging, error tracking, and metrics
+- [ ] **Automated Legal Update Worker**
+  - Poll official sources (government gazettes, court rulings, RSS feeds)
+  - Scrape/parse new laws or amendments
+  - Chunk, embed, and upsert content into Pinecone
+  - Maintain metadata: jurisdiction, domain, effectiveDate, source URL
+  - Schedule periodic updates (cron / serverless / event-driven)
+  - Ensure LLM queries always use the most recent context to avoid hallucinations
+- [ ] **Vector Store Optimization**
+  - Include metadata fields: jurisdiction, domain, effectiveDate, source URL
+  - Consider embedding new chunks on-the-fly for unanswered questions
+  - Support summarization of low-relevance chunks
+  - Maintain `topK` retrieval logic for high-relevance context
+- [ ] **Production-ready Prompt & LLM Instructions**
+  - Implement prompt templates for legal domain
+  - Include chat history and context trimming for token limits
+  - Ensure LLM only answers based on retrieved context
 
 ---
 
