@@ -9,7 +9,7 @@ import { IDBStore } from "../interfaces/db-store.interface";
 const acceptedMimeTypes = [
   "application/pdf",
   "text/plain",
-  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 export class FileUploadService {
