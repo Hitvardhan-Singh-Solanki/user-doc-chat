@@ -70,6 +70,7 @@ export class LegalDocumentsService {
          WHERE id = $1`,
         [doc.id]
       );
+      throw err;
     }
   }
 
