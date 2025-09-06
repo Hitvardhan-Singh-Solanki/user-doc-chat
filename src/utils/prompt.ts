@@ -25,3 +25,12 @@ export function mainPrompt(
         Answer:
     `.trim();
 }
+
+export function lowPrompt(lowRelevance: string[]): string {
+  const lowPrompt = `
+      Summarize the following content concisely for context usage in a LEGAL Q&A system:
+      ${lowRelevance.join("\n\n")}
+    `.trim();
+
+  return lowPrompt;
+}

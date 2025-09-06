@@ -54,7 +54,7 @@ export class FileWorkerService {
 
       const vectors: Vector[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const embedding = await llmService.embeddingPython(chunks[i]);
+        const embedding = await llmService.embeddingHF(chunks[i]);
         vectors.push({
           id: `${payload.key}-chunk-${i}`,
           values: embedding,

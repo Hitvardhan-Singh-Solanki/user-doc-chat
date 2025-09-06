@@ -9,7 +9,7 @@
     "migrate:create": "node-pg-migrate create",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "worker:dev": "ts-node-dev --respawn --transpile-only src/worker.ts",
+    "worker:dev": "ts-node-dev --respawn --transpile-only src/workers/user-document-conusmer.worker.ts",
     "worker:build": "tsc",
     "worker:start": "node dist/worker.js",
     "dev": "concurrently \"npm run dev:api\" \"npm run worker:dev\"",
