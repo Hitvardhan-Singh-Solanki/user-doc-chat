@@ -152,27 +152,29 @@ const documents: SeedDocument[] = [
 
 async function seedLegalDocuments() {
   try {
-    for (const doc of documents) {
-      await db.query(
+    const uniqueByUrl = Array.from(
+      new Map(documents.map((d) => [d.source_url, d])).values()
+    );
+    let inserted = 0;
+    for (const doc of uniqueByUrl) {
+      const res = await db.query(
         `INSERT INTO legal_documents (
-          id, source_name, source_url, law_type, jurisdiction, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+          source_name, source_url, law_type, jurisdiction, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
         ON CONFLICT (source_url) DO NOTHING`,
-        [
-          uuidv4(),
-          doc.source_name,
-          doc.source_url,
-          doc.law_type,
-          doc.jurisdiction,
-          "new",
-        ]
+        [doc.source_name, doc.source_url, doc.law_type, doc.jurisdiction, "new"]
       );
+      inserted += res.rowCount ?? 0;
     }
 
-    console.log(`✅ Seeded ${documents.length} legal documents`);
+    console.log(
+      `✅ Seeded ${inserted} legal documents (from ${uniqueByUrl.length} unique URLs)`
+    );
+    await db.end();
     process.exit(0);
   } catch (err) {
     console.error("Error seeding legal documents:", err);
+    await db.end();
     process.exit(1);
   }
 }
