@@ -83,7 +83,6 @@ function sanitize(input: string): string {
   return input
     .replace(/[\r\t]+/g, " ")
     .replace(/\n+/g, "\n")
-    .replace(/(\bignore previous instructions\b)/gi, "") // Prevent prompt injection
     .trim();
 }
 
