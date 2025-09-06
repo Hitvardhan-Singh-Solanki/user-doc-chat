@@ -41,27 +41,36 @@ function truncateText(
 
   if (strategy === "truncate-history") {
     const lines = text.split("\n").filter(Boolean);
-    while (lines.join("\n").length > maxLength && lines.length > 1) {
-      lines.shift();
+    // Keep the newest lines that fit
+    let acc = [];
+    let len = 0;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const candidate = lines[i];
+      const extra = (acc.length ? 1 : 0) + candidate.length; // + newline
+      if (len + extra > maxLength) break;
+      acc.push(candidate);
+      len += extra;
     }
-    return lines.join("\n") || "(Truncated to empty history)";
+    const out = acc.reverse().join("\n");
+    return out.length ? out : "(Truncated to empty history)";
   }
 
   if (strategy === "truncate-context") {
-    // Preserve legal citations (e.g., "Section", "Clause") if possible
-    const priorityRegex = /(Section|Clause|Article)\s+\d+\.\d+/gi;
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-    let result = "";
-    for (const sentence of sentences.reverse()) {
-      if (result.length + sentence.length <= maxLength) {
-        result = sentence + " " + result;
-      } else if (sentence.match(priorityRegex)) {
-        if (result.length + sentence.length <= maxLength + 100) {
-          result = sentence + " " + result;
-        }
+    const priorityRegex = /(Section|Clause|Article)\s+\d+(\.\d+)*/i;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean).reverse();
+    let pieces: string[] = [];
+    let total = 0;
+    for (const s of sentences) {
+      const add = (pieces.length ? 1 : 0) + s.length; // + space
+      if (add + total > maxLength) continue;
+      // Prefer sentences with legal markers but still enforce hard cap
+      if (priorityRegex.test(s) || add + total <= maxLength) {
+        pieces.push(s);
+        total += add;
       }
     }
-    return result.trim() + "...[truncated]";
+    const result = pieces.reverse().join(" ");
+    return result.length ? result + " ...[truncated]" : "...[truncated]";
   }
 
   return text;
