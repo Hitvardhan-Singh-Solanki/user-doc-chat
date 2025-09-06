@@ -314,11 +314,15 @@ ${content}
         `Prompt exceeds maximum length of ${finalConfig.maxLength} characters`
       );
     }
-    prompt = truncateText(
-      prompt,
+    const capped = truncateText(
+      content,
       finalConfig.maxLength! - finalConfig.truncateBuffer!,
       "truncate-context"
     );
+    prompt = prompt.replace(content, capped);
+    if (prompt.length > finalConfig.maxLength!) {
+      prompt = prompt.slice(0, finalConfig.maxLength!);
+    }
   }
 
   if (finalConfig.version === "2.0.0") {
