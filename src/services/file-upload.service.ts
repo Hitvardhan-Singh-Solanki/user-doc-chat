@@ -51,8 +51,15 @@ export class FileUploadService {
 
       const job: FileJob = { key, userId, fileId: fileRecord.id };
       console.log("Adding job to queue:", job);
-      await fileQueue.add("process-file", job);
-
+      try {
+        await fileQueue.add("process-file", job);
+      } catch (e) {
+        await this.db.query(
+          `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
+          ["failed", (e as Error).message, fileRecord.id]
+        );
+        throw e;
+      }
       return fileRecord;
     } catch (error) {
       console.error("File upload failed:", error);
