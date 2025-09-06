@@ -28,8 +28,9 @@ export class FileUploadService {
         });
       }
 
-      const type = await fileTypeFromBuffer(file.buffer!);
-      if (!type || !acceptedMimeTypes.includes(type.mime)) {
+      const detected = await fileTypeFromBuffer(file.buffer!);
+      const mime = detected?.mime ?? file.mimetype;
+      if (!mime || !acceptedMimeTypes.includes(mime)) {
         throw createHttpError({
           status: 400,
           message: "Unsupported file type",
