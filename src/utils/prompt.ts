@@ -118,7 +118,8 @@ export async function mainPrompt(
   config: PromptConfig = {}
 ): Promise<string> {
   try {
-    await rateLimiter.consume("main-prompt");
+    const key = `main:${finalConfig.rateLimitKey ?? "global"}`;
+    await rateLimiter.consume(key);
   } catch (err) {
     throw new Error("Rate limit exceeded. Please try again later.");
   }
