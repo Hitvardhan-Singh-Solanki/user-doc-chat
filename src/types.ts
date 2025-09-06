@@ -64,7 +64,7 @@ export interface LegalDocumentJobData {
 export interface UserFileRecord {
   id: string;
   file_name: string;
-  file_size: number;
+  file_size: string;
   owner_id: string;
   status: "uploaded" | "processing" | "processed" | "failed";
   error_message?: string | null;
