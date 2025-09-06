@@ -1,5 +1,5 @@
 import { createLogger, transports, format } from "winston";
-import { RateLimiterMemory } from "rate-limiter-flexible";
+import { PromptConfig } from "../types";
 
 const logger = createLogger({
   level: "debug",
@@ -7,31 +7,12 @@ const logger = createLogger({
   transports: [new transports.Console()],
 });
 
-const rateLimiter = new RateLimiterMemory({
-  points: 100,
-  duration: 60,
-});
-
-export interface PromptConfig {
-  version?: string;
-  maxLength?: number;
-  tone?: "formal" | "neutral";
-  temperature?: number; // LLM creativity control (0 = deterministic)
-  truncateStrategy?: "error" | "truncate-history" | "truncate-context";
-  language?: string;
-  logStats?: boolean;
-  truncateBuffer?: number;
-}
-
 function estimateTokens(text: string): number {
   // Mock implementation: approximate 1 token per 4 chars, adjusted for spaces
   const words = text.split(/\s+/).filter(Boolean);
   return words.length + Math.ceil(text.length / 8);
 }
 
-/**
- * Truncate text to fit within the maxLength limit.
- */
 function truncateText(
   text: string,
   maxLength: number,
@@ -41,48 +22,37 @@ function truncateText(
 
   if (strategy === "truncate-history") {
     const lines = text.split("\n").filter(Boolean);
-    // Keep the newest lines that fit
-    let acc = [];
-    let len = 0;
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const candidate = lines[i];
-      const extra = (acc.length ? 1 : 0) + candidate.length; // + newline
-      if (len + extra > maxLength) break;
-      acc.push(candidate);
-      len += extra;
+    while (lines.join("\n").length > maxLength && lines.length > 1) {
+      lines.shift();
     }
-    const out = acc.reverse().join("\n");
-    return out.length ? out : "(Truncated to empty history)";
+    return lines.join("\n") || "(Truncated to empty history)";
   }
 
   if (strategy === "truncate-context") {
-    const priorityRegex = /(Section|Clause|Article)\s+\d+(\.\d+)*/i;
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean).reverse();
-    let pieces: string[] = [];
-    let total = 0;
-    for (const s of sentences) {
-      const add = (pieces.length ? 1 : 0) + s.length; // + space
-      if (add + total > maxLength) continue;
-      // Prefer sentences with legal markers but still enforce hard cap
-      if (priorityRegex.test(s) || add + total <= maxLength) {
-        pieces.push(s);
-        total += add;
+    // Preserve legal citations (e.g., "Section", "Clause") if possible
+    const priorityRegex = /(Section|Clause|Article)\s+\d+\.\d+/gi;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+    let result = "";
+    for (const sentence of sentences.reverse()) {
+      if (result.length + sentence.length <= maxLength) {
+        result = sentence + " " + result;
+      } else if (sentence.match(priorityRegex)) {
+        if (result.length + sentence.length <= maxLength + 100) {
+          result = sentence + " " + result;
+        }
       }
     }
-    const result = pieces.reverse().join(" ");
-    return result.length ? result + " ...[truncated]" : "...[truncated]";
+    return result.trim() + "...[truncated]";
   }
 
   return text;
 }
 
-/**
- * Sanitize input to prevent prompt injection and preserve readability.
- */
 function sanitize(input: string): string {
   return input
     .replace(/[\r\t]+/g, " ")
     .replace(/\n+/g, "\n")
+    .replace(/(\bignore previous instructions\b)/gi, "")
     .trim();
 }
 
@@ -104,26 +74,20 @@ function sanitize(input: string): string {
  * @returns A well-structured prompt string for the LLM.
  * @throws Error if inputs are invalid or malformed.
  * @example
- * const prompt = await mainPrompt(
+ * const prompt = mainPrompt(
  *   'Section 12.1: Contracts must be signed.',
  *   'Is a contract valid without a signature?',
  *   'User asked about contracts.',
  *   { tone: 'neutral', language: 'en' }
  * );
  */
-export async function mainPrompt(
+export function mainPrompt(
   context: string = "(No context provided)",
   question: string,
   historyStr: string = "(No prior chat history)",
   config: PromptConfig = {}
-): Promise<string> {
-  try {
-    const key = `main:${finalConfig.rateLimitKey ?? "global"}`;
-    await rateLimiter.consume(key);
-  } catch (err) {
-    throw new Error("Rate limit exceeded. Please try again later.");
-  }
-
+): string {
+  // Input validation
   if (!question || typeof question !== "string") {
     throw new Error("Question must be a non-empty string");
   }
@@ -131,10 +95,12 @@ export async function mainPrompt(
     throw new Error("Context and history must be strings");
   }
 
+  // Sanitize inputs
   const sanitizedContext = sanitize(context);
   const sanitizedQuestion = sanitize(question);
   const sanitizedHistory = sanitize(historyStr);
 
+  // Default configuration
   const defaultConfig: PromptConfig = {
     version: "1.0.0",
     maxLength: 10000,
@@ -147,11 +113,13 @@ export async function mainPrompt(
   };
   const finalConfig = { ...defaultConfig, ...config };
 
-  const supportedLanguages = ["en"];
+  // Validate language
+  const supportedLanguages = ["en", "es", "fr"];
   if (!supportedLanguages.includes(finalConfig.language!)) {
     throw new Error(`Unsupported language: ${finalConfig.language}`);
   }
 
+  // Construct the prompt
   let prompt = `
 === SYSTEM INSTRUCTION ===
 Version: ${finalConfig.version}
@@ -169,26 +137,13 @@ Constraints:
 - Temperature: ${finalConfig.temperature}.
 
 === CHAT HISTORY ===
-BEGIN_CHAT_HISTORY
-""" 
 ${sanitizedHistory}
-"""
-+END_CHAT_HISTORY
 
 === CONTEXT ===
-BEGIN_CONTEXT
-"""
 ${sanitizedContext}
-"""
-END_CONTEXT
-
 
 === USER QUESTION ===
-BEGIN_QUESTION
-"""
 ${sanitizedQuestion}
-"""
-END_QUESTION
 
 === ANSWER ===
 `.trim();
@@ -198,6 +153,7 @@ END_QUESTION
       ? "- WARNING: Input truncated due to length limits."
       : "";
 
+  // Handle truncation
   if (prompt.length > finalConfig.maxLength!) {
     if (finalConfig.truncateStrategy === "error") {
       throw new Error(
@@ -218,6 +174,7 @@ END_QUESTION
     }
   }
 
+  // Version-specific adjustments
   if (finalConfig.version === "2.0.0") {
     prompt = prompt.replace(
       "Temperature: ",
@@ -225,8 +182,9 @@ END_QUESTION
     );
   }
 
+  // Logging
   if (finalConfig.logStats) {
-    logger.debug("Main Prompt Stats", {
+    logger.debug("Main Prompt Generated", {
       version: finalConfig.version,
       length: prompt.length,
       tokens: estimateTokens(prompt),
@@ -247,24 +205,16 @@ END_QUESTION
  * @returns A prompt string instructing the model to produce a concise summary.
  * @throws Error if inputs are invalid or malformed.
  * @example
- * const prompt = await lowPrompt(
+ * const prompt = lowPrompt(
  *   ['Section 12.1: Contracts must be signed.', 'Drafted in 2020.'],
  *   { tone: 'neutral' }
  * );
  */
-export async function lowPrompt(
+export function lowPrompt(
   lowRelevance: string[] = [],
   config: PromptConfig = {}
-): Promise<string> {
-  try {
-    const key = `low:${finalConfig.rateLimitKey ?? "global"}`;
-    await rateLimiter.consume(key);
-  } catch (err) {
-    throw new Error("Rate limit exceeded. Please try again later.");
-  }
-  // …rest of function…
-}
-
+): string {
+  // Input validation
   if (
     !Array.isArray(lowRelevance) ||
     lowRelevance.some((item) => typeof item !== "string")
@@ -272,10 +222,12 @@ export async function lowPrompt(
     throw new Error("lowRelevance must be an array of strings");
   }
 
+  // Sanitize inputs
   const sanitizedLowRelevance = lowRelevance
     .map(sanitize)
     .filter((item) => item.length > 0);
 
+  // Default configuration
   const defaultConfig: PromptConfig = {
     version: "1.0.0",
     maxLength: 5000,
@@ -288,7 +240,8 @@ export async function lowPrompt(
   };
   const finalConfig = { ...defaultConfig, ...config };
 
-  const supportedLanguages = ["en"];
+  // Validate language
+  const supportedLanguages = ["en", "es", "fr"];
   if (!supportedLanguages.includes(finalConfig.language!)) {
     throw new Error(`Unsupported language: ${finalConfig.language}`);
   }
@@ -298,6 +251,7 @@ export async function lowPrompt(
       ? sanitizedLowRelevance.join("\n\n")
       : "(No content provided)";
 
+  // Construct the prompt
   let prompt = `
 === SYSTEM INSTRUCTION ===
 Version: ${finalConfig.version}
@@ -327,15 +281,11 @@ ${content}
         `Prompt exceeds maximum length of ${finalConfig.maxLength} characters`
       );
     }
-    const capped = truncateText(
-      content,
+    prompt = truncateText(
+      prompt,
       finalConfig.maxLength! - finalConfig.truncateBuffer!,
       "truncate-context"
     );
-    prompt = prompt.replace(content, capped);
-    if (prompt.length > finalConfig.maxLength!) {
-      prompt = prompt.slice(0, finalConfig.maxLength!);
-    }
   }
 
   if (finalConfig.version === "2.0.0") {
@@ -346,7 +296,7 @@ ${content}
   }
 
   if (finalConfig.logStats) {
-    logger.debug("Low Prompt Stats", {
+    logger.debug("Low Prompt Generated", {
       version: finalConfig.version,
       length: prompt.length,
       tokens: estimateTokens(prompt),
