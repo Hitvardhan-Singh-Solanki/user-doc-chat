@@ -169,13 +169,26 @@ Constraints:
 - Temperature: ${finalConfig.temperature}.
 
 === CHAT HISTORY ===
+BEGIN_CHAT_HISTORY
+""" 
 ${sanitizedHistory}
+"""
++END_CHAT_HISTORY
 
 === CONTEXT ===
+BEGIN_CONTEXT
+"""
 ${sanitizedContext}
+"""
+END_CONTEXT
+
 
 === USER QUESTION ===
+BEGIN_QUESTION
+"""
 ${sanitizedQuestion}
+"""
+END_QUESTION
 
 === ANSWER ===
 `.trim();
