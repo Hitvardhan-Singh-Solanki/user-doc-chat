@@ -10,6 +10,7 @@ import {
   legalDocumentsQueue,
 } from "../repos/bullmq.repo";
 import cron from "node-cron";
+import { PoolClient } from "pg";
 
 export class LegalDocumentsService {
   private llmService: LLMService;
@@ -109,7 +110,7 @@ export class LegalDocumentsService {
 
     try {
       await trx.query("BEGIN");
-      const documents = await this.fetchAndMarkBatch(this.batchSize);
+      const documents = await this.fetchAndMarkBatch(this.batchSize, trx);
 
       for (const doc of documents) {
         await legalDocumentsQueue.add("processDoc", doc, {
@@ -129,7 +130,10 @@ export class LegalDocumentsService {
   }
 
   /** Fetch batch and mark as processing */
-  private async fetchAndMarkBatch(batchSize: number): Promise<LegalDocument[]> {
+  private async fetchAndMarkBatch(
+    batchSize: number,
+    trx: PoolClient
+  ): Promise<LegalDocument[]> {
     const query = `
       UPDATE legal_documents
       SET status = 'processing', updated_at = NOW()
@@ -143,7 +147,7 @@ export class LegalDocumentsService {
       )
       RETURNING *;
     `;
-    const { rows } = await db.query<LegalDocument>(query, [batchSize]);
+    const { rows } = await trx.query<LegalDocument>(query, [batchSize]);
     return rows;
   }
 
