@@ -10,7 +10,7 @@ export class WebsocketService {
   private static instance: WebsocketService;
   public io: Server;
   private server: http.Server;
-  private llmmService: LLMService;
+  private llmService: LLMService;
   private pineconeService: VectorStoreService;
 
   private constructor(app: Express) {
@@ -23,7 +23,7 @@ export class WebsocketService {
       },
     });
 
-    this.llmmService = new LLMService();
+    this.llmService = new LLMService();
     this.pineconeService = new VectorStoreService();
 
     this.authVerification();
@@ -42,13 +42,13 @@ export class WebsocketService {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error("No token provided"));
 
-      try {
-        const decoded = verifyJwt(token);
-        (socket as any).userId = (decoded as any).userId;
-        next();
-      } catch (err) {
-        next(new Error("Invalid token"));
-      }
+      const decoded = verifyJwt(token);
+      if (!decoded) return next(new Error("Invalid token"));
+      const userId =
+        (decoded as any).sub ?? (decoded as any).id ?? (decoded as any).userId;
+      if (!userId) return next(new Error("Invalid token: missing subject/id"));
+      (socket as any).userId = String(userId);
+      next();
     });
   }
 
@@ -96,7 +96,7 @@ export class WebsocketService {
     userId: string,
     fileId: string
   ) {
-    const qEmbedding = await this.llmmService.embeddingPython(question);
+    const qEmbedding = await this.llmService.embeddingHF(question);
     const results = await this.pineconeService.query(
       qEmbedding,
       userId,
@@ -117,14 +117,15 @@ export class WebsocketService {
 
     const chatHistory = await this.getChatHistory(userId, fileId);
 
-    const prompt = this.llmmService.buildPrompt(context, question, chatHistory);
+    const prompt = this.llmService.buildPrompt(context, question, chatHistory);
 
-    for await (const token of this.llmmService.generateAnswerStream(prompt)) {
-      this.io.to(userId).emit("answer_chunk", { token });
-      await this.appendChatHistory(userId, fileId, `AI: ${token}`);
-    }
-
+    let fullAnswer = "";
     await this.appendChatHistory(userId, fileId, `User: ${question}`);
+    for await (const token of this.llmService.generateAnswerStream(prompt)) {
+      this.io.to(userId).emit("answer_chunk", { token });
+      fullAnswer += token;
+    }
+    await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
     await this.trimChatHistory(userId, fileId);
 
     this.io.to(userId).emit("answer_complete");

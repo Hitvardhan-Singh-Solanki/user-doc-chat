@@ -4,16 +4,14 @@ import { mainPrompt } from "../utils/prompt";
 export class LLMService {
   private hfToken: string;
   private hfChatModel: string;
+  private hfEmbeddingModel: string;
   private pythonUrl?: string;
 
   constructor() {
     this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
     this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL!;
     this.pythonUrl = process.env.PYTHON_LLM_URL;
-
-    if (!this.hfToken || !this.hfChatModel) {
-      throw new Error("HuggingFace token or chat model is missing in env");
-    }
+    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL!;
   }
 
   chunkText(
@@ -22,10 +20,14 @@ export class LLMService {
     overlap: number = Number(process.env.CHUNK_OVERLAP) || 50
   ): string[] {
     const chunks: string[] = [];
+    const size =
+      Number.isFinite(chunkSize) && chunkSize > 0 ? Math.floor(chunkSize) : 500;
+    const ov = Math.max(0, overlap);
+    const step = Math.max(1, size - ov);
     let start = 0;
     while (start < text.length) {
-      chunks.push(text.slice(start, start + chunkSize));
-      start += chunkSize - overlap;
+      chunks.push(text.slice(start, start + size));
+      start += step;
     }
     return chunks;
   }
@@ -58,21 +60,40 @@ export class LLMService {
   }
 
   async embeddingHF(text: string): Promise<number[]> {
+    if (!this.hfToken || !this.hfEmbeddingModel) {
+      throw new Error("HuggingFace token or embedding model is missing in env");
+    }
+
     const inference = new InferenceClient(this.hfToken);
 
     const response = await inference.featureExtraction({
-      model: process.env.HUGGINGFACE_EMBEDDING_MODEL!,
+      model: this.hfEmbeddingModel,
       inputs: text,
     });
 
-    if (!Array.isArray(response) || !Array.isArray(response[0])) {
+    if (!Array.isArray(response)) {
       throw new Error("HuggingFace API returned invalid embeddings");
     }
 
-    return response as number[];
+    if (response.length > 0 && typeof response[0] === "number") {
+      return response as number[];
+    }
+    if (Array.isArray(response[0])) {
+      const first = response[0] as unknown[];
+      if (!first.every((n) => typeof n === "number")) {
+        throw new Error("HuggingFace embeddings contain non-numeric values");
+      }
+      return response[0] as number[];
+    }
+
+    throw new Error("Unexpected HuggingFace embeddings shape");
   }
 
   async *generateAnswerStream(prompt: string) {
+    if (!this.hfToken) {
+      throw new Error("HuggingFace token is missing in env");
+    }
+
     const inference = new InferenceClient(this.hfToken);
 
     const stream = await inference.chatCompletionStream({

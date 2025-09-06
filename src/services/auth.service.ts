@@ -15,10 +15,11 @@ export class AuthService {
   public async signUp(email: string, password: string): Promise<User> {
     try {
       const hashed = await hashPassword(password);
+      const normalizedEmail = email.trim().toLowerCase();
 
       const result = await this.db.query<User>(
         "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at",
-        [email, hashed]
+        [normalizedEmail, hashed]
       );
 
       return result.rows[0];
