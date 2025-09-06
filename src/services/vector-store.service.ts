@@ -28,7 +28,7 @@ export class VectorStoreService {
     embedding: number[],
     userId: string,
     fileId: string,
-    topK: number = Number(process.env.PINECONE_TOP_K)
+    topK: number = Number(process.env.PINECONE_TOP_K) || 5
   ) {
     return await this.vectorStore.queryVector(embedding, userId, fileId, topK);
   }

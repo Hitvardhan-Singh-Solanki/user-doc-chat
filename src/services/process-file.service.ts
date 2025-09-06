@@ -10,17 +10,27 @@ import { LLMService } from "./llm.service";
 
 export class FileWorkerService {
   private db: IDBStore;
+  private worker?: Worker;
+  private vectorStore: VectorStoreService;
 
-  constructor(dbStore: IDBStore) {
+  constructor(dbStore: IDBStore, vectorStore = new VectorStoreService()) {
     this.db = dbStore;
+    this.vectorStore = vectorStore;
   }
 
   public async startWorker() {
-    const worker = new Worker(fileQueueName, this.processJob.bind(this), {
+    this.worker = new Worker(fileQueueName, this.processJob.bind(this), {
       connection: connectionOptions,
     });
 
-    console.log("Worker started successfully", worker.id);
+    this.worker.on("failed", (job, err) => {
+      console.error(`Job ${job?.id} failed:`, err);
+    });
+    this.worker.on("error", (err) => {
+      console.error("Worker error:", err);
+    });
+
+    console.log("Worker started successfully", this.worker.id);
   }
 
   private async processJob(job: Job) {
@@ -69,8 +79,7 @@ export class FileWorkerService {
         job.updateProgress(progress);
       }
 
-      const vectorStore = new VectorStoreService();
-      await vectorStore.upsertVectors(vectors);
+      await this.vectorStore.upsertVectors(vectors);
 
       console.log(`Processed ${payload.key}, total chunks: ${chunks.length}`);
       job.updateProgress(95);
@@ -91,7 +100,7 @@ export class FileWorkerService {
       await this.db.query(
         `
         UPDATE user_files
-        SET error_message = $1, status = $2
+        SET error_message = $1, status = $2, processing_finished_at = NOW()
         WHERE id = $3
         `,
         [(error as Error).message, "failed", payload.fileId]
