@@ -1,4 +1,4 @@
-# 📄 AI Document Q&A App
+# 📄 AI Legal Document Q&A App
 
 This project is an **AI-powered document assistant** that allows users to upload documents and interact with them through a chatbot interface.
 
