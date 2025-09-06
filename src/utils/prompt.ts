@@ -244,10 +244,13 @@ export async function lowPrompt(
   config: PromptConfig = {}
 ): Promise<string> {
   try {
-    await rateLimiter.consume("low-prompt");
+    const key = `low:${finalConfig.rateLimitKey ?? "global"}`;
+    await rateLimiter.consume(key);
   } catch (err) {
     throw new Error("Rate limit exceeded. Please try again later.");
   }
+  // …rest of function…
+}
 
   if (
     !Array.isArray(lowRelevance) ||
