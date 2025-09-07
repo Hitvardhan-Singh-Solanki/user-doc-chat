@@ -2,7 +2,6 @@ import { ISearchAdapter } from "../interfaces/search-adapter.interface";
 import { SearchResult } from "../types";
 
 export class DuckDuckGoAdapter implements ISearchAdapter {
-export class DuckDuckGoAdapter implements ISearchAdapter {
   async search(
     query: string,
     maxResults: number = 5,
@@ -24,8 +23,7 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
         signal: effectiveSignal,
         headers: {
           Accept: "application/json",
-          "User-Agent":
-            "user-doc-chat/1.0 (+https://github.com/Hitvardhan-Singh-Solanki/user-doc-chat)",
+          "User-Agent": process.env.CRAWLER_USER_AGENT!,
         },
       });
     } finally {
