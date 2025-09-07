@@ -161,10 +161,30 @@ export class EnrichmentService {
     timeoutMs = 10000
   ): Promise<string | null> {
     try {
+      // Basic SSRF hardening
+      const u = new URL(url);
+      if (!/^https?:$/i.test(u.protocol)) return null;
+      const host = u.hostname.toLowerCase();
+      if (
+        host === "localhost" ||
+        host.endsWith(".local") ||
+        /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+        host === "::1"
+      ) {
+        return null;
+      }
+
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(url, {
         signal: controller.signal,
+        headers: {
+          ...(process.env.CRAWLER_USER_AGENT
+            ? { "User-Agent": process.env.CRAWLER_USER_AGENT }
+            : { "User-Agent": "user-doc-chat/1.0 (+enrichment)" }),
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
       });
       clearTimeout(id);
 
@@ -172,6 +192,11 @@ export class EnrichmentService {
 
       const ct = res.headers.get("content-type") || "";
       if (!ct.includes("html") && !ct.includes("xml")) {
+        return null;
+      }
+      const len = Number(res.headers.get("content-length") || "0");
+      const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000); // ~2MB
+      if (len && len > maxBytes) {
         return null;
       }
 
