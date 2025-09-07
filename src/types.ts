@@ -80,10 +80,28 @@ export interface UserFileRecord {
 export interface PromptConfig {
   version?: string;
   maxLength?: number;
-  tone?: "formal" | "neutral";
-  temperature?: number; // LLM creativity control (0 = deterministic)
-  truncateStrategy?: "error" | "truncate-history" | "truncate-context";
+  tone?: string;
+  temperature?: number;
+  truncateStrategy?: "truncate-history" | "truncate-context" | "error";
   language?: string;
+  jurisdiction?: string;
   logStats?: boolean;
   truncateBuffer?: number;
+}
+
+export interface SearchResult {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+export interface EnrichmentOptions {
+  maxResults?: number;
+  maxPagesToFetch?: number;
+  fetchConcurrency?: number;
+  minContentLength?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  userId?: string;
+  fileId?: string;
 }
