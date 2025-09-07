@@ -2,15 +2,38 @@ import { ISearchAdapter } from "../interfaces/search-adapter.interface";
 import { SearchResult } from "../types";
 
 export class DuckDuckGoAdapter implements ISearchAdapter {
-  async search(query: string, maxResults: number = 5): Promise<SearchResult[]> {
+export class DuckDuckGoAdapter implements ISearchAdapter {
+  async search(
+    query: string,
+    maxResults: number = 5,
+    signal?: AbortSignal
+  ): Promise<SearchResult[]> {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(
       query
     )}&format=json&no_html=1&skip_disambig=1`;
 
-    const res = await fetch(url);
+    const controller = signal ? undefined : new AbortController();
+    const effectiveSignal = signal ?? controller!.signal;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), 8000)
+      : undefined;
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        signal: effectiveSignal,
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "user-doc-chat/1.0 (+https://github.com/Hitvardhan-Singh-Solanki/user-doc-chat)",
+        },
+      });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+
     if (!res.ok)
       throw new Error(`DuckDuckGo API failed: ${res.status} ${res.statusText}`);
-
     const data = await res.json();
 
     const results: SearchResult[] = [];
