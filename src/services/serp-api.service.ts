@@ -10,18 +10,28 @@ export class SerpApiAdapter implements ISearchAdapter {
   }
 
   async search(query: string, maxResults = 5): Promise<SearchResult[]> {
-    const url = `https://serpapi.com/search.json?q=${encodeURIComponent(
-      query
-    )}&num=${maxResults}&api_key=${this.apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok)
-      throw new Error(`SERP API failed: ${res.status} ${res.statusText}`);
+    if (!query || !query.trim()) throw new Error("query required");
+    const params = new URLSearchParams({
+      engine: "google",
+      q: query,
+      num: String(Math.max(1, maxResults)),
+      api_key: this.apiKey,
+      hl: "en",
+      gl: "us",
+    });
+    const res = await fetch(`https://serpapi.com/search.json?${params}`, {
+      signal: (AbortSignal as any).timeout
+        ? (AbortSignal as any).timeout(8000)
+        : undefined,
+      headers: { Accept: "application/json" },
+    });
 
     const data = await res.json();
-    return (data.organic_results || []).map((r: any) => ({
-      title: r.title,
-      snippet: r.snippet,
-      url: r.link,
+    const items = (data.organic_results || []).map((r: any) => ({
+      title: r.title ?? "",
+      snippet: r.snippet ?? "",
+      url: r.link ?? "",
     }));
+    return items.slice(0, maxResults);
   }
 }
