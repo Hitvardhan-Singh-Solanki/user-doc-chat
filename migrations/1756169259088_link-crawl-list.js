@@ -7,6 +7,8 @@ export const shorthands = undefined;
  * @param pgm {import('node-pg-migrate').MigrationBuilder}
  */
 export const up = (pgm) => {
+  pgm.createExtension("pgcrypto", { ifNotExists: true });
+
   pgm.createType("doc_status", ["new", "processing", "processed", "failed"]);
 
   pgm.createTable("legal_documents", {
