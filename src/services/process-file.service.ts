@@ -12,10 +12,16 @@ export class FileWorkerService {
   private db: IDBStore;
   private worker?: Worker;
   private vectorStore: VectorStoreService;
+  private llmService: LLMService;
 
-  constructor(dbStore: IDBStore, vectorStore = new VectorStoreService()) {
+  constructor(
+    dbStore: IDBStore,
+    llmService = new LLMService(),
+    vectorStore = new VectorStoreService(llmService)
+  ) {
     this.db = dbStore;
     this.vectorStore = vectorStore;
+    this.llmService = llmService;
   }
 
   public async startWorker() {
@@ -57,14 +63,12 @@ export class FileWorkerService {
       job.updateProgress(30);
       const sanitizedText = await sanitizeFile(fileBuffer);
 
-      const llmService = new LLMService();
-
       job.updateProgress(50);
-      const chunks = llmService.chunkText(sanitizedText);
+      const chunks = this.llmService.chunkText(sanitizedText);
 
       const vectors: Vector[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const embedding = await llmService.embeddingHF(chunks[i]);
+        const embedding = await this.llmService.embeddingHF(chunks[i]);
         vectors.push({
           id: `${payload.key}-chunk-${i}`,
           values: embedding,

@@ -19,7 +19,7 @@ export class LegalDocumentsService {
 
   constructor(private concurrency: number = 5, private batchSize: number = 10) {
     this.llmService = new LLMService();
-    this.pineconeService = new VectorStoreService();
+    this.pineconeService = new VectorStoreService(this.llmService);
   }
 
   /** Start BullMQ worker */
