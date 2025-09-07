@@ -12,6 +12,10 @@ export const LowContentSchema = z.array(z.string()).default([]);
 
 export function sanitizeText(input: string): string {
   return input
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // zero-width chars
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
     .replace(/[\r\t]+/g, " ")
     .replace(/\n+/g, "\n")
     .replace(/(\bignore previous instructions\b)/gi, "")
