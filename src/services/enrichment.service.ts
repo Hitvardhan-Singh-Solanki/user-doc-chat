@@ -161,9 +161,32 @@ export class EnrichmentService {
     timeoutMs = 10000
   ): Promise<string | null> {
     try {
+      // Basic SSRF hardening
+      const u = new URL(url);
+      if (!/^https?:$/i.test(u.protocol)) return null;
+      const host = u.hostname.toLowerCase();
+      if (
+        host === "localhost" ||
+        host.endsWith(".local") ||
+        /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+        host === "::1"
+      ) {
+        return null;
+      }
+
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(url, {
+        signal: controller.signal,
+        // ...
+      });
+      clearTimeout(id);
+      if (!res.ok) return null;
+      return await res.text();
+    } catch {
+      return null;
+    }
+  }
         signal: controller.signal,
         headers: {
         headers: {
