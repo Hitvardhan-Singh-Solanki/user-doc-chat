@@ -166,8 +166,12 @@ export class EnrichmentService {
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
-          "User-Agent": process.env.CRAWLER_USER_AGENT!,
-          Accept: "text/html",
+        headers: {
+          ...(process.env.CRAWLER_USER_AGENT
+            ? { "User-Agent": process.env.CRAWLER_USER_AGENT }
+            : { "User-Agent": "user-doc-chat/1.0 (+enrichment)" }),
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
       });
       clearTimeout(id);
