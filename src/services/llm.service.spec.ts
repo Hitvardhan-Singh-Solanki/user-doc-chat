@@ -295,3 +295,198 @@ describe("LLMService (unit)", () => {
     expect(typeof lp).toBe("string");
   });
 });
+
+// -------------------------------------------------------------
+// Additional edge-case and failure-path tests for LLMService.
+// Note: Tests use Vitest (https://vitest.dev).
+// These tests extend coverage for invalid inputs, env var handling,
+// prompt composition calls, and streaming edge conditions.
+// -------------------------------------------------------------
+describe("LLMService (additional cases)", () => {
+  it("chunkText handles zero/negative overlap gracefully", () => {
+    const svc = new LLMService();
+    const text = "1234567890";
+    // zero overlap -> non-overlapping windows
+    expect(svc.chunkText(text, 4, 0)).toEqual(["1234", "5678", "90"]);
+    // negative overlap should be treated like 0 (no overlap)
+    expect(svc.chunkText(text, 4, -3)).toEqual(["1234", "5678", "90"]);
+  });
+
+  it("chunkText returns empty array for empty string", () => {
+    const svc = new LLMService();
+    expect(svc.chunkText("", 5, 1)).toEqual([]);
+  });
+
+  it("embeddingPython sanitizes input and rejects when response missing embedding", async () => {
+    process.env.PYTHON_LLM_URL = "http://example.local/embed";
+    const svc = new LLMService();
+
+    // 1) verify sanitizeText called even with messy input
+    (globalThis as any).fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({ embedding: [0.9] }),
+    });
+    await svc.embeddingPython("  messy  ");
+    expect(PROMPT.sanitizeText).toHaveBeenCalledWith("  messy  ");
+
+    // 2) missing embedding key -> throw
+    (globalThis as any).fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({ notEmbedding: [1, 2, 3] }),
+    });
+    await expect(svc.embeddingPython("x")).rejects.toThrow(/embedding/i);
+  });
+
+  it("embeddingPython surfaces network exceptions", async () => {
+    process.env.PYTHON_LLM_URL = "http://example.local/embed";
+    const svc = new LLMService();
+    (globalThis as any).fetch.mockRejectedValue(new Error("network down"));
+    await expect(svc.embeddingPython("hello")).rejects.toThrow(/network down/i);
+  });
+
+  it("embeddingHF throws when token or model env vars are missing", async () => {
+    delete process.env.HUGGINGFACE_HUB_TOKEN;
+    delete process.env.HUGGINGFACE_EMBEDDING_MODEL;
+    const svc = new LLMService();
+    await expect(svc.embeddingHF("x")).rejects.toThrow(/HUGGINGFACE_HUB_TOKEN/i);
+
+    process.env.HUGGINGFACE_HUB_TOKEN = "t";
+    delete process.env.HUGGINGFACE_EMBEDDING_MODEL;
+    await expect(svc.embeddingHF("x")).rejects.toThrow(/HUGGINGFACE_EMBEDDING_MODEL/i);
+
+    delete process.env.HUGGINGFACE_HUB_TOKEN;
+    process.env.HUGGINGFACE_EMBEDDING_MODEL = "m";
+    await expect(svc.embeddingHF("x")).rejects.toThrow(/HUGGINGFACE_HUB_TOKEN/i);
+  });
+
+  it("embeddingHF propagates underlying client errors", async () => {
+    process.env.HUGGINGFACE_HUB_TOKEN = "token";
+    process.env.HUGGINGFACE_EMBEDDING_MODEL = "embed-model";
+    (HF.featureExtraction as any).mockRejectedValue(new Error("hf boom"));
+    const svc = new LLMService();
+    await expect(svc.embeddingHF("y")).rejects.toThrow(/hf boom/i);
+  });
+
+  it("buildPrompt calls mainPrompt with sanitized values", () => {
+    const svc = new LLMService();
+    PROMPT.sanitizeText.mockImplementation((s: any) =>
+      typeof s === "string" ? s.trim().toUpperCase() : s
+    );
+
+    const ctx = " some ctx ";
+    const q = " a question ";
+    const hist: any[] = [];
+
+    svc.buildPrompt(ctx, q, hist);
+
+    // mainPrompt was wrapped with vi.fn in beforeEach
+    expect(PROMPT.mainPrompt).toHaveBeenCalledTimes(1);
+
+    // We can't assert exact string without implementation, but we can assert sanitize usage
+    expect(PROMPT.sanitizeText).toHaveBeenCalledWith(ctx);
+    expect(PROMPT.sanitizeText).toHaveBeenCalledWith(q);
+  });
+
+  it("buildLowPrompt calls lowPrompt with validated chunks", () => {
+    const svc = new LLMService();
+    const arr = [" a ", " b ", " c "];
+    svc.buildLowPrompt(arr);
+    expect(PROMPT.lowPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("generateAnswerStream yields nothing for empty model output, but still calls chatCompletionStream", async () => {
+    process.env.HUGGINGFACE_HUB_TOKEN = "token";
+    process.env.HUGGINGFACE_CHAT_MODEL = "chat-model";
+    const svc = new LLMService();
+
+    (HF.chatCompletionStream as any).mockResolvedValue({
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => ({ done: true, value: undefined }),
+        };
+      },
+    });
+
+    const userInput = { question: "Q", context: "", chatHistory: [] };
+    const out: string[] = [];
+    for await (const t of svc.generateAnswerStream(userInput as any)) {
+      out.push(t);
+    }
+    expect(out).toEqual([]);
+    expect(HF.chatCompletionStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("generateAnswerStream tolerates chunks with missing delta.content", async () => {
+    process.env.HUGGINGFACE_HUB_TOKEN = "token";
+    process.env.HUGGINGFACE_CHAT_MODEL = "chat-model";
+    const svc = new LLMService();
+
+    const malformed = [
+      { choices: [{ delta: {} }] },
+      { choices: [{ notDelta: { content: "ignored" } }] },
+      {}, // totally malformed
+      { choices: [{ delta: { content: "OK" } }] },
+    ];
+    (HF.chatCompletionStream as any).mockResolvedValue(
+      (function (items: any[]) {
+        return {
+          [Symbol.asyncIterator]() {
+            let i = 0;
+            return {
+              next: async () =>
+                i >= items.length
+                  ? { done: true, value: undefined }
+                  : { done: false, value: items[i++] },
+            };
+          },
+        };
+      })(malformed)
+    );
+
+    const userInput = { question: "Q", context: "", chatHistory: [] };
+    const out: string[] = [];
+    for await (const t of svc.generateAnswerStream(userInput as any)) {
+      out.push(t);
+    }
+    expect(out.join("")).toBe("OK");
+  });
+
+  it("setEnrichmentService replaces any existing enrichment service", async () => {
+    process.env.HUGGINGFACE_HUB_TOKEN = "token";
+    process.env.HUGGINGFACE_CHAT_MODEL = "chat-model";
+    const svc = new LLMService();
+
+    const first = { enrichIfUnknown: vi.fn(async () => null) };
+    const second = { enrichIfUnknown: vi.fn(async () => null) };
+    svc.setEnrichmentService(first as any);
+    svc.setEnrichmentService(second as any);
+
+    (HF.chatCompletionStream as any).mockResolvedValue(
+      (function (items: any[]) {
+        return {
+          [Symbol.asyncIterator]() {
+            let i = 0;
+            return {
+              next: async () =>
+                i >= items.length
+                  ? { done: true, value: undefined }
+                  : { done: false, value: items[i++] },
+            };
+          },
+        };
+      })([{ choices: [{ delta: { content: "I don't know" } }] }])
+    );
+
+    const userInput = { question: "Q", context: "", chatHistory: [] };
+    for await (const _ of svc.generateAnswerStream(userInput as any)) {
+      // consume
+    }
+
+    expect(first.enrichIfUnknown).not.toHaveBeenCalled();
+    expect(second.enrichIfUnknown).toHaveBeenCalledTimes(1);
+  });
+});

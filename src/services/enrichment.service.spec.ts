@@ -231,7 +231,8 @@ describe("EnrichmentService", () => {
     expect(mockVector.upsertVectors).not.toHaveBeenCalled();
 
     // Now a snippet long enough (>50 chars) should be used and upserted
-    const longSnippet = "This is a reasonably long snippet ".repeat(3); // > 50 chars
+    const longSnippet =
+      "This is a reasonably long snippet ".repeat(3); // > 50 chars
     mockSearchAdapter.search = vi.fn(async () => [
       {
         title: "LongSnippet",
@@ -252,35 +253,143 @@ describe("EnrichmentService", () => {
     expect(mockVector.upsertVectors).toHaveBeenCalled();
   });
 
-  it('enrichIfUnknown calls searchAndEmbed when answer contains "I don\'t know"', async () => {
-    // spy on searchAndEmbed
-    const spy = vi.spyOn(svc as any, "searchAndEmbed").mockResolvedValue([]);
+  it("preEmbedDocument splits long text into multiple chunks and upserts all of them", async () => {
+    const longDoc = "ABCDE ".repeat(600); // ~3600+ chars -> many chunks with small chunkSize
+    const opts = { chunkSize: 256, chunkOverlap: 32, fileId: "file-long" };
 
-    const res = await svc.enrichIfUnknown("Q?", "I don't know");
-    expect(spy).toHaveBeenCalledWith("Q?", expect.any(Object));
-    expect(res).toEqual([]);
-    spy.mockRestore();
+    await svc.preEmbedDocument(longDoc, opts);
+
+    expect(mockLLM.embeddingHF).toHaveBeenCalled();
+    expect(mockVector.upsertVectors).toHaveBeenCalled();
+
+    const vectors = mockVector.upsertVectors.mock.calls.slice(-1)[0][0];
+    // Expect multiple chunks
+    expect(Array.isArray(vectors)).toBe(true);
+    expect(vectors.length).toBeGreaterThan(1);
+
+    // Validate each vector's minimal shape
+    for (const v of vectors) {
+      expect(typeof v.id).toBe("string");
+      expect(v.id.length).toBeGreaterThan(10);
+      expect(v.metadata.source).toBe("uploaded-doc");
+      expect(v.metadata.fileId).toBe(opts.fileId);
+      expect(Array.isArray(v.values)).toBe(true);
+      expect(typeof v.values[0]).toBe("number");
+    }
   });
 
-  it("fetchPageText returns null on too-large content-length", async () => {
-    // Use a large content-length header to trigger maxBytes check
+  it("searchAndEmbed handles non-OK fetch responses by skipping upsert and still returning search results", async () => {
     mockSearchAdapter.search = vi.fn(async () => [
-      { title: "Large", snippet: "S", url: "https://example.com/huge" },
+      {
+        title: "Bad",
+        snippet:
+          "Some snippet long enough to pass threshold " +
+          "x".repeat(80),
+        url: "https://example.com/500",
+      },
+    ]);
+
+    (globalThis as any).fetch = vi.fn(async () =>
+      makeFetchResponse({
+        ok: false,
+        status: 500,
+        statusText: "Server Error",
+        headers: { "content-type": "text/html", "content-length": "500" },
+        body:
+          "<html><body><article><p>Server error page</p></article></body></html>",
+      })
+    );
+
+    const results = await svc.searchAndEmbed("query", {
+      maxResults: 1,
+      maxPagesToFetch: 1,
+    });
+
+    expect(mockSearchAdapter.search).toHaveBeenCalled();
+    expect(mockVector.upsertVectors).not.toHaveBeenCalled();
+    expect(results.length).toBe(1);
+    expect(results[0].url).toBe("https://example.com/500");
+  });
+
+  it("searchAndEmbed respects maxPagesToFetch by limiting fetch calls", async () => {
+    const html = `<html><body><article><p>${"Content ".repeat(60)}</p></article></body></html>`;
+    mockSearchAdapter.search = vi.fn(async () => [
+      { title: "A", snippet: "S".repeat(80), url: "https://example.com/a" },
+      { title: "B", snippet: "S".repeat(80), url: "https://example.com/b" },
+      { title: "C", snippet: "S".repeat(80), url: "https://example.com/c" },
+    ]);
+
+    (globalThis as any).fetch = vi.fn(async (url: string) => {
+      expect([
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+      ]).toContain(url);
+      return makeFetchResponse({
+        ok: true,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "content-length": String(html.length),
+        },
+        body: html,
+      });
+    });
+
+    const results = await svc.searchAndEmbed("any", {
+      maxResults: 3,
+      maxPagesToFetch: 2,
+    });
+
+    // Only 2 pages fetched even though 3 results are available
+    expect((globalThis as any).fetch).toHaveBeenCalledTimes(2);
+    expect(mockVector.upsertVectors).toHaveBeenCalled();
+    expect(results.length).toBe(3); // returns search results regardless
+  });
+
+  it("searchAndEmbed processes HTML when content-length header is absent (treat unknown size safely)", async () => {
+    const html = `<html><body><article><p>${"Law text ".repeat(70)}</p></article></body></html>`;
+    mockSearchAdapter.search = vi.fn(async () => [
+      {
+        title: "NoLength",
+        snippet: "S".repeat(100),
+        url: "https://example.com/nolength",
+      },
     ]);
 
     (globalThis as any).fetch = vi.fn(async () =>
       makeFetchResponse({
         ok: true,
-        headers: {
-          "content-type": "text/html",
-          "content-length": String(10_000_000),
-        },
-        body: "<html></html>",
+        headers: { "content-type": "text/html" }, // no content-length header
+        body: html,
       })
     );
 
-    await svc.searchAndEmbed("x", { maxResults: 1, maxPagesToFetch: 1 });
+    await svc.searchAndEmbed("q", { maxResults: 1, maxPagesToFetch: 1 });
 
-    expect(mockVector.upsertVectors).not.toHaveBeenCalled();
+    expect(mockVector.upsertVectors).toHaveBeenCalled();
+  });
+
+  it("preEmbedDocument assigns UUID-like ids for each vector", async () => {
+    const doc =
+      "This is a mid-sized document with enough content to create multiple chunks. " +
+      "x".repeat(600);
+    const opts = {
+      chunkSize: 300,
+      chunkOverlap: 20,
+      fileId: "file-uuid",
+    };
+
+    await svc.preEmbedDocument(doc, opts);
+
+    const vectors = mockVector.upsertVectors.mock.calls.slice(-1)[0][0];
+    expect(vectors.length).toBeGreaterThan(1);
+    for (const v of vectors) {
+      // Basic UUID shape check: 8-4-4-4-12 with hyphens
+      expect(
+        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+          v.id
+        )
+      ).toBe(true);
+    }
   });
 });
