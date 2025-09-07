@@ -76,3 +76,14 @@ export interface UserFileRecord {
   created_at: string;
   updated_at: string;
 }
+
+export interface PromptConfig {
+  version?: string;
+  maxLength?: number;
+  tone?: "formal" | "neutral";
+  temperature?: number; // LLM creativity control (0 = deterministic)
+  truncateStrategy?: "error" | "truncate-history" | "truncate-context";
+  language?: string;
+  logStats?: boolean;
+  truncateBuffer?: number;
+}
