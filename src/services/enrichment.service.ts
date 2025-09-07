@@ -165,10 +165,6 @@ export class EnrichmentService {
       const id = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(url, {
         signal: controller.signal,
-        headers: {
-          "User-Agent": process.env.CRAWLER_USER_AGENT!,
-          Accept: "text/html",
-        },
       });
       clearTimeout(id);
 
