@@ -91,3 +91,14 @@ export interface SearchResult {
   snippet: string;
   url: string;
 }
+
+export interface EnrichmentOptions {
+  maxResults?: number;
+  maxPagesToFetch?: number;
+  fetchConcurrency?: number;
+  minContentLength?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  userId?: string;
+  fileId?: string;
+}
