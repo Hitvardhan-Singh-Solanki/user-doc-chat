@@ -118,36 +118,40 @@ export class LLMService {
       }
     }
 
-    const enrichmentResults: SearchResult[] | null = this.enrichmentService
-      ? await this.enrichmentService.enrichIfUnknown(
-          userInput.question,
-          finalAnswer
-        )
-      : null;
+    try {
+      const enrichmentResults: SearchResult[] | null = this.enrichmentService
+        ? await this.enrichmentService.enrichIfUnknown(
+            userInput.question,
+            finalAnswer
+          )
+        : null;
 
-    if (enrichmentResults?.length) {
-      const enrichedContext = enrichmentResults
-        .map((r) => `${r.title}: ${r.snippet}`)
-        .join("\n\n");
+      if (enrichmentResults?.length) {
+        const enrichedContext = enrichmentResults
+          .map((r) => `${r.title}: ${r.snippet}`)
+          .join("\n\n");
 
-      const enrichedPrompt = mainPrompt(
-        {
-          question: userInput.question,
-          context: enrichedContext,
-          chatHistory: userInput.chatHistory ?? [],
-        },
-        config
-      );
+        const enrichedPrompt = mainPrompt(
+          {
+            question: userInput.question,
+            context: enrichedContext,
+            chatHistory: userInput.chatHistory ?? [],
+          },
+          config
+        );
 
-      const enrichedStream = await inference.chatCompletionStream({
-        model: this.hfChatModel,
-        messages: [{ role: "user", content: enrichedPrompt }],
-      });
+        const enrichedStream = await inference.chatCompletionStream({
+          model: this.hfChatModel,
+          messages: [{ role: "user", content: enrichedPrompt }],
+        });
 
-      for await (const chunk of enrichedStream) {
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) yield content;
+        for await (const chunk of enrichedStream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) yield content;
+        }
       }
+    } catch (e) {
+      console.warn("Enrichment failed; continuing without it:", e);
     }
   }
 
