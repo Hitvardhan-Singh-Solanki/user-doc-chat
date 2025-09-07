@@ -182,6 +182,11 @@ export class EnrichmentService {
       if (!ct.includes("html") && !ct.includes("xml")) {
         return null;
       }
+      const len = Number(res.headers.get("content-length") || "0");
+      const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000); // ~2MB
+      if (len && len > maxBytes) {
+        return null;
+      }
 
       const html = await res.text();
       const dom = new JSDOM(html, { url });
