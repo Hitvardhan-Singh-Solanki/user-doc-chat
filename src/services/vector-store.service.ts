@@ -3,15 +3,15 @@ import { LLMService } from "./llm.service";
 import { PineconeVectorStore } from "./pinecone.service";
 import { IVectorStore } from "../interfaces/vector-store.interface";
 import { PostgresService } from "./postgres.service";
-import { lowPrompt } from "../utils/prompt";
+import { LowContentSchema, lowPrompt } from "../utils/prompt";
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;
   private maxContextTokens: number;
   private llm: LLMService;
 
-  constructor(store: VectorStoreType = "pinecone") {
-    this.llm = new LLMService();
+  constructor(llm: LLMService, store: VectorStoreType = "pinecone") {
+    this.llm = llm;
     this.maxContextTokens = Number(process.env.MAX_CONTEXT_TOKENS) || 2000;
     if (store === "pinecone") {
       this.vectorStore = new PineconeVectorStore();
@@ -76,9 +76,13 @@ export class VectorStoreService {
     if (!lowRelevance.length) return "";
 
     let summary = "";
-    for await (const token of this.llm.generateAnswerStream(
-      lowPrompt(lowRelevance)
-    )) {
+    const lowPromptInput = {
+      question: "",
+      context: lowPrompt(LowContentSchema.parse(lowRelevance)),
+      chatHistory: [],
+    };
+
+    for await (const token of this.llm.generateAnswerStream(lowPromptInput)) {
       summary += token;
     }
 

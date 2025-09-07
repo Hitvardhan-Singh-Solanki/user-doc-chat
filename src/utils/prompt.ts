@@ -1,5 +1,23 @@
 import { createLogger, transports, format } from "winston";
+import { z } from "zod";
 import { PromptConfig } from "../types";
+
+export const UserInputSchema = z.object({
+  question: z.string().min(1, "Question cannot be empty").max(2000),
+  context: z.string().optional().default("(No context provided)"),
+  chatHistory: z.array(z.string()).optional().default([]),
+});
+
+export const LowContentSchema = z.array(z.string()).default([]);
+
+export function sanitizeText(input: string): string {
+  return input
+    .replace(/[\r\t]+/g, " ")
+    .replace(/\n+/g, "\n")
+    .replace(/(\bignore previous instructions\b)/gi, "")
+    .replace(/(\bdo anything\b)/gi, "")
+    .trim();
+}
 
 const logger = createLogger({
   level: "debug",
@@ -8,7 +26,6 @@ const logger = createLogger({
 });
 
 function estimateTokens(text: string): number {
-  // Mock implementation: approximate 1 token per 4 chars, adjusted for spaces
   const words = text.split(/\s+/).filter(Boolean);
   return words.length + Math.ceil(text.length / 8);
 }
@@ -29,7 +46,6 @@ function truncateText(
   }
 
   if (strategy === "truncate-context") {
-    // Preserve legal citations (e.g., "Section", "Clause") if possible
     const priorityRegex = /(Section|Clause|Article)\s+\d+\.\d+/gi;
     const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
     let result = "";
@@ -48,59 +64,17 @@ function truncateText(
   return text;
 }
 
-function sanitize(input: string): string {
-  return input
-    .replace(/[\r\t]+/g, " ")
-    .replace(/\n+/g, "\n")
-    .replace(/(\bignore previous instructions\b)/gi, "")
-    .trim();
-}
-
-/**
- * Builds a structured, production-ready system prompt for the AI legal assistant.
- *
- * The assistant must:
- * - Use only the provided context and chat history for answers.
- * - Respond "I don't know" if the answer is not in the context.
- * - Quote laws, sections, or clauses verbatim if referenced.
- * - Provide concise, professional, and legally correct answers.
- * - Summarize multiple valid answers clearly if applicable.
- * - Never fabricate or speculate on laws or clauses.
- *
- * @param context - Legal source material (laws, clauses, facts) for reference.
- * @param question - The user's legal question.
- * @param historyStr - Serialized chat history for continuity.
- * @param config - Optional configuration for prompt customization.
- * @returns A well-structured prompt string for the LLM.
- * @throws Error if inputs are invalid or malformed.
- * @example
- * const prompt = mainPrompt(
- *   'Section 12.1: Contracts must be signed.',
- *   'Is a contract valid without a signature?',
- *   'User asked about contracts.',
- *   { tone: 'neutral', language: 'en' }
- * );
- */
+// -------------------- Main Prompt --------------------
 export function mainPrompt(
-  context: string = "(No context provided)",
-  question: string,
-  historyStr: string = "(No prior chat history)",
+  input: z.infer<typeof UserInputSchema>,
   config: PromptConfig = {}
 ): string {
-  // Input validation
-  if (!question || typeof question !== "string") {
-    throw new Error("Question must be a non-empty string");
-  }
-  if (typeof context !== "string" || typeof historyStr !== "string") {
-    throw new Error("Context and history must be strings");
-  }
+  const parsedInput = UserInputSchema.parse(input);
 
-  // Sanitize inputs
-  const sanitizedContext = sanitize(context);
-  const sanitizedQuestion = sanitize(question);
-  const sanitizedHistory = sanitize(historyStr);
+  const sanitizedContext = sanitizeText(parsedInput.context);
+  const sanitizedQuestion = sanitizeText(parsedInput.question);
+  const sanitizedHistory = sanitizeText(parsedInput.chatHistory.join("\n"));
 
-  // Default configuration
   const defaultConfig: PromptConfig = {
     version: "1.0.0",
     maxLength: 10000,
@@ -108,30 +82,31 @@ export function mainPrompt(
     temperature: 0,
     truncateStrategy: "truncate-history",
     language: "en",
+    jurisdiction: "IN",
     logStats: true,
     truncateBuffer: 1000,
   };
+
   const finalConfig = { ...defaultConfig, ...config };
 
-  // Validate language
-  const supportedLanguages = ["en", "es", "fr"];
-  if (!supportedLanguages.includes(finalConfig.language!)) {
-    throw new Error(`Unsupported language: ${finalConfig.language}`);
-  }
+  if (finalConfig.language !== "en")
+    throw new Error("Only English language is supported");
+  if (finalConfig.jurisdiction && finalConfig.jurisdiction !== "IN")
+    throw new Error("Only Indian jurisdiction is supported");
 
-  // Construct the prompt
   let prompt = `
 === SYSTEM INSTRUCTION ===
 Version: ${finalConfig.version}
 Role: You are an AI Legal Assistant. Answer legal questions strictly based on the provided CONTEXT and CHAT HISTORY.
 Constraints:
-- Do NOT use external knowledge or make assumptions.
-- Respond with "I don't know" if the answer is not explicitly in the context.
+- Do NOT use external knowledge or make assumptions unless explicitly allowed.
+- Respond with "I don't know" if the answer is not in the context.
 - Never fabricate or speculate on laws or clauses.
 - Quote laws, sections, or clauses verbatim when referenced.
 - Keep answers concise, accurate, and legally correct.
 - Use a ${finalConfig.tone} tone.
-- If multiple valid answers exist, summarize all options clearly and neutrally.
+- Only answer questions related to ${finalConfig.jurisdiction} law.
+- If multiple valid answers exist, summarize all options clearly.
 - For ambiguous questions, ask for clarification within the response.
 - Respond in ${finalConfig.language}.
 - Temperature: ${finalConfig.temperature}.
@@ -148,18 +123,7 @@ ${sanitizedQuestion}
 === ANSWER ===
 `.trim();
 
-  prompt +=
-    prompt.length > finalConfig.maxLength!
-      ? "- WARNING: Input truncated due to length limits."
-      : "";
-
-  // Handle truncation
   if (prompt.length > finalConfig.maxLength!) {
-    if (finalConfig.truncateStrategy === "error") {
-      throw new Error(
-        `Prompt exceeds maximum length of ${finalConfig.maxLength} characters`
-      );
-    }
     const available = finalConfig.maxLength! - finalConfig.truncateBuffer!;
     if (finalConfig.truncateStrategy === "truncate-history") {
       prompt = prompt.replace(
@@ -171,18 +135,11 @@ ${sanitizedQuestion}
         sanitizedContext,
         truncateText(sanitizedContext, available, "truncate-context")
       );
+    } else if (finalConfig.truncateStrategy === "error") {
+      throw new Error("Prompt exceeds max length");
     }
   }
 
-  // Version-specific adjustments
-  if (finalConfig.version === "2.0.0") {
-    prompt = prompt.replace(
-      "Temperature: ",
-      "Advanced Constraint: Ensure responses are limited to 500 words.\nTemperature: "
-    );
-  }
-
-  // Logging
   if (finalConfig.logStats) {
     logger.debug("Main Prompt Generated", {
       version: finalConfig.version,
@@ -190,6 +147,7 @@ ${sanitizedQuestion}
       tokens: estimateTokens(prompt),
       tone: finalConfig.tone,
       language: finalConfig.language,
+      jurisdiction: finalConfig.jurisdiction,
       questionLength: sanitizedQuestion.length,
     });
   }
@@ -197,37 +155,15 @@ ${sanitizedQuestion}
   return prompt;
 }
 
-/**
- * Generates a prompt for summarizing low-relevance text snippets into concise context for the Q&A system.
- *
- * @param lowRelevance - Array of text blocks to be summarized.
- * @param config - Optional configuration for prompt customization.
- * @returns A prompt string instructing the model to produce a concise summary.
- * @throws Error if inputs are invalid or malformed.
- * @example
- * const prompt = lowPrompt(
- *   ['Section 12.1: Contracts must be signed.', 'Drafted in 2020.'],
- *   { tone: 'neutral' }
- * );
- */
+// -------------------- Low Prompt --------------------
 export function lowPrompt(
-  lowRelevance: string[] = [],
+  lowContent: z.infer<typeof LowContentSchema>,
   config: PromptConfig = {}
 ): string {
-  // Input validation
-  if (
-    !Array.isArray(lowRelevance) ||
-    lowRelevance.some((item) => typeof item !== "string")
-  ) {
-    throw new Error("lowRelevance must be an array of strings");
-  }
-
-  // Sanitize inputs
-  const sanitizedLowRelevance = lowRelevance
-    .map(sanitize)
+  const sanitizedContent = lowContent
+    .map(sanitizeText)
     .filter((item) => item.length > 0);
 
-  // Default configuration
   const defaultConfig: PromptConfig = {
     version: "1.0.0",
     maxLength: 5000,
@@ -235,23 +171,22 @@ export function lowPrompt(
     temperature: 0,
     truncateStrategy: "truncate-context",
     language: "en",
+    jurisdiction: "IN",
     logStats: true,
     truncateBuffer: 500,
   };
   const finalConfig = { ...defaultConfig, ...config };
 
-  // Validate language
-  const supportedLanguages = ["en", "es", "fr"];
-  if (!supportedLanguages.includes(finalConfig.language!)) {
-    throw new Error(`Unsupported language: ${finalConfig.language}`);
-  }
+  if (finalConfig.language !== "en")
+    throw new Error("Only English language is supported");
+  if (finalConfig.jurisdiction && finalConfig.jurisdiction !== "IN")
+    throw new Error("Only Indian jurisdiction is supported");
 
   const content =
-    sanitizedLowRelevance.length > 0
-      ? sanitizedLowRelevance.join("\n\n")
+    sanitizedContent.length > 0
+      ? sanitizedContent.join("\n\n")
       : "(No content provided)";
 
-  // Construct the prompt
   let prompt = `
 === SYSTEM INSTRUCTION ===
 Version: ${finalConfig.version}
@@ -261,6 +196,7 @@ Constraints:
 - Remove redundancies and irrelevant details.
 - Preserve exact wording for legal citations where needed.
 - Use a ${finalConfig.tone} tone.
+- Only summarize content relevant to ${finalConfig.jurisdiction} law.
 - Respond in ${finalConfig.language}.
 - Temperature: ${finalConfig.temperature}.
 
@@ -270,28 +206,11 @@ ${content}
 === SUMMARY ===
 `.trim();
 
-  prompt +=
-    prompt.length > finalConfig.maxLength!
-      ? "- WARNING: Input truncated due to length limits."
-      : "";
-
   if (prompt.length > finalConfig.maxLength!) {
-    if (finalConfig.truncateStrategy === "error") {
-      throw new Error(
-        `Prompt exceeds maximum length of ${finalConfig.maxLength} characters`
-      );
-    }
     prompt = truncateText(
       prompt,
       finalConfig.maxLength! - finalConfig.truncateBuffer!,
       "truncate-context"
-    );
-  }
-
-  if (finalConfig.version === "2.0.0") {
-    prompt = prompt.replace(
-      "Temperature: ",
-      "Advanced Constraint: Summaries must be under 200 words.\nTemperature: "
     );
   }
 
@@ -302,7 +221,8 @@ ${content}
       tokens: estimateTokens(prompt),
       tone: finalConfig.tone,
       language: finalConfig.language,
-      inputCount: sanitizedLowRelevance.length,
+      jurisdiction: finalConfig.jurisdiction,
+      inputCount: sanitizedContent.length,
     });
   }
 
