@@ -7,6 +7,7 @@ import { VectorStoreService } from "./vector-store.service";
 import { redisChatHistory } from "../repos/redis.repo";
 import { UserInputSchema } from "../schemas/user-input.schema";
 import { EnrichmentService } from "./enrichment.service";
+import { PromptService } from "./prompt.service";
 
 export class WebsocketService {
   private static instance: WebsocketService;
@@ -126,15 +127,13 @@ export class WebsocketService {
     let fullAnswer = "";
     await this.appendChatHistory(userId, fileId, `User: ${question}`);
 
-    const fullPrompt = UserInputSchema.parse({
+    const userInput = UserInputSchema.parse({
       question,
       chatHistory,
       context,
     });
 
-    for await (const token of this.llmService.generateAnswerStream(
-      fullPrompt
-    )) {
+    for await (const token of this.llmService.generateAnswerStream(userInput)) {
       this.io.to(userId).emit("answer_chunk", { token });
       fullAnswer += token;
     }
