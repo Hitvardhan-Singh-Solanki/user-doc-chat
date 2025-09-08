@@ -134,12 +134,26 @@ ${sanitizedQuestion}
       const overflow = prompt.length - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
       if (finalConfig.truncateStrategy === "truncate-history") {
-        const targetLen = Math.max(0, sanitizedHistory.length - overflow - buffer);
-        const truncated = this.truncateText(sanitizedHistory, targetLen, "truncate-history");
+        const targetLen = Math.max(
+          0,
+          sanitizedHistory.length - overflow - buffer
+        );
+        const truncated = this.truncateText(
+          sanitizedHistory,
+          targetLen,
+          "truncate-history"
+        );
         prompt = prompt.replace(sanitizedHistory, truncated);
       } else if (finalConfig.truncateStrategy === "truncate-context") {
-        const targetLen = Math.max(0, sanitizedContext.length - overflow - buffer);
-        const truncated = this.truncateText(sanitizedContext, targetLen, "truncate-context");
+        const targetLen = Math.max(
+          0,
+          sanitizedContext.length - overflow - buffer
+        );
+        const truncated = this.truncateText(
+          sanitizedContext,
+          targetLen,
+          "truncate-context"
+        );
         prompt = prompt.replace(sanitizedContext, truncated);
       } else if (finalConfig.truncateStrategy === "error") {
         throw new Error("Prompt exceeds max length");
@@ -215,7 +229,11 @@ ${content}
       const overflow = prompt.length - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
       const targetLen = Math.max(0, content.length - overflow - buffer);
-      const truncated = this.truncateText(content, targetLen, "truncate-context");
+      const truncated = this.truncateText(
+        content,
+        targetLen,
+        "truncate-context"
+      );
       prompt = prompt.replace(content, truncated);
       if (prompt.length > finalConfig.maxLength!) {
         throw new Error("Low prompt still exceeds maxLength after truncation");
