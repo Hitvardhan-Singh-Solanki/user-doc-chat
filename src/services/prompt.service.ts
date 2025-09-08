@@ -131,19 +131,21 @@ ${sanitizedQuestion}
 `.trim();
 
     if (prompt.length > finalConfig.maxLength!) {
-      const available = finalConfig.maxLength! - finalConfig.truncateBuffer!;
+      const overflow = prompt.length - finalConfig.maxLength!;
+      const buffer = finalConfig.truncateBuffer ?? 0;
       if (finalConfig.truncateStrategy === "truncate-history") {
-        prompt = prompt.replace(
-          sanitizedHistory,
-          this.truncateText(sanitizedHistory, available, "truncate-history")
-        );
+        const targetLen = Math.max(0, sanitizedHistory.length - overflow - buffer);
+        const truncated = this.truncateText(sanitizedHistory, targetLen, "truncate-history");
+        prompt = prompt.replace(sanitizedHistory, truncated);
       } else if (finalConfig.truncateStrategy === "truncate-context") {
-        prompt = prompt.replace(
-          sanitizedContext,
-          this.truncateText(sanitizedContext, available, "truncate-context")
-        );
+        const targetLen = Math.max(0, sanitizedContext.length - overflow - buffer);
+        const truncated = this.truncateText(sanitizedContext, targetLen, "truncate-context");
+        prompt = prompt.replace(sanitizedContext, truncated);
       } else if (finalConfig.truncateStrategy === "error") {
         throw new Error("Prompt exceeds max length");
+      }
+      if (prompt.length > finalConfig.maxLength!) {
+        throw new Error("Prompt still exceeds maxLength after truncation");
       }
     }
 
