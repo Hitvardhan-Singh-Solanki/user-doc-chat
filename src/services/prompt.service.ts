@@ -212,11 +212,14 @@ ${content}
 `.trim();
 
     if (prompt.length > finalConfig.maxLength!) {
-      prompt = this.truncateText(
-        prompt,
-        finalConfig.maxLength! - finalConfig.truncateBuffer!,
-        "truncate-context"
-      );
+      const overflow = prompt.length - finalConfig.maxLength!;
+      const buffer = finalConfig.truncateBuffer ?? 0;
+      const targetLen = Math.max(0, content.length - overflow - buffer);
+      const truncated = this.truncateText(content, targetLen, "truncate-context");
+      prompt = prompt.replace(content, truncated);
+      if (prompt.length > finalConfig.maxLength!) {
+        throw new Error("Low prompt still exceeds maxLength after truncation");
+      }
     }
 
     if (finalConfig.logStats) {
