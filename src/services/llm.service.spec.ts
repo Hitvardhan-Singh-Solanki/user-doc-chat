@@ -8,17 +8,7 @@ import {
   expect,
   vi,
 } from "vitest";
-
-// --- Mutable controllers used by vi.mock factories (must be declared before vi.mock) ---
-// Make sanitizeText a spy from the start so module under test gets a spy reference.
-const PROMPT = {
-  mainPrompt: (userInput: any, _cfg?: any) =>
-    `MAIN_PROMPT:${JSON.stringify(userInput)}`,
-  lowPrompt: (lowContent: string[]) => `LOW_PROMPT:${lowContent.join("|")}`,
-  UserInputSchema: { parse: (x: any) => x },
-  LowContentSchema: { parse: (x: any) => x },
-  sanitizeText: vi.fn((s: string) => (typeof s === "string" ? s.trim() : s)),
-};
+import {PromptService} from "./prompt.service";
 
 const HF = {
   featureExtraction: async (..._args: any[]) => [],
@@ -61,16 +51,6 @@ vi.mock("@huggingface/inference", () => {
   };
 });
 
-vi.mock("../utils/prompt", () => {
-  return {
-    mainPrompt: PROMPT.mainPrompt,
-    lowPrompt: PROMPT.lowPrompt,
-    UserInputSchema: PROMPT.UserInputSchema,
-    LowContentSchema: PROMPT.LowContentSchema,
-    sanitizeText: PROMPT.sanitizeText,
-  };
-});
-
 // Delay importing the module under test until after vi.mock runs
 let LLMService: any;
 
@@ -86,11 +66,6 @@ describe("LLMService (unit)", () => {
     // reset controller implementations to fresh spies per test
     HF.featureExtraction = vi.fn();
     HF.chatCompletionStream = vi.fn();
-
-    // keep sanitizeText as a spy (reset calls)
-    PROMPT.sanitizeText.mockClear();
-    PROMPT.mainPrompt = vi.fn(PROMPT.mainPrompt);
-    PROMPT.lowPrompt = vi.fn(PROMPT.lowPrompt);
 
     // mock global fetch; tests change its implementation as needed
     (globalThis as any).fetch = vi.fn();
@@ -128,6 +103,7 @@ describe("LLMService (unit)", () => {
 
   it("embeddingPython calls fetch and returns embedding on success (and uses sanitizeText)", async () => {
     process.env.PYTHON_LLM_URL = "http://example.local/embed";
+    const sanitizeSpy = vi.spyOn(PromptService.prototype, "sanitizeText");
     const svc = new LLMService();
     const fakeEmbedding = [0.1, 0.2, 0.3];
 
@@ -141,12 +117,13 @@ describe("LLMService (unit)", () => {
 
     const emb = await svc.embeddingPython(" some text ");
     // sanitizeText is a spy from the top-level PROMPT object
-    expect(PROMPT.sanitizeText).toHaveBeenCalled();
+    expect(sanitizeSpy).toHaveBeenCalled();
     expect(emb).toEqual(fakeEmbedding);
     expect((globalThis as any).fetch).toHaveBeenCalledWith(
       process.env.PYTHON_LLM_URL,
       expect.objectContaining({ method: "POST" })
     );
+    sanitizeSpy.mockRestore();
   });
 
   it("embeddingPython throws when fetch returns non-ok", async () => {
@@ -201,7 +178,7 @@ describe("LLMService (unit)", () => {
 
     // create a fake enrichment service and attach (it will be called but return null / undefined)
     const fakeEnr = { enrichIfUnknown: vi.fn(async () => null) };
-    svc.setEnrichmentService(fakeEnr as any);
+    svc.enrichmentService=fakeEnr as any;
 
     const userInput = { question: "Q1", context: "ctx", chatHistory: [] };
     const got: string[] = [];
@@ -240,7 +217,7 @@ describe("LLMService (unit)", () => {
         return fakeResults;
       }),
     };
-    svc.setEnrichmentService(fakeEnr as any);
+    svc.enrichmentService= fakeEnr as any;
 
     const userInput = { question: "What is X?", context: "", chatHistory: [] };
     const tokens: string[] = [];
@@ -270,7 +247,7 @@ describe("LLMService (unit)", () => {
         throw new Error("search error");
       }),
     };
-    svc.setEnrichmentService(throwingEnr as any);
+    svc.enrichmentService = throwingEnr as any;
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

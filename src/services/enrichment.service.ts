@@ -5,15 +5,18 @@ import { v4 as uuid } from "uuid";
 
 import { ISearchAdapter } from "../interfaces/search-adapter.interface";
 import { EnrichmentOptions, SearchResult } from "../types";
-import { sanitizeText } from "../utils/prompt";
 import { LLMService } from "./llm.service";
 import { VectorStoreService } from "./vector-store.service";
 import { DuckDuckGoAdapter } from "./duckduckgo.service";
+import { PromptService } from "./prompt.service";
+import { lookup } from "dns/promises";
+import net from "net";
 
 export class EnrichmentService {
   private vectorStore: VectorStoreService;
   private llmService: LLMService;
   private searchAdapter: ISearchAdapter;
+  private promptService: PromptService;
 
   constructor(
     llmService: LLMService,
@@ -23,19 +26,7 @@ export class EnrichmentService {
     this.llmService = llmService;
     this.vectorStore = vectorStore;
     this.searchAdapter = searchAdapter ?? new DuckDuckGoAdapter();
-  }
-
-  private defaultOptions(): Required<EnrichmentOptions> {
-    return {
-      maxResults: 5,
-      maxPagesToFetch: 5,
-      fetchConcurrency: 3,
-      minContentLength: 200,
-      chunkSize: Number(process.env.CHUNK_SIZE) || 800,
-      chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
-      userId: "(public)",
-      fileId: "(external-search)",
-    };
+    this.promptService = new PromptService();
   }
 
   public async preEmbedDocument(
@@ -44,7 +35,7 @@ export class EnrichmentService {
   ): Promise<void> {
     const opts = { ...this.defaultOptions(), ...options };
 
-    const sanitized = sanitizeText(docText);
+    const sanitized = this.promptService.sanitizeText(docText);
     const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
 
     for (const chunk of chunks) {
@@ -111,6 +102,19 @@ export class EnrichmentService {
     return null;
   }
 
+  private defaultOptions(): Required<EnrichmentOptions> {
+    return {
+      maxResults: 5,
+      maxPagesToFetch: 5,
+      fetchConcurrency: 3,
+      minContentLength: 200,
+      chunkSize: Number(process.env.CHUNK_SIZE) || 800,
+      chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
+      userId: "(public)",
+      fileId: "(external-search)",
+    };
+  }
+
   private async fetchExtractAndUpsert(
     result: SearchResult,
     opts: Required<EnrichmentOptions>
@@ -126,7 +130,7 @@ export class EnrichmentService {
       return;
     }
 
-    const sanitized = sanitizeText(sourceText);
+    const sanitized = this.promptService.sanitizeText(sourceText);
 
     const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
 
@@ -174,10 +178,19 @@ export class EnrichmentService {
         return null;
       }
 
+      // Resolve and block private/reserved targets
+      try {
+        const { address } = await lookup(host, { all: false });
+        if (this.isPrivateAddress(address)) return null;
+      } catch {
+        return null;
+      }
+
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(url, {
         signal: controller.signal,
+        redirect: "manual",
         headers: {
           ...(process.env.CRAWLER_USER_AGENT
             ? { "User-Agent": process.env.CRAWLER_USER_AGENT }
@@ -186,21 +199,48 @@ export class EnrichmentService {
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
       });
-      clearTimeout(id);
+
+      if (res.status >= 300 && res.status < 400) {
+        clearTimeout(id);
+        return null;
+      }
 
       if (!res.ok) return null;
 
-      const ct = res.headers.get("content-type") || "";
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
       if (!ct.includes("html") && !ct.includes("xml")) {
         return null;
       }
       const len = Number(res.headers.get("content-length") || "0");
       const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000); // ~2MB
-      if (len && len > maxBytes) {
-        return null;
+      if (len && len > maxBytes) return null;
+
+      let html: string;
+
+      if (res.body) {
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            received += value.byteLength;
+            if (received > maxBytes) {
+              controller.abort();
+              clearTimeout(id);
+              return null;
+            }
+            chunks.push(value);
+          }
+        }
+        html = new TextDecoder().decode(Buffer.concat(chunks as any));
+      } else {
+        html = await res.text();
       }
 
-      const html = await res.text();
+      clearTimeout(id);
+
       const dom = new JSDOM(html, { url });
       const reader = new Readability(dom.window.document);
       const article = reader.parse();
@@ -224,5 +264,19 @@ export class EnrichmentService {
       i += step;
     }
     return chunks;
+  }
+
+  private isPrivateAddress(address: string): boolean {
+    if (net.isIP(address) === 4) {
+      return (
+        /^10\./.test(address) ||
+        /^127\./.test(address) ||
+        /^192\.168\./.test(address) ||
+        /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
+      );
+    }
+    // IPv6: loopback, link-local, unique-local
+    const a = address.toLowerCase();
+    return a === "::1" || a.startsWith("fe80:") || /^fc|fd/.test(a.slice(0, 2));
   }
 }
