@@ -5,15 +5,16 @@ import { v4 as uuid } from "uuid";
 
 import { ISearchAdapter } from "../interfaces/search-adapter.interface";
 import { EnrichmentOptions, SearchResult } from "../types";
-import { sanitizeText } from "../utils/prompt";
 import { LLMService } from "./llm.service";
 import { VectorStoreService } from "./vector-store.service";
 import { DuckDuckGoAdapter } from "./duckduckgo.service";
+import { PromptService } from "./prompt.service";
 
 export class EnrichmentService {
   private vectorStore: VectorStoreService;
   private llmService: LLMService;
   private searchAdapter: ISearchAdapter;
+  private promptService: PromptService;
 
   constructor(
     llmService: LLMService,
@@ -23,6 +24,7 @@ export class EnrichmentService {
     this.llmService = llmService;
     this.vectorStore = vectorStore;
     this.searchAdapter = searchAdapter ?? new DuckDuckGoAdapter();
+    this.promptService = new PromptService();
   }
 
   private defaultOptions(): Required<EnrichmentOptions> {
@@ -44,7 +46,7 @@ export class EnrichmentService {
   ): Promise<void> {
     const opts = { ...this.defaultOptions(), ...options };
 
-    const sanitized = sanitizeText(docText);
+    const sanitized = this.promptService.sanitizeText(docText);
     const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
 
     for (const chunk of chunks) {
@@ -126,7 +128,7 @@ export class EnrichmentService {
       return;
     }
 
-    const sanitized = sanitizeText(sourceText);
+    const sanitized = this.promptService.sanitizeText(sourceText);
 
     const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
 
