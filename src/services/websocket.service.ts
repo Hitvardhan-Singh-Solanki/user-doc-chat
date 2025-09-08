@@ -5,7 +5,9 @@ import { verifyJwt } from "../utils/jwt";
 import { LLMService } from "./llm.service";
 import { VectorStoreService } from "./vector-store.service";
 import { redisChatHistory } from "../repos/redis.repo";
-import { mainPrompt, UserInputSchema } from "../utils/prompt";
+import { UserInputSchema } from "../schemas/user-input.schema";
+import { EnrichmentService } from "./enrichment.service";
+import { PromptService } from "./prompt.service";
 
 export class WebsocketService {
   private static instance: WebsocketService;
@@ -26,6 +28,10 @@ export class WebsocketService {
 
     this.llmService = new LLMService();
     this.pineconeService = new VectorStoreService(this.llmService);
+    this.llmService.enrichmentService = new EnrichmentService(
+      this.llmService,
+      this.pineconeService
+    );
 
     this.authVerification();
     this.onConnection();
@@ -118,20 +124,16 @@ export class WebsocketService {
 
     const chatHistory = await this.getChatHistory(userId, fileId);
 
-    const prompt = this.llmService.buildPrompt(context, question, chatHistory);
-
     let fullAnswer = "";
     await this.appendChatHistory(userId, fileId, `User: ${question}`);
 
-    const fullPrompt = UserInputSchema.parse({
+    const userInput = UserInputSchema.parse({
       question,
       chatHistory,
       context,
     });
 
-    for await (const token of this.llmService.generateAnswerStream(
-      fullPrompt
-    )) {
+    for await (const token of this.llmService.generateAnswerStream(userInput)) {
       this.io.to(userId).emit("answer_chunk", { token });
       fullAnswer += token;
     }
