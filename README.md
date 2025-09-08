@@ -114,13 +114,22 @@ sequenceDiagram
   - Connected Redis for pub/sub and chat history storage
   - `rPush` used for appending messages, with expiry to auto-clean old history
   - Pub/Sub channels reused for SSE notifications
-
-## 🚧 In Progress / Next Steps
-
-- [ ] **Chat Functionality**
+- [x] **Chat Functionality**
   - Real-time interaction with processed documents
   - Use Redis-based chat history instead of in-memory storage
   - Stream answers via SSE or WebSocket
+- [x] **Vector Store Optimization**
+  - Include metadata fields: jurisdiction, domain, effectiveDate, source URL
+  - Consider embedding new chunks on-the-fly for unanswered questions
+  - Support summarization of low-relevance chunks
+  - Maintain `topK` retrieval logic for high-relevance context
+- [x] **Production-ready Prompt & LLM Instructions**
+  - Implement prompt templates for legal domain
+  - Include chat history and context trimming for token limits
+  - Ensure LLM only answers based on retrieved context
+
+## 🚧 In Progress / Next Steps
+
 - [ ] Retry logic for failed file uploads, embedding, and upserts to Pinecone
 - [ ] **Token Refresh Flow**
   - Add refresh tokens to reduce login frequency
@@ -131,22 +140,6 @@ sequenceDiagram
   - Different user roles (e.g., admin vs regular users)
 - [ ] **Monitoring & Logging**
   - Add request logging, error tracking, and metrics
-- [ ] **Automated Legal Update Worker**
-  - Poll official sources (government gazettes, court rulings, RSS feeds)
-  - Scrape/parse new laws or amendments
-  - Chunk, embed, and upsert content into Pinecone
-  - Maintain metadata: jurisdiction, domain, effectiveDate, source URL
-  - Schedule periodic updates (cron / serverless / event-driven)
-  - Ensure LLM queries always use the most recent context to avoid hallucinations
-- [ ] **Vector Store Optimization**
-  - Include metadata fields: jurisdiction, domain, effectiveDate, source URL
-  - Consider embedding new chunks on-the-fly for unanswered questions
-  - Support summarization of low-relevance chunks
-  - Maintain `topK` retrieval logic for high-relevance context
-- [ ] **Production-ready Prompt & LLM Instructions**
-  - Implement prompt templates for legal domain
-  - Include chat history and context trimming for token limits
-  - Ensure LLM only answers based on retrieved context
 
 ---
 
