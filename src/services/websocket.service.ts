@@ -7,7 +7,8 @@ import { VectorStoreService } from "./vector-store.service";
 import { redisChatHistory } from "../repos/redis.repo";
 import { UserInputSchema } from "../schemas/user-input.schema";
 import { EnrichmentService } from "./enrichment.service";
-import { PromptService } from "./prompt.service";
+import { PostgresService } from "./postgres.service";
+import { IDBStore } from "../interfaces/db-store.interface";
 
 export class WebsocketService {
   private static instance: WebsocketService;
@@ -15,9 +16,11 @@ export class WebsocketService {
   private server: http.Server;
   private llmService: LLMService;
   private pineconeService: VectorStoreService;
+  private db: IDBStore;
 
   private constructor(app: Express) {
     this.server = http.createServer(app);
+    this.db = PostgresService.getInstance();
 
     this.io = new Server(this.server, {
       cors: {
@@ -103,44 +106,61 @@ export class WebsocketService {
     userId: string,
     fileId: string
   ) {
-    const qEmbedding = await this.llmService.embeddingHF(question);
-    const results = await this.pineconeService.query(
-      qEmbedding,
-      userId,
-      fileId
-    );
+    try {
+      const chatId = await this.getOrCreateChat(userId, fileId);
+      await this.appendChatHistory(userId, fileId, `User: ${question}`);
+      await this.appendChatMessage(chatId, "user", question);
 
-    if (!results.matches.length) {
-      this.io.to(userId).emit("answer_chunk", {
-        token: "No relevant context found. I don't know the answer.",
+      const qEmbedding = await this.llmService.embeddingHF(question);
+
+      const results = await this.pineconeService.query(
+        qEmbedding,
+        userId,
+        fileId
+      );
+
+      if (!results.matches.length) {
+        const noContextMsg =
+          "No relevant context found. I don't know the answer.";
+        this.io.to(userId).emit("answer_chunk", { token: noContextMsg });
+        this.io.to(userId).emit("answer_complete");
+
+        await this.appendChatHistory(userId, fileId, `AI: ${noContextMsg}`);
+        await this.appendChatMessage(chatId, "ai", noContextMsg);
+        return;
+      }
+
+      const context = await this.pineconeService.getContextWithSummarization(
+        results
+      );
+
+      const chatHistory = await this.getChatHistory(userId, fileId);
+
+      const fullPrompt = UserInputSchema.parse({
+        question,
+        chatHistory,
+        context,
       });
+
+      let fullAnswer = "";
+      for await (const token of this.llmService.generateAnswerStream(
+        fullPrompt
+      )) {
+        this.io.to(userId).emit("answer_chunk", { token });
+        fullAnswer += token;
+      }
+
+      await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
+      await this.appendChatMessage(chatId, "ai", fullAnswer);
+      await this.trimChatHistory(userId, fileId);
+
       this.io.to(userId).emit("answer_complete");
-      return;
+    } catch (err: unknown) {
+      console.error(err);
+      if (err instanceof Error) {
+        this.io.to(userId).emit("error", { message: "Something went wrong" });
+      }
     }
-
-    const context = await this.pineconeService.getContextWithSummarization(
-      results
-    );
-
-    const chatHistory = await this.getChatHistory(userId, fileId);
-
-    let fullAnswer = "";
-    await this.appendChatHistory(userId, fileId, `User: ${question}`);
-
-    const userInput = UserInputSchema.parse({
-      question,
-      chatHistory,
-      context,
-    });
-
-    for await (const token of this.llmService.generateAnswerStream(userInput)) {
-      this.io.to(userId).emit("answer_chunk", { token });
-      fullAnswer += token;
-    }
-    await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
-    await this.trimChatHistory(userId, fileId);
-
-    this.io.to(userId).emit("answer_complete");
   }
 
   private async appendChatHistory(
@@ -174,5 +194,36 @@ export class WebsocketService {
 
   getServer(): http.Server {
     return this.server;
+  }
+
+  private async getOrCreateChat(
+    userId: string,
+    fileId?: string
+  ): Promise<string> {
+    const result = await this.db.query<{ id: string }>(
+      "SELECT id FROM chats WHERE user_id=$1 AND file_id=$2 ORDER BY created_at DESC LIMIT 1",
+      [userId, fileId ?? null]
+    );
+
+    if (result.rowCount! > 0) {
+      return result.rows[0].id;
+    }
+
+    const insert = await this.db.query<{ id: string }>(
+      "INSERT INTO chats(user_id, file_id) VALUES($1, $2) RETURNING id",
+      [userId, fileId ?? null]
+    );
+    return insert.rows[0]!.id;
+  }
+
+  private async appendChatMessage(
+    chatId: string,
+    sender: "user" | "ai",
+    message: string
+  ) {
+    await this.db.query(
+      "INSERT INTO chat_messages(chat_id, sender, message) VALUES($1, $2, $3)",
+      [chatId, sender, message]
+    );
   }
 }
