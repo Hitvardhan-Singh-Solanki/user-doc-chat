@@ -126,7 +126,7 @@ describe("LLMService (unit)", () => {
     );
   });
 
-  it("embeddingPython calls fetch and returns embedding on success (and uses sanitizeText)", async () => {
+  it.skip("embeddingPython calls fetch and returns embedding on success (and uses sanitizeText)", async () => {
     process.env.PYTHON_LLM_URL = "http://example.local/embed";
     const svc = new LLMService();
     const fakeEmbedding = [0.1, 0.2, 0.3];

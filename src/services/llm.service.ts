@@ -1,32 +1,31 @@
 import { InferenceClient } from "@huggingface/inference";
 import { z } from "zod";
-import {
-  mainPrompt,
-  lowPrompt,
-  UserInputSchema,
-  LowContentSchema,
-  sanitizeText,
-} from "../utils/prompt";
 import { PromptConfig } from "../types";
 import { EnrichmentService } from "./enrichment.service";
 import { SearchResult } from "../types";
+import { PromptService } from "./prompt.service";
+import { UserInputSchema } from "../schemas/user-input.schema";
+import { LowContentSchema } from "../schemas/low-content.schema";
+import { VectorStoreService } from "./vector-store.service";
 
 export class LLMService {
   private hfToken: string;
   private hfChatModel: string;
   private hfEmbeddingModel: string;
   private pythonUrl?: string;
-  private enrichmentService!: EnrichmentService;
+  private _enrichmentService!: EnrichmentService;
+  private promptService!: PromptService;
 
   constructor() {
     this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
     this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL!;
     this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL!;
     this.pythonUrl = process.env.PYTHON_LLM_URL;
+    this.promptService = new PromptService();
   }
 
-  public setEnrichmentService(enr: EnrichmentService) {
-    this.enrichmentService = enr;
+  set enrichmentService(enr: EnrichmentService) {
+    this._enrichmentService = enr;
   }
 
   chunkText(
@@ -53,7 +52,7 @@ export class LLMService {
     const res = await fetch(this.pythonUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: sanitizeText(text) }),
+      body: JSON.stringify({ text: this.promptService.sanitizeText(text) }),
     });
 
     if (!res.ok) {
@@ -77,7 +76,7 @@ export class LLMService {
     const inference = new InferenceClient(this.hfToken);
     const response = await inference.featureExtraction({
       model: this.hfEmbeddingModel,
-      inputs: sanitizeText(text),
+      inputs: this.promptService.sanitizeText(text),
     });
 
     if (!Array.isArray(response))
@@ -101,7 +100,7 @@ export class LLMService {
     if (!this.hfToken) throw new Error("HuggingFace token missing");
 
     const inference = new InferenceClient(this.hfToken);
-    const prompt = mainPrompt(userInput, config);
+    const prompt = this.promptService.mainPrompt(userInput, config);
 
     const stream = await inference.chatCompletionStream({
       model: this.hfChatModel,
@@ -119,8 +118,8 @@ export class LLMService {
     }
 
     try {
-      const enrichmentResults: SearchResult[] | null = this.enrichmentService
-        ? await this.enrichmentService.enrichIfUnknown(
+      const enrichmentResults: SearchResult[] | null = this._enrichmentService
+        ? await this._enrichmentService.enrichIfUnknown(
             userInput.question,
             finalAnswer
           )
@@ -131,7 +130,7 @@ export class LLMService {
           .map((r) => `${r.title}: ${r.snippet}`)
           .join("\n\n");
 
-        const enrichedPrompt = mainPrompt(
+        const enrichedPrompt = this.promptService.mainPrompt(
           {
             question: userInput.question,
             context: enrichedContext,
@@ -166,25 +165,11 @@ export class LLMService {
       question,
       chatHistory,
     });
-    return mainPrompt(sanitizedInput, config);
+    return this.promptService.mainPrompt(sanitizedInput, config);
   }
 
   buildLowPrompt(lowContent: string[], config?: PromptConfig): string {
     const sanitizedContent = LowContentSchema.parse(lowContent);
-    return lowPrompt(sanitizedContent, config);
-  }
-
-  private trimChatHistory(chatHistory: string[]): string {
-    const MAX_HISTORY_TOKENS = 1000;
-    let tokenCount = 0;
-    const trimmedHistory: string[] = [];
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
-      const entry = chatHistory[i];
-      const entryTokens = Math.ceil(entry.length / 4);
-      if (tokenCount + entryTokens > MAX_HISTORY_TOKENS) break;
-      trimmedHistory.unshift(entry);
-      tokenCount += entryTokens;
-    }
-    return trimmedHistory.join("\n") + "\n\n";
+    return this.promptService.lowPrompt(sanitizedContent, config);
   }
 }
