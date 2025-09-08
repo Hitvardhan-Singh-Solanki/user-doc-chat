@@ -168,10 +168,10 @@ ${sanitizedQuestion}
     lowContent: z.infer<typeof LowContentSchema>,
     config: PromptConfig = {}
   ): string {
-    const sanitizedContent = lowContent
+    const parsedContent = LowContentSchema.parse(lowContent);
+    const sanitizedContent = parsedContent
       .map(this.sanitizeText)
       .filter((item) => item.length > 0);
-
     const defaultConfig: PromptConfig = {
       version: "1.0.0",
       maxLength: 5000,
