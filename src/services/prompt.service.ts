@@ -61,7 +61,13 @@ export class PromptService {
           }
         }
       }
-      return result.trim() + "...[truncated]";
+
+      // If result still exceeds maxLength, trim it
+      if (result.length > maxLength) {
+        result = result.slice(0, maxLength);
+      }
+
+      return result.trim();
     }
 
     return text;
