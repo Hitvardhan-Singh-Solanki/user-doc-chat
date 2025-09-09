@@ -25,12 +25,7 @@ function initServices(): FileWorkerService {
   const fetchService = new FetchHTMLService();
   const deepResearchService = new DeepResearchService(llmService);
 
-  const vectorStore = new VectorStoreService(
-    llmService,
-    "pinecone",
-    fetchService,
-    deepResearchService
-  );
+  const vectorStore = new VectorStoreService(llmService, "pinecone");
 
   const enrichmentService = new EnrichmentService(
     llmService,
@@ -44,10 +39,7 @@ function initServices(): FileWorkerService {
   const fileWorkerService = new FileWorkerService(
     dbAdapter,
     llmService,
-    enrichmentService,
-    fetchService,
-    deepResearchService,
-    vectorStore
+    enrichmentService
   );
 
   return fileWorkerService;

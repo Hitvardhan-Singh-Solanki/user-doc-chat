@@ -3,22 +3,13 @@ import { LLMService } from "./llm.service";
 import { PineconeVectorStore } from "./pinecone.service";
 import { IVectorStore } from "../interfaces/vector-store.interface";
 import { PostgresService } from "./postgres.service";
-import { PromptService } from "./prompt.service";
-import { EnrichmentService } from "./enrichment.service";
-import { FetchHTMLService } from "./fetch.service";
-import { DeepResearchService } from "./deep-research.service";
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;
   private maxContextTokens: number;
   private llm: LLMService;
 
-  constructor(
-    llm: LLMService,
-    store: VectorStoreType = "pinecone",
-    fetchHtmlService: FetchHTMLService,
-    deepResearchService: DeepResearchService
-  ) {
+  constructor(llm: LLMService, store: VectorStoreType = "pinecone") {
     this.llm = llm;
     this.maxContextTokens = Number(process.env.MAX_CONTEXT_TOKENS) || 2000;
     if (store === "pinecone") {
@@ -26,13 +17,6 @@ export class VectorStoreService {
     } else {
       this.vectorStore = PostgresService.getInstance();
     }
-
-    this.llm.enrichmentService = new EnrichmentService(
-      this.llm,
-      this,
-      fetchHtmlService,
-      deepResearchService
-    );
   }
 
   async upsertVectors(vectors: Vector[]) {
