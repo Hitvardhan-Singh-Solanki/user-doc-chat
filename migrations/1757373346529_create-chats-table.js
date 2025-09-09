@@ -13,12 +13,12 @@ export const up = (pgm) => {
         user_id: {type: "uuid", notNull: true},
         file_id: {type: "uuid"},
         created_at: {
-            type: "timestampz",
+            type: "timestamptz",
             notNull: true,
             default: pgm.func("now()"),
         },
         updated_at: {
-            type: "timestampz",
+            type: "timestamptz",
             notNull: true,
             default: pgm.func("now()"),
         },
@@ -56,10 +56,17 @@ export const up = (pgm) => {
             },
         ],
     });
+
+    pgm.createIndex(
+        "chats",
+        ["user_id", "file_id", {name: "created_at", sort: "DESC"}],
+        {name: "idx_chats_user_file_created_at"}
+    );
 };
 
 export const down = (pgm) => {
-    pgm.dropTable("chats");
+    pgm.dropIndex("chats", "idx_chats_user_file_created_at");
     pgm.dropTrigger("chats", "chats_set_updated_at");
+    pgm.dropTable("chats");
     pgm.dropFunction("set_updated_at", []);
 };
