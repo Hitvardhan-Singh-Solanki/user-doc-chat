@@ -15,7 +15,7 @@ export const up = (pgm) => {
         sender: {type: "chat_sender_enum", notNull: true},
         message: {type: "text", notNull: true},
         created_at: {
-            type: "timestamp",
+            type: "timestamptz",
             notNull: true,
             default: pgm.func("now()"),
         },
