@@ -232,12 +232,7 @@ export class WebsocketService {
     this.fetchHTMLService = new FetchHTMLService();
     this.deepResearchService = new DeepResearchService(this.llmService);
 
-    this.pineconeService = new VectorStoreService(
-      this.llmService,
-      "pinecone",
-      this.fetchHTMLService,
-      this.deepResearchService
-    );
+    this.pineconeService = new VectorStoreService(this.llmService, "pinecone");
 
     this.llmService.enrichmentService = new EnrichmentService(
       this.llmService,

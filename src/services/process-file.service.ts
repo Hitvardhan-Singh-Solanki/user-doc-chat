@@ -23,15 +23,9 @@ export class FileWorkerService {
     dbStore: IDBStore,
     llmService: LLMService = new LLMService(),
     enrichmentService: EnrichmentService,
-    fetchHtmlService = new FetchHTMLService(),
-    deepResearchService: DeepResearchService = new DeepResearchService(
-      llmService
-    ),
     vectorStore: VectorStoreService = new VectorStoreService(
       llmService,
-      "pinecone",
-      fetchHtmlService,
-      deepResearchService
+      "pinecone"
     )
   ) {
     this.db = dbStore;
