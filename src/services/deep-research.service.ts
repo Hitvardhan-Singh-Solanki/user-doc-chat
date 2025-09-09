@@ -12,16 +12,24 @@ export class DeepResearchService implements IDeepResearch {
   }
 
   public async summarize(text: string): Promise<string> {
-    const sanitized = this.promptService.sanitizeText(text);
+    if (!text || !text.trim()) return "";
 
-    const chunks = this.llmService.chunkText(
-      sanitized,
-      Number(process.env.CHUNK_SIZE) || 1000,
-      Number(process.env.CHUNK_OVERLAP) || 100
-    );
+    try {
+      const sanitized = this.promptService.sanitizeText(text);
 
-    const summary = this.llmService.generateLowSummary(chunks);
+      const chunks = this.llmService.chunkText(
+        sanitized,
+        Number(process.env.CHUNK_SIZE) || 1000,
+        Number(process.env.CHUNK_OVERLAP) || 100
+      );
 
-    return summary;
+      const summary = await this.llmService.generateLowSummary(chunks, {
+        temperature: 0.7,
+      });
+
+      return summary;
+    } catch (err) {
+      throw err;
+    }
   }
 }
