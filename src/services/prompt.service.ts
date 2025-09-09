@@ -260,4 +260,8 @@ ${content}
 
     return prompt;
   }
+
+  public createSummarizationPrompt(opts: { text: string }): string {
+    return `Extract all legal clauses from the following text:\n\n${opts.text}\n\nReturn the clauses as a JSON array. Each clause should include the section number and the text of the clause.`;
+  }
 }

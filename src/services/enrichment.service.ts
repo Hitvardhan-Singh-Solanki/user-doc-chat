@@ -1,6 +1,3 @@
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
-import pLimit from "p-limit";
 import { v4 as uuid } from "uuid";
 
 import { ISearchAdapter } from "../interfaces/search-adapter.interface";
@@ -9,22 +6,30 @@ import { LLMService } from "./llm.service";
 import { VectorStoreService } from "./vector-store.service";
 import { DuckDuckGoAdapter } from "./duckduckgo.service";
 import { PromptService } from "./prompt.service";
-import { lookup } from "dns/promises";
-import net from "net";
 
-export class EnrichmentService {
-  private vectorStore: VectorStoreService;
-  private llmService: LLMService;
-  private searchAdapter: ISearchAdapter;
-  private promptService: PromptService;
+import { IHTMLFetch } from "../interfaces/html-fetch.interface";
+import { IDeepResearch } from "../interfaces/deep-research.interface";
+import { IEnrichmentService } from "../interfaces/enrichment.interface";
+
+export class EnrichmentService implements IEnrichmentService {
+  private readonly vectorStore: VectorStoreService;
+  private readonly llmService: LLMService;
+  private readonly searchAdapter: ISearchAdapter;
+  private readonly promptService: PromptService;
+  private readonly fetchHTML: IHTMLFetch;
+  private readonly deepResearch: IDeepResearch;
 
   constructor(
     llmService: LLMService,
     vectorStore: VectorStoreService,
+    fetchHTML: IHTMLFetch,
+    deepResearch: IDeepResearch,
     searchAdapter?: ISearchAdapter
   ) {
     this.llmService = llmService;
     this.vectorStore = vectorStore;
+    this.fetchHTML = fetchHTML;
+    this.deepResearch = deepResearch;
     this.searchAdapter = searchAdapter ?? new DuckDuckGoAdapter();
     this.promptService = new PromptService();
   }
@@ -68,24 +73,50 @@ export class EnrichmentService {
     const results = await this.searchAdapter.search(query, opts.maxResults);
     if (!results || results.length === 0) return [];
 
-    const toFetch = results.slice(
-      0,
-      Math.min(results.length, opts.maxPagesToFetch)
-    );
+    const sourceText = await this.fetchHTML.fetchHTML(results, {
+      maxPagesToFetch: opts.maxPagesToFetch,
+      fetchConcurrency: opts.fetchConcurrency,
+    });
 
-    const limit = pLimit(opts.fetchConcurrency);
+    if (!sourceText || sourceText.length === 0) return results;
 
-    const tasks = toFetch.map((r) =>
-      limit(async () => {
+    for (let i = 0; i < results.length; i++) {
+      const text = sourceText?.[i];
+      if (!text || text.length < 50) continue;
+
+      const deepSummary = await this.deepResearch.summarize(text);
+
+      const sanitized = this.promptService.sanitizeText(text);
+      const chunks = this.chunkText(
+        sanitized,
+        opts.chunkSize,
+        opts.chunkOverlap
+      );
+
+      for (const chunk of chunks) {
         try {
-          await this.fetchExtractAndUpsert(r, opts);
+          const embedding = await this.llmService.embeddingHF(chunk);
+          await this.vectorStore.upsertVectors([
+            {
+              id: `search-${uuid()}`,
+              values: embedding,
+              metadata: {
+                text: chunk,
+                source: results[i].url,
+                title: results[i].title,
+                snippet: results[i].snippet,
+                fileId: opts.fileId,
+                userId: opts.userId,
+                crawledAt: new Date().toISOString(),
+                deepSummary,
+              },
+            },
+          ]);
         } catch (err) {
-          console.error("searchAndEmbed: processing failed for", r.url, err);
+          console.error("searchAndEmbed: embed/upsert failed", err);
         }
-      })
-    );
-
-    await Promise.all(tasks);
+      }
+    }
 
     return results;
   }
@@ -102,7 +133,7 @@ export class EnrichmentService {
     return null;
   }
 
-  private defaultOptions(): Required<EnrichmentOptions> {
+  private defaultOptions(): EnrichmentOptions {
     return {
       maxResults: 5,
       maxPagesToFetch: 5,
@@ -110,148 +141,9 @@ export class EnrichmentService {
       minContentLength: 200,
       chunkSize: Number(process.env.CHUNK_SIZE) || 800,
       chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
-      userId: "(public)",
-      fileId: "(external-search)",
+      userId: `(public)-${uuid()}`,
+      fileId: `(external-search)-${uuid()}`,
     };
-  }
-
-  private async fetchExtractAndUpsert(
-    result: SearchResult,
-    opts: Required<EnrichmentOptions>
-  ): Promise<void> {
-    const pageText = await this.fetchPageText(result.url);
-
-    const sourceText =
-      pageText && pageText.length >= opts.minContentLength
-        ? pageText
-        : result.snippet || "";
-
-    if (!sourceText || sourceText.length < 50) {
-      return;
-    }
-
-    const sanitized = this.promptService.sanitizeText(sourceText);
-
-    const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
-
-    for (const chunk of chunks) {
-      try {
-        const embedding = await this.llmService.embeddingHF(chunk);
-        await this.vectorStore.upsertVectors([
-          {
-            id: `crawl-${uuid()}`,
-            values: embedding,
-            metadata: {
-              text: chunk,
-              title: result.title,
-              url: result.url,
-              source: this.searchAdapter.constructor.name || "search-adapter",
-              crawledAt: new Date().toISOString(),
-            },
-          },
-        ]);
-      } catch (err) {
-        console.error(
-          "fetchExtractAndUpsert: embed/upsert error for",
-          result.url,
-          err
-        );
-      }
-    }
-  }
-
-  private async fetchPageText(
-    url: string,
-    timeoutMs = 10000
-  ): Promise<string | null> {
-    try {
-      // Basic SSRF hardening
-      const u = new URL(url);
-      if (!/^https?:$/i.test(u.protocol)) return null;
-      const host = u.hostname.toLowerCase();
-      if (
-        host === "localhost" ||
-        host.endsWith(".local") ||
-        /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
-        host === "::1"
-      ) {
-        return null;
-      }
-
-      // Resolve and block private/reserved targets
-      try {
-        const { address } = await lookup(host, { all: false });
-        if (this.isPrivateAddress(address)) return null;
-      } catch {
-        return null;
-      }
-
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, {
-        signal: controller.signal,
-        redirect: "manual",
-        headers: {
-          ...(process.env.CRAWLER_USER_AGENT
-            ? { "User-Agent": process.env.CRAWLER_USER_AGENT }
-            : { "User-Agent": "user-doc-chat/1.0 (+enrichment)" }),
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-      });
-
-      if (res.status >= 300 && res.status < 400) {
-        clearTimeout(id);
-        return null;
-      }
-
-      if (!res.ok) return null;
-
-      const ct = (res.headers.get("content-type") || "").toLowerCase();
-      if (!ct.includes("html") && !ct.includes("xml")) {
-        return null;
-      }
-      const len = Number(res.headers.get("content-length") || "0");
-      const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000); // ~2MB
-      if (len && len > maxBytes) return null;
-
-      let html: string;
-
-      if (res.body) {
-        const reader = res.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let received = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            received += value.byteLength;
-            if (received > maxBytes) {
-              controller.abort();
-              clearTimeout(id);
-              return null;
-            }
-            chunks.push(value);
-          }
-        }
-        html = new TextDecoder().decode(Buffer.concat(chunks as any));
-      } else {
-        html = await res.text();
-      }
-
-      clearTimeout(id);
-
-      const dom = new JSDOM(html, { url });
-      const reader = new Readability(dom.window.document);
-      const article = reader.parse();
-      if (!article || !article.textContent) return null;
-
-      const text = article.textContent.replace(/\s+/g, " ").trim();
-      return text;
-    } catch (err) {
-      console.debug("fetchPageText error", err);
-      return null;
-    }
   }
 
   private chunkText(text: string, size = 800, overlap = 100): string[] {
@@ -264,19 +156,5 @@ export class EnrichmentService {
       i += step;
     }
     return chunks;
-  }
-
-  private isPrivateAddress(address: string): boolean {
-    if (net.isIP(address) === 4) {
-      return (
-        /^10\./.test(address) ||
-        /^127\./.test(address) ||
-        /^192\.168\./.test(address) ||
-        /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
-      );
-    }
-    // IPv6: loopback, link-local, unique-local
-    const a = address.toLowerCase();
-    return a === "::1" || a.startsWith("fe80:") || /^fc|fd/.test(a.slice(0, 2));
   }
 }
