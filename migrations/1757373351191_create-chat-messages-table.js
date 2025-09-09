@@ -40,5 +40,6 @@ export const up = (pgm) => {
 
 export const down = (pgm) => {
     pgm.dropIndex("chat_messages", "idx_chat_messages_chat_created_at");
+    pgm.dropType("chat_sender_enum");
     pgm.dropTable("chat_messages");
 };
