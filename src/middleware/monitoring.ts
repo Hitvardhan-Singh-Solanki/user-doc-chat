@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { logger, metrics, requestLogger } from "../config/logging";
+import { register } from "prom-client";
 
 export const monitoringMiddleware = (
   req: Request,
@@ -20,8 +21,8 @@ export const monitoringMiddleware = (
 // Metrics endpoint for Prometheus
 export const metricsEndpoint = async (req: Request, res: Response) => {
   try {
-    const register = await metrics.httpRequestDuration.register;
     res.set("Content-Type", register.contentType);
+    res.send(await register.metrics());
     res.send(await register.metrics());
   } catch (error) {
     logger.error("Failed to generate metrics", { error });
