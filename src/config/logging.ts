@@ -24,6 +24,11 @@ const metrics = {
   }),
 };
 
+import fs from "node:fs";
+
+// Ensure log directory exists when using file transports
+fs.mkdirSync("logs", { recursive: true });
+
 // Configure Winston logger
 const logger = createLogger({
   level: process.env.LOG_LEVEL || "info",
