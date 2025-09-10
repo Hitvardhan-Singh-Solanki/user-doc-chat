@@ -56,6 +56,7 @@ const logger = createLogger({
 });
 
 // Track memory usage
+prometheusClient.collectDefaultMetrics();
 setInterval(() => {
   const used = process.memoryUsage();
   metrics.memoryUsage.set(used.heapUsed);
@@ -65,7 +66,6 @@ setInterval(() => {
     external: used.external,
   });
 }, 30000);
-
 // Request logging middleware
 export const requestLogger = (
   req: Request,
