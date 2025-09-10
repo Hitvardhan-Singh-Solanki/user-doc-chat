@@ -70,7 +70,12 @@ export class EnrichmentService implements IEnrichmentService {
   ): Promise<SearchResult[]> {
     const opts = { ...this.defaultOptions(), ...options };
 
-    const results = await this.searchAdapter.search(query, opts.maxResults);
+    const optimizedQuery = await this.generateOptimizedQuery(query);
+
+    const results = await this.searchAdapter.search(
+      optimizedQuery,
+      opts.maxResults
+    );
     if (!results || results.length === 0) return [];
 
     const sourceText = await this.fetchHTML.fetchHTML(results, {
@@ -156,5 +161,18 @@ export class EnrichmentService implements IEnrichmentService {
       i += step;
     }
     return chunks;
+  }
+
+  private async generateOptimizedQuery(userQuestion: string): Promise<string> {
+    const prompt =
+      this.promptService.generateOptimizedSearchPrompt(userQuestion);
+
+    try {
+      const completion = await this.llmService.generateText(prompt);
+      return completion;
+    } catch (error) {
+      console.error("Failed to generate optimized query:", error);
+      return userQuestion; // Fallback to the original question
+    }
   }
 }

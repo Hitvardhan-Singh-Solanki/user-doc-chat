@@ -13,6 +13,7 @@ export class LLMService {
   private hfEmbeddingModel: string;
   private pythonUrl?: string;
   private promptService!: PromptService;
+  private inferenceClient!: InferenceClient;
 
   constructor() {
     this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
@@ -21,6 +22,7 @@ export class LLMService {
     this.pythonUrl = process.env.PYTHON_LLM_URL;
     this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL!;
     this.promptService = new PromptService();
+    this.inferenceClient = new InferenceClient(this.hfToken);
   }
 
   private _enrichmentService!: IEnrichmentService;
@@ -87,8 +89,7 @@ export class LLMService {
     if (!this.hfToken || !this.hfEmbeddingModel)
       throw new Error("HuggingFace token or embedding model missing");
 
-    const inference = new InferenceClient(this.hfToken);
-    const response = await inference.featureExtraction({
+    const response = await this.inferenceClient.featureExtraction({
       model: this.hfEmbeddingModel,
       inputs: this.promptService.sanitizeText(text),
     });
@@ -113,10 +114,9 @@ export class LLMService {
   ) {
     if (!this.hfToken) throw new Error("HuggingFace token missing");
 
-    const inference = new InferenceClient(this.hfToken);
     const prompt = this.promptService.mainPrompt(userInput, config);
 
-    const stream = await inference.chatCompletionStream({
+    const stream = await this.inferenceClient.chatCompletionStream({
       model: this.hfChatModel,
       messages: [{ role: "user", content: prompt }],
     });
@@ -153,7 +153,7 @@ export class LLMService {
           config
         );
 
-        const enrichedStream = await inference.chatCompletionStream({
+        const enrichedStream = await this.inferenceClient.chatCompletionStream({
           model: this.hfChatModel,
           messages: [{ role: "user", content: enrichedPrompt }],
         });
@@ -173,12 +173,11 @@ export class LLMService {
     config?: PromptConfig
   ): Promise<string> {
     if (!this.hfToken) throw new Error("HuggingFace token missing");
-    const inference = new InferenceClient(this.hfToken);
     const prompt = this.promptService.lowPrompt(
       LowContentSchema.parse(lowContent),
       config
     );
-    const chatCompletionOut = await inference.chatCompletion({
+    const chatCompletionOut = await this.inferenceClient.chatCompletion({
       model: this.hfSummaryModel,
       messages: [{ role: "user", content: prompt }],
     });
@@ -203,5 +202,17 @@ export class LLMService {
   buildLowPrompt(lowContent: string[], config?: PromptConfig): string {
     const sanitizedContent = LowContentSchema.parse(lowContent);
     return this.promptService.lowPrompt(sanitizedContent, config);
+  }
+
+  async generateText(queryPrompt: string): Promise<string> {
+    if (!this.hfToken) throw new Error("HuggingFace token missing");
+    const text = await this.inferenceClient.textGeneration({
+      model: this.hfSummaryModel,
+      inputs: queryPrompt,
+    });
+
+    if (typeof text === "string") return text;
+    if (text?.generated_text) return text.generated_text;
+    throw new Error("Unexpected text generation response");
   }
 }

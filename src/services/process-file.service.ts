@@ -9,8 +9,6 @@ import { connectionOptions, fileQueueName } from "../repos/bullmq.repo";
 import { IDBStore } from "../interfaces/db-store.interface";
 import { LLMService } from "./llm.service";
 import { EnrichmentService } from "./enrichment.service";
-import { DeepResearchService } from "./deep-research.service";
-import { FetchHTMLService } from "./fetch.service";
 
 export class FileWorkerService {
   private db: IDBStore;
