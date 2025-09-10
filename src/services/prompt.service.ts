@@ -262,6 +262,18 @@ ${content}
   }
 
   public createSummarizationPrompt(opts: { text: string }): string {
-    return `Extract all legal clauses from the following text:\n\n${opts.text}\n\nReturn the clauses as a JSON array. Each clause should include the section number and the text of the clause.`;
+    return `Extract all legal clauses from the following text:\n\n${opts.text}\n\n
+    Return the clauses as a JSON array. Each clause should include the section number and the text of the clause.`;
+  }
+
+  public generateOptimizedSearchPrompt(userQuestion: string): string {
+    return `Rewrite the following user question as a single, 
+    concise search query optimized for a search engine. Focus on keywords and core concepts. 
+    Do not include conversational words. 
+    The query should be focused on legal, financial, or factual topics.
+
+    User question: "${userQuestion}"
+
+    Optimized search query:`;
   }
 }
