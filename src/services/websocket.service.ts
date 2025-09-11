@@ -9,14 +9,18 @@ import { UserInputSchema } from "../schemas/user-input.schema";
 import { EnrichmentService } from "./enrichment.service";
 import { PostgresService } from "./postgres.service";
 import { IDBStore } from "../interfaces/db-store.interface";
+import { DeepResearchService } from "./deep-research.service";
+import { FetchHTMLService } from "./fetch.service";
 
 export class WebsocketService {
-  private static instance: WebsocketService;
   public io: Server;
+  private static instance: WebsocketService;
   private server: http.Server;
-  private llmService: LLMService;
-  private pineconeService: VectorStoreService;
   private db: IDBStore;
+  private llmService!: LLMService;
+  private pineconeService!: VectorStoreService;
+  private fetchHTMLService!: FetchHTMLService;
+  private deepResearchService!: DeepResearchService;
 
   private constructor(app: Express) {
     this.server = http.createServer(app);
@@ -29,12 +33,7 @@ export class WebsocketService {
       },
     });
 
-    this.llmService = new LLMService();
-    this.pineconeService = new VectorStoreService(this.llmService);
-    this.llmService.enrichmentService = new EnrichmentService(
-      this.llmService,
-      this.pineconeService
-    );
+    this.initServices();
 
     this.authVerification();
     this.onConnection();
@@ -224,6 +223,22 @@ export class WebsocketService {
     await this.db.query(
       "INSERT INTO chat_messages(chat_id, sender, message) VALUES($1, $2, $3)",
       [chatId, sender, message]
+    );
+  }
+
+  private initServices() {
+    this.llmService = new LLMService();
+
+    this.fetchHTMLService = new FetchHTMLService();
+    this.deepResearchService = new DeepResearchService(this.llmService);
+
+    this.pineconeService = new VectorStoreService(this.llmService, "pinecone");
+
+    this.llmService.enrichmentService = new EnrichmentService(
+      this.llmService,
+      this.pineconeService,
+      this.fetchHTMLService,
+      this.deepResearchService
     );
   }
 }

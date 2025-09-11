@@ -8,7 +8,7 @@ import {
   expect,
   vi,
 } from "vitest";
-import {PromptService} from "./prompt.service";
+import { PromptService } from "./prompt.service";
 
 const HF = {
   featureExtraction: async (..._args: any[]) => [],
@@ -47,6 +47,17 @@ vi.mock("@huggingface/inference", () => {
         featureExtraction: HF.featureExtraction,
         chatCompletionStream: HF.chatCompletionStream,
       };
+    },
+  };
+});
+
+// Mocked AutoTokenizer.from_pretrained to prevent network calls during tests
+vi.mock("@xenova/transformers", () => {
+  return {
+    AutoTokenizer: {
+      from_pretrained: vi.fn().mockResolvedValue({
+        encode: (text: string) => text.split(" ").map((_, i) => i + 1), // Mock tokenization
+      }),
     },
   };
 });
@@ -178,7 +189,7 @@ describe("LLMService (unit)", () => {
 
     // create a fake enrichment service and attach (it will be called but return null / undefined)
     const fakeEnr = { enrichIfUnknown: vi.fn(async () => null) };
-    svc.enrichmentService=fakeEnr as any;
+    svc.enrichmentService = fakeEnr as any;
 
     const userInput = { question: "Q1", context: "ctx", chatHistory: [] };
     const got: string[] = [];
@@ -217,7 +228,7 @@ describe("LLMService (unit)", () => {
         return fakeResults;
       }),
     };
-    svc.enrichmentService= fakeEnr as any;
+    svc.enrichmentService = fakeEnr as any;
 
     const userInput = { question: "What is X?", context: "", chatHistory: [] };
     const tokens: string[] = [];
