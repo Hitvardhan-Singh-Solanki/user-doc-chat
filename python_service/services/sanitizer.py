@@ -1,70 +1,26 @@
 import base64
 import io
-
-# PDF Libraries
-import fitz
 from docling.document_converter import DocumentConverter
-from docling_core.types.doc import TableItem, TextItem
+import pandas as pd
 
-# DOCX Libraries
-from docx import Document
-
-# Other Utilities
-import mammoth
-import markdownify
-
-# Helper function to convert a docling table to Markdown
-def table_to_markdown(table: TableItem) -> str:
-    """Converts a Docling TableItem object to a Markdown string."""
-    df = table.export_to_dataframe()
-    markdown_str = ""
-    # Header
-    markdown_str += "| " + " | ".join(df.columns) + " |\n"
-    # Separator
-    markdown_str += "|---" * len(df.columns) + "|\n"
-    # Rows
-    for _, row in df.iterrows():
-        markdown_str += "| " + " | ".join(row.astype(str)) + " |\n"
-    return markdown_str
-
-# Sanitize a PDF file
 def sanitize_pdf(file_bytes: bytes) -> str:
     temp_file = io.BytesIO(file_bytes)
     converter = DocumentConverter()
     conv_res = converter.convert(temp_file)
-    
-    output_parts = []
-    
-    for item in conv_res.document.iterate_items():
-        if isinstance(item, TextItem):
-            output_parts.append(item.text)
-        elif isinstance(item, TableItem):
-            output_parts.append("\n\n---\n\n")
-            output_parts.append(table_to_markdown(item))
-            output_parts.append("\n\n---\n\n")
 
-    return "\n\n".join(output_parts)
+    document = conv_res.document
 
-# Sanitize a DOCX file
-def sanitize_docx(file_bytes: bytes) -> str:
-    temp_file = io.BytesIO(file_bytes)
-    doc = Document(temp_file)
-    output_parts = []
+    markdown_output = document.export_to_markdown()
     
-    for para in doc.paragraphs:
-        output_parts.append(para.text)
-    
-    return "\n\n".join(output_parts)
+    return markdown_output.strip()
 
-# Main sanitization function
 def sanitize_file(file_data: str, file_type: str) -> str:
     try:
-        file_data = base64.b64decode(file_data)
+        file_bytes = base64.b64decode(file_data)
     except Exception:
         raise ValueError("Invalid base64 file data")
+
     if file_type == "application/pdf":
-        return sanitize_pdf(file_data)
-    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        return sanitize_docx(file_data)
+        return sanitize_pdf(file_bytes)
     else:
-        raise ValueError("Unsupported file type")
+        raise ValueError(f"Unsupported file type: {file_type}")

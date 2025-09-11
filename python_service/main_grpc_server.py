@@ -1,13 +1,9 @@
-import os
-import time
 from concurrent import futures
 
-# gRPC dependencies
 import grpc
 from services.proto import sanitizer_pb2
 from services.proto import sanitizer_pb2_grpc
 
-# Import core business logic
 from services.sanitizer import sanitize_file
 
 class SanitizerService(sanitizer_pb2_grpc.SanitizerService):
