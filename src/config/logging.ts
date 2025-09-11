@@ -4,24 +4,32 @@ import prometheusClient from "prom-client";
 
 // Prometheus metrics
 const metrics = {
-  httpRequestDuration: new prometheusClient.Histogram({
-    name: "http_request_duration_seconds",
-    help: "Duration of HTTP requests in seconds",
-    labelNames: ["method", "route", "status_code"],
-  }),
-  tokenUsage: new prometheusClient.Counter({
-    name: "llm_token_usage_total",
-    help: "Total number of tokens used in LLM requests",
-    labelNames: ["model", "operation"],
-  }),
-  memoryUsage: new prometheusClient.Gauge({
-    name: "app_memory_usage_bytes",
-    help: "Memory usage in bytes",
-  }),
-  activeConnections: new prometheusClient.Gauge({
-    name: "websocket_active_connections",
-    help: "Number of active WebSocket connections",
-  }),
+  httpRequestDuration:
+    (prometheusClient.register.getSingleMetric("http_request_duration_seconds") as any) ||
+    new prometheusClient.Histogram({
+      name: "http_request_duration_seconds",
+      help: "Duration of HTTP requests in seconds",
+      labelNames: ["method", "route", "status_code"],
+    }),
+  tokenUsage:
+    (prometheusClient.register.getSingleMetric("llm_token_usage_total") as any) ||
+    new prometheusClient.Counter({
+      name: "llm_token_usage_total",
+      help: "Total number of tokens used in LLM requests",
+      labelNames: ["model", "operation"],
+    }),
+  memoryUsage:
+    (prometheusClient.register.getSingleMetric("app_memory_usage_bytes") as any) ||
+    new prometheusClient.Gauge({
+      name: "app_memory_usage_bytes",
+      help: "Memory usage in bytes",
+    }),
+  activeConnections:
+    (prometheusClient.register.getSingleMetric("websocket_active_connections") as any) ||
+    new prometheusClient.Gauge({
+      name: "websocket_active_connections",
+      help: "Number of active WebSocket connections",
+    }),
 };
 
 import fs from "node:fs";
