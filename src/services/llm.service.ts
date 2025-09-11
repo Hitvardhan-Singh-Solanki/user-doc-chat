@@ -14,6 +14,7 @@ export class LLMService {
   private pythonUrl?: string;
   private promptService!: PromptService;
   private inferenceClient!: InferenceClient;
+  private _enrichmentService!: IEnrichmentService;
 
   constructor() {
     this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
@@ -24,8 +25,6 @@ export class LLMService {
     this.promptService = new PromptService();
     this.inferenceClient = new InferenceClient(this.hfToken);
   }
-
-  private _enrichmentService!: IEnrichmentService;
 
   set enrichmentService(enr: IEnrichmentService) {
     this._enrichmentService = enr;

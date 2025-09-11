@@ -13,40 +13,22 @@ services:
     depends_on:
       - db
       - redis
-      # - llm_service
       - minio
+      - python_apis
 
-#  Uncomment if you want to run the LLM service as part of the dev setup [NOT WORKING YET]
-# even after multiple attempts to fix the networking issues, couldn't get it to work. The model
-# is quite large and takes time to load, causing health check failures. We,
-# will revist this later, for now you can run it separately using: uvicorn llm_app.main:app --port 8000 --reload
-# OR use a cloud-hosted LLM service HF.
-  # llm_service:
-  #   build:
-  #     context: ./llm_service
-  #     dockerfile: ../docker/Dockerfile.llm
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD-SHELL",
-  #         "python - <<'PY'\nimport sys, urllib.request\ntry:\n  with urllib.request.urlopen('http://localhost:8000/health', timeout=3) as r:\n    sys.exit(0 if r.status==200 else 1)\nexcept Exception:\n  sys.exit(1)\nPY"
-  #       ]
-  #     interval: 1m30s
-  #     timeout: 30s
-  #     retries: 5
-  #     start_period: 30s
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "8000:8000"
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "2.0"
-  #         memory: "4G"
-  #       reservations:
-  #         cpus: "1.0"
-  #         memory: "2G"
+  python_apis:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python
+    volumes:
+      - ./python_service:/app
+    ports:
+      - "50051:50051"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
 
   db:
     build:

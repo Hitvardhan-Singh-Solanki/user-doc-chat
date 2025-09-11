@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package sanitizer;
+
+// Defines the service contract for sanitizing documents.
+service SanitizerService {
+// A RPC to sanitize a document.
+rpc SanitizeDocument (SanitizeRequest) returns (SanitizeResponse);
+}
+
+// The request message containing the document and format.
+message SanitizeRequest {
+string document_type = 1;
+bytes document_data = 2;
+}
+
+// The response message containing the sanitized content.
+message SanitizeResponse {
+string sanitized_content = 1;
+}
