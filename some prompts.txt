@@ -1,0 +1,154 @@
+here is a model wearing a blue undewear and blue boots, her hand is raised to make a V signature from index and middle finger
+things I want to do
+- remove the blue underwear
+- do not change the face
+  
+
+
+here is a model wearing a blue bikini and blue boots, 
+her hand is raised to make a V signature from index and middle finger
+there is also a background person along the right of the photo
+and the belt is hanging out 
+the belt is black and white stripped color
+things I want to do
+- remove the blue bikini
+- do not change the face
+- remove the background person
+- remove the belt
+
+
+
+
+URL: http://jbeqc-3-137-185-77.a.free.pinggy.link
+
+
+
+
+note book
+
+I can certainly provide the code cells from the Canvas.
+
+Here are the code cells from the "comfyui_modal.ipynb" file:
+
+Cell 1: Setup
+
+Python
+
+update = False
+
+from os import path
+
+%cd /root
+!git clone https://github.com/comfyanonymous/ComfyUI.git
+%cd ComfyUI
+if update:
+    get_ipython().system('git pull')
+!pip install -r requirements.txt
+
+checkpoints =  '/root/ComfyUI/models/checkpoints'
+link_path = checkpoints + '/temp-models'
+temp_models = '/root/temp/temp-models'
+
+!mkdir /root/temp
+!mkdir $temp_models
+
+if not path.exists(link_path):
+    get_ipython().system(f'ln -s {temp_models} {checkpoints}')
+
+!mamba install openssh -y
+
+# Install the node manager
+update_manager = False
+%cd /root/ComfyUI/custom_nodes
+!git clone https://github.com/ltdrdata/ComfyUI-Manager.git
+%cd ComfyUI-Manager
+if update_manager:
+    get_ipython().system('git pull')
+!pip install -r requirements.txt
+Cell 2: UNET
+
+Python
+
+# Install the UNET model
+model_url = 'https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors'
+model_name = 'qwen_image_edit_fp8_e4m3fn.safetensors'
+
+%cd /root/ComfyUI/models/diffusion_models
+get_ipython().system(f'wget -O "{model_name}" "{model_url}"')
+Cell 3: VAE
+
+Python
+
+# Install the VAE model
+model_url = 'https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors'
+model_name = 'qwen_image_vae.safetensors'
+
+%cd /root/ComfyUI/models/vae
+get_ipython().system(f'wget -O "{model_name}" "{model_url}"')
+Cell 4: CLIP
+
+Python
+
+# Install the CLIP model
+model_url = 'https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors'
+model_name = 'qwen_2.5_vl_7b_fp8_scaled.safetensors'
+
+%cd /root/ComfyUI/models/text_encoders
+get_ipython().system(f'wget -O "{model_name}" "{model_url}"')
+Cell 5: Lora
+
+Python
+
+# Install a LoRA
+model_url = 'https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-4steps-V1.0.safetensors'
+model_name = 'Qwen-Image-Lightning-4steps-V1.0.safetensors'
+
+%cd /root/ComfyUI/models/loras
+get_ipython().system(f'wget -O "{model_name}" "{model_url}"')
+Cell 6: Launch with Pinggy
+
+Python
+
+# Starting the Web UI with pinggy
+
+from multiprocessing import Process
+import sys
+import time
+
+!touch log.txt
+open('log.txt', 'w').close()
+
+def run_app():
+    cmd = f"python /root/ComfyUI/main.py & ssh -o StrictHostKeyChecking=no -p 80 -R0:localhost:8188 a.pinggy.io > log.txt"
+    get_ipython().system(cmd)
+    
+def print_url():
+    print("waiting for output")
+    time.sleep(2)
+    sys.stdout.flush()
+    
+    found = False
+    with open('log.txt', 'r') as file:
+        end_word = '.pinggy.link'
+        for line in file:
+            start_index = line.find("http:")
+            if start_index != -1:
+                end_index = line.find(end_word, start_index)
+                if end_index != -1:
+                    print("😁 😁 😁")
+                    print("URL: " + line[start_index:end_index + len(end_word)])
+                    print("😁 😁 😁")
+                    found = True
+    if not found:
+        print_url()
+    else:
+        with open('log.txt', 'r') as file:
+            for line in file:
+                print(line)
+    
+p_app = Process(target=run_app)
+p_url = Process(target=print_url)
+p_app.start()
+p_url.start()
+p_app.join()
+p_url.join()
