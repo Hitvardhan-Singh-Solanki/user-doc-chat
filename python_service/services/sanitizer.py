@@ -1,3 +1,4 @@
+import base64
 import io
 
 # PDF Libraries
@@ -56,10 +57,11 @@ def sanitize_docx(file_bytes: bytes) -> str:
     return "\n\n".join(output_parts)
 
 # Main sanitization function
-def sanitize_file(file_data: bytes, file_type: str) -> str:
-    """
-    Sanitizes a PDF or DOCX file into a Markdown string based on its type.
-    """
+def sanitize_file(file_data: str, file_type: str) -> str:
+    try:
+        file_data = base64.b64decode(file_data)
+    except Exception:
+        raise ValueError("Invalid base64 file data")
     if file_type == "application/pdf":
         return sanitize_pdf(file_data)
     elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
