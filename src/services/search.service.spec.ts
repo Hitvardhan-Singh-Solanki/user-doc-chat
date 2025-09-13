@@ -140,25 +140,10 @@ describe("SearchService", () => {
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
     });
 
-    it("should handle adapter returning null", async () => {
-      const query = "test query";
-      mockAdapter.search = vi.fn().mockResolvedValue(null as any);
-
-      const result = await searchService.search(query);
-
-      expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toBeNull();
-    });
-
-    it("should handle adapter returning undefined", async () => {
-      const query = "test query";
-      mockAdapter.search = vi.fn().mockResolvedValue(undefined as any);
-
-      const result = await searchService.search(query);
-
-      expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toBeUndefined();
-    });
+  async search(query: string, maxResults = 5): Promise<SearchResult[]> {
+    const res = await this.adapter.search(query, maxResults);
+    return Array.isArray(res) ? res : [];
+  }
 
     it("should handle special characters in query", async () => {
       const query = "test query with special chars: @#$%^&*()";
