@@ -6,25 +6,21 @@ from services.proto import sanitizer_pb2_grpc
 
 from services.sanitizer import sanitize_file
 
-class SanitizerService(sanitizer_pb2_grpc.SanitizerService):
+class SanitizerService(sanitizer_pb2_grpc.SanitizerServiceServicer):
     """
     Implements the gRPC service definition for file sanitization.
     """
-    def Sanitize(self, request, context):
+    def SanitizeDocument(self, request, context):
         """
         Processes a gRPC request to sanitize a PDF or DOCX file.
         """
         try:
-            markdown_content = sanitize_file(request.file_data, request.file_type)
-            return sanitizer_pb2.SanitizeResponse(markdown=markdown_content)
+            sanitized = sanitize_file(request.document_data, request.document_type)
+            return sanitizer_pb2.SanitizeResponse(sanitized_content=sanitized)
         except ValueError as e:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(e))
-            return sanitizer_pb2.SanitizeResponse(markdown="")
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"An unexpected error occurred: {str(e)}")
-            return sanitizer_pb2.SanitizeResponse(markdown="")
+            context.abort(grpc.StatusCode.INTERNAL, f"An unexpected error occurred: {e!s}")
 
 def serve():
     """
