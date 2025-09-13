@@ -140,11 +140,6 @@ describe("SearchService", () => {
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
     });
 
-  async search(query: string, maxResults = 5): Promise<SearchResult[]> {
-    const res = await this.adapter.search(query, maxResults);
-    return Array.isArray(res) ? res : [];
-  }
-
     it("should handle special characters in query", async () => {
       const query = "test query with special chars: @#$%^&*()";
       mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
@@ -245,7 +240,7 @@ describe("SearchService", () => {
     it("should handle async adapter delays", async () => {
       const query = "test query";
       let resolveSearch: (value: SearchResult[]) => void;
-      
+
       const searchPromise = new Promise<SearchResult[]>((resolve) => {
         resolveSearch = resolve;
       });
@@ -326,13 +321,13 @@ describe("SearchService", () => {
       const results1 = [mockResults[0]];
       const results2 = [mockResults[1]];
 
-      mockAdapter.search = vi
-        .fn()
-        .mockImplementation(async (query) => {
-          // Simulate different delays
-          await new Promise(resolve => setTimeout(resolve, query.includes('1') ? 10 : 5));
-          return query.includes('1') ? results1 : results2;
-        });
+      mockAdapter.search = vi.fn().mockImplementation(async (query) => {
+        // Simulate different delays
+        await new Promise((resolve) =>
+          setTimeout(resolve, query.includes("1") ? 10 : 5)
+        );
+        return query.includes("1") ? results1 : results2;
+      });
 
       const [result1, result2] = await Promise.all([
         searchService.search(query1),
