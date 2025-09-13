@@ -63,10 +63,18 @@ jobs:
       - name: Start gRPC sanitizer (background)
         run: |
           python python_service/main_grpc_server.py &
+          set -euo pipefail
           for i in {1..60}; do
-            (echo > /dev/tcp/127.0.0.1/50051) >/dev/null 2>&1 && break
+            if (echo > /dev/tcp/127.0.0.1/50051) >/dev/null 2>&1; then
+              echo "Sanitizer is up"
+              break
+            fi
             sleep 1
           done
+          if ! (echo > /dev/tcp/127.0.0.1/50051) >/dev/null 2>&1; then
+            echo "Sanitizer did not start within 60s" >&2
+            exit 1
+          fi
 
       - name: Run tests
         env:
