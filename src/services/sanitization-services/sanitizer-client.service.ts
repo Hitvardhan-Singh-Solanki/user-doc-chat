@@ -4,10 +4,11 @@ import { SanitizerServiceClient } from '../../proto/sanitizer_grpc_pb';
 import { SanitizeRequest, SanitizeResponse } from '../../proto/sanitizer_pb';
 
 const GRPC_HOST = process.env.SANITIZER_HOST || 'python_apis:50051';
-const REQUEST_TIMEOUT_MS = parseInt(
-  process.env.SANITIZER_TIMEOUT || '10000',
-  10,
-);
+const REQUEST_TIMEOUT_MS = (() => {
+  const raw = process.env.SANITIZER_TIMEOUT;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 10000;
+})();
 
 let sanitizerClient: SanitizerServiceClient | null = null;
 
