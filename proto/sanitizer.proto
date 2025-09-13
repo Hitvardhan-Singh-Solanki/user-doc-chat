@@ -10,8 +10,8 @@ rpc SanitizeDocument (SanitizeRequest) returns (SanitizeResponse);
 
 // The request message containing the document and format.
 message SanitizeRequest {
-string document_type = 1;
-bytes document_data = 2;
+string file_type = 1;
+bytes file_data = 2;
 }
 
 // The response message containing the sanitized content.
