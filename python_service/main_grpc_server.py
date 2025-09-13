@@ -12,7 +12,7 @@ class SanitizerService(sanitizer_pb2_grpc.SanitizerServiceServicer):
     """
     def SanitizeDocument(self, request, context):
         """
-        Processes a gRPC request to sanitize a PDF document.
+        Processes a gRPC request to sanitize a document.
         """
         try:
             sanitized = sanitize_file(request.document_data, request.document_type)

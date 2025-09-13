@@ -1,5 +1,5 @@
-import { readdir, stat } from "fs/promises";
-import { join, extname } from "path";
+const { readdir, stat } = require("fs").promises;
+const path = require("path");
 
 async function analyzeDirectory(dir, ignore = []) {
   const files = [];
@@ -8,19 +8,19 @@ async function analyzeDirectory(dir, ignore = []) {
     const entries = await readdir(currentDir, { withFileTypes: true });
 
     for (const entry of entries) {
-      const path = join(currentDir, entry.name);
+      const entryPath = path.join(currentDir, entry.name);
 
       // Skip ignored directories/files
-      if (ignore.some((i) => path.includes(i))) continue;
+      if (ignore.some((i) => entryPath.includes(i))) continue;
 
       if (entry.isDirectory()) {
-        await scan(path);
+        await scan(entryPath);
       } else {
-        const stats = await stat(path);
+        const stats = await stat(entryPath);
         files.push({
-          path,
+          path: entryPath,
           size: stats.size,
-          ext: extname(path),
+          ext: path.extname(entryPath),
         });
       }
     }

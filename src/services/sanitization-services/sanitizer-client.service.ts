@@ -40,18 +40,28 @@ export async function sanitizeFileGrpc(
   request.setDocumentData(fileData);
   request.setDocumentType(fileType);
 
+  const deadline = new Date();
+  deadline.setMilliseconds(deadline.getMilliseconds() + REQUEST_TIMEOUT_MS);
+
   return new Promise<string>((resolve, reject) => {
-    client.sanitize(request, (error, response: SanitizeResponse) => {
-      if (error) {
-        return reject(new Error(`gRPC call failed: ${error.message}`));
-      }
+    const metadata = new grpc.Metadata();
+    // Change method call to sanitizeDocument and pass deadline
+    client.sanitizeDocument(
+      request,
+      metadata,
+      { deadline },
+      (error, response: SanitizeResponse) => {
+        if (error) {
+          return reject(new Error(`gRPC call failed: ${error.message}`));
+        }
 
-      const markdownContent = response.getSanitizedContent();
-      if (!markdownContent) {
-        return reject(new Error("Sanitization response was empty."));
-      }
+        const markdownContent = response.getSanitizedContent();
+        if (!markdownContent) {
+          return reject(new Error("Sanitization response was empty."));
+        }
 
-      resolve(markdownContent);
-    });
+        resolve(markdownContent);
+      }
+    );
   });
 }
