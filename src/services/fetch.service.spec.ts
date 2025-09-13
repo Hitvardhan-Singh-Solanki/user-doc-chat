@@ -245,7 +245,7 @@ describe("FetchHTMLService", () => {
 
     it("should use page text if it meets minContentLength", async () => {
       const longText = "a".repeat(3000);
-      vi.spyOn(svc as any, "fetchPageText").mockResolvedValue(longText);
+      fetchPageTextSpy.mockResolvedValue(longText);
 
       const result = await (svc as any).fetchExtract(
         { url: "https://example.com", snippet: "" },
