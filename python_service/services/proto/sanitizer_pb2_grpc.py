@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from google.protobuf import sanitizer_pb2 as proto_dot_sanitizer__pb2
+from . import sanitizer_pb2 as proto_dot_sanitizer__pb2
 
 
 class SanitizerServiceStub(object):
