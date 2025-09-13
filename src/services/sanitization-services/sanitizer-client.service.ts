@@ -41,8 +41,6 @@ export async function sanitizeFileGrpc(
   request.setDocumentType(fileType);
 
   return new Promise<string>((resolve, reject) => {
-    const deadline = new Date(Date.now() + REQUEST_TIMEOUT_MS);
-
     client.sanitize(request, (error, response: SanitizeResponse) => {
       if (error) {
         return reject(new Error(`gRPC call failed: ${error.message}`));
