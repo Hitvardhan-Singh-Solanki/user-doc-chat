@@ -39,7 +39,8 @@ function initServices(): FileWorkerService {
   const fileWorkerService = new FileWorkerService(
     dbAdapter,
     llmService,
-    enrichmentService
+    enrichmentService,
+    vectorStore
   );
 
   return fileWorkerService;
