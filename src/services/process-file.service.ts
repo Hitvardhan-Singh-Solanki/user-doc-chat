@@ -161,14 +161,20 @@ export class FileWorkerService {
     payload: FileJob,
     chunk: { sectionTitle: string; content: string }
   ) {
-    if (this.enrichmentService) {
-      await this.enrichmentService.preEmbedDocument(chunk.content, {
-        fileId: payload.fileId,
-        userId: payload.userId,
-        sectionTitle: chunk.sectionTitle,
-        source: "pre-legal-extract",
-      });
-    } else {
+// In EnrichmentService.preEmbedDocument, replace the existing metadata block with the following:
+const vectors = embeddings.data.map((embedding) => ({
+  id: generateId(),
+  embedding: embedding.embedding,
+  metadata: {
+    text: chunk,
+    fileId: opts.fileId,
+    userId: opts.userId,
+    source: opts.source ?? "uploaded-doc",
+    sectionTitle: (opts as any).sectionTitle,
+    type: (opts as any).type ?? "legal-section",
+    crawledAt: new Date().toISOString(),
+  },
+}));
       const vector = await this.createVector(payload, chunk.content, uuid(), {
         sectionTitle: chunk.sectionTitle,
         type: "legal-section",
