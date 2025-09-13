@@ -7,11 +7,19 @@ export class SanitizerClient extends grpc.Client {
     credentials: grpc.ChannelCredentials,
     options?: object
   );
-  sanitize(
+  sanitizeDocument(
     request: SanitizeRequest,
-    callback: (
-      error: grpc.ServiceError | null,
-      response: SanitizeResponse
-    ) => void
+    callback: (error: grpc.ServiceError | null, response: SanitizeResponse) => void
+  ): grpc.ClientUnaryCall;
+  sanitizeDocument(
+    request: SanitizeRequest,
+    metadata: grpc.Metadata,
+    callback: (error: grpc.ServiceError | null, response: SanitizeResponse) => void
+  ): grpc.ClientUnaryCall;
+  sanitizeDocument(
+    request: SanitizeRequest,
+    metadata: grpc.Metadata,
+    options: Partial<grpc.CallOptions>,
+    callback: (error: grpc.ServiceError | null, response: SanitizeResponse) => void
   ): grpc.ClientUnaryCall;
 }
