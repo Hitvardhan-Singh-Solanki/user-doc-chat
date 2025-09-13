@@ -257,7 +257,7 @@ describe("FetchHTMLService", () => {
     it("should use snippet if page text is too short but snippet is long enough", async () => {
       const shortText = "a".repeat(100);
       const longSnippet = "b".repeat(500);
-      vi.spyOn(svc as any, "fetchPageText").mockResolvedValue(shortText);
+      fetchPageTextSpy.mockResolvedValue(shortText);
 
       const result = await (svc as any).fetchExtract(
         { url: "https://example.com", snippet: longSnippet },
