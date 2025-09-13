@@ -1,24 +1,24 @@
-import * as fs from "fs";
-import * as grpc from "@grpc/grpc-js";
-import { SanitizerClient } from "../../proto/sanitizer_grpc_pb";
-import { SanitizeRequest, SanitizeResponse } from "../../proto/sanitizer_pb";
+import * as fs from 'fs';
+import * as grpc from '@grpc/grpc-js';
+import { SanitizerServiceClient } from '../../proto/sanitizer_grpc_pb';
+import { SanitizeRequest, SanitizeResponse } from '../../proto/sanitizer_pb';
 
-const GRPC_HOST = process.env.SANITIZER_HOST || "python_apis:50051";
+const GRPC_HOST = process.env.SANITIZER_HOST || 'python_apis:50051';
 const REQUEST_TIMEOUT_MS = parseInt(
-  process.env.SANITIZER_TIMEOUT || "10000",
-  10
+  process.env.SANITIZER_TIMEOUT || '10000',
+  10,
 );
 
-let sanitizerClient: SanitizerClient | null = null;
+let sanitizerClient: SanitizerServiceClient | null = null;
 
 /**
  * Returns a singleton gRPC client for SanitizerService.
  */
-function getSanitizerClient(): SanitizerClient {
+function getSanitizerClient(): SanitizerServiceClient {
   if (!sanitizerClient) {
-    sanitizerClient = new SanitizerClient(
+    sanitizerClient = new SanitizerServiceClient(
       GRPC_HOST,
-      grpc.credentials.createInsecure()
+      grpc.credentials.createInsecure(),
     );
   }
   return sanitizerClient;
@@ -31,7 +31,7 @@ function getSanitizerClient(): SanitizerClient {
  */
 export async function sanitizeFileGrpc(
   filePath: string,
-  fileType: string
+  fileType: string,
 ): Promise<string> {
   const client = getSanitizerClient();
   const fileData = fs.readFileSync(filePath);
@@ -57,11 +57,11 @@ export async function sanitizeFileGrpc(
 
         const markdownContent = response.getSanitizedContent();
         if (!markdownContent) {
-          return reject(new Error("Sanitization response was empty."));
+          return reject(new Error('Sanitization response was empty.'));
         }
 
         resolve(markdownContent);
-      }
+      },
     );
   });
 }
