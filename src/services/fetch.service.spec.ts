@@ -108,6 +108,12 @@ function makeFetchResponse({
     read: vi.fn(),
   };
 
+  // Normalize header keys for case-insensitive lookup
+  const lowerHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    lowerHeaders[k.toLowerCase()] = v;
+  }
+
   if (chunks) {
     const chunkSize = 100;
     let offset = 0;
@@ -120,8 +126,13 @@ function makeFetchResponse({
       return { done: false, value: chunk };
     });
   } else {
-    reader.read.mockImplementationOnce(async () => {
-      return { done: true, value: buffer };
+    let delivered = false;
+    reader.read.mockImplementation(async () => {
+      if (delivered) {
+        return { done: true, value: undefined };
+      }
+      delivered = true;
+      return { done: false, value: buffer };
     });
   }
 
@@ -130,7 +141,7 @@ function makeFetchResponse({
     status,
     statusText,
     headers: {
-      get: (name: string) => headers[name.toLowerCase()] ?? null,
+      get: (name: string) => lowerHeaders[name.toLowerCase()] ?? null,
     },
     text,
     body: {
