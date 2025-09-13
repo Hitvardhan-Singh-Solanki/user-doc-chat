@@ -373,12 +373,15 @@ describe("FetchHTMLService", () => {
     });
 
     it("should return null on timeout", async () => {
-      const timeoutPromise = (svc as any).fetchPageText(
-        "https://example.com",
-        100
-      );
+      global.fetch = vi.fn((_url, init?: any) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      });
+      const promise = (svc as any).fetchPageText("https://example.com", 100);
       await vi.advanceTimersByTimeAsync(100);
-      const result = await timeoutPromise;
+      const result = await promise;
+      expect(global.fetch).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
     });
 
