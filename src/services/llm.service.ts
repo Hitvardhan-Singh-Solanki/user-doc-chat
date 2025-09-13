@@ -16,12 +16,16 @@ export class LLMService {
   private inferenceClient!: InferenceClient;
 
   constructor() {
-    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
-    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL!;
-    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL!;
+    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || "";
+    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL || "";
+    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || "";
     this.pythonUrl = process.env.PYTHON_LLM_URL;
-    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL!;
+    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL || "";
     this.promptService = new PromptService();
+    if (!this.hfToken) throw new Error("HUGGINGFACE_HUB_TOKEN is required");
+    if (!this.hfChatModel) throw new Error("HUGGINGFACE_CHAT_MODEL is required");
+    if (!this.hfEmbeddingModel) throw new Error("HUGGINGFACE_EMBEDDING_MODEL is required");
+    if (!this.hfSummaryModel) throw new Error("HUGGINGFACE_SUMMARY_MODEL is required");
     this.inferenceClient = new InferenceClient(this.hfToken);
   }
 
