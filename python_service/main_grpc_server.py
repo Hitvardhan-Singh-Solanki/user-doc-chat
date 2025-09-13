@@ -10,9 +10,9 @@ class SanitizerService(sanitizer_pb2_grpc.SanitizerService):
     """
     Implements the gRPC service definition for file sanitization.
     """
-    def Sanitize(self, request, context):
+    def SanitizeDocument(self, request, context):
         """
-        Processes a gRPC request to sanitize a PDF or DOCX file.
+        Processes a gRPC request to sanitize a PDF document.
         """
         try:
             markdown_content = sanitize_file(request.file_data, request.file_type)
