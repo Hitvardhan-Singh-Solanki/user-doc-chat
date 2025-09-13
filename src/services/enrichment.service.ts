@@ -81,6 +81,7 @@ export class EnrichmentService implements IEnrichmentService {
     const sourceText = await this.fetchHTML.fetchHTML(results, {
       maxPagesToFetch: opts.maxPagesToFetch,
       fetchConcurrency: opts.fetchConcurrency,
+      minContentLength: opts.minContentLength,
     });
 
     if (!sourceText || sourceText.length === 0) return results;
