@@ -11,27 +11,22 @@ The **AI Legal Document Q&A App** project is a service designed to enable users 
 ## Key Features
 
 1. **Document Upload and Processing**:
-
    - Users can upload documents, which are processed and stored in a vectorized format for efficient retrieval.
    - The system supports chunking and sanitization of text for better handling of large documents.
 
 2. **Natural Language Querying**:
-
    - Users can ask questions or make queries about their documents in natural language.
    - The system uses AI models to understand the query and retrieve relevant information.
 
 3. **Summarization**:
-
    - The service can summarize documents or specific sections based on user queries.
    - Summarization is powered by a language model (LLM) and supports chunk-based processing for scalability.
 
 4. **Vector-Based Search**:
-
    - Documents are stored as vectors in a vector database (e.g., Pinecone or PostgreSQL).
    - This allows for efficient similarity-based search and retrieval of relevant document sections.
 
 5. **Data Enrichment**:
-
    - The system enriches document data by extracting key insights, legal clauses, or other structured information.
 
 6. **Authentication and Security**:
@@ -41,27 +36,22 @@ The **AI Legal Document Q&A App** project is a service designed to enable users 
 ## Core Services
 
 1. **Vector Store Service**:
-
    - Handles the storage and retrieval of vectorized document data.
    - Supports integration with vector databases like Pinecone or PostgreSQL.
 
 2. **LLM Service**:
-
    - Provides AI capabilities for summarization, text generation, and enrichment.
    - Handles chunking of text and token management for efficient processing.
 
 3. **Deep Research Service**:
-
    - Focuses on advanced querying and summarization tasks.
    - Integrates with the LLM and prompt services to generate detailed insights.
 
 4. **Prompt Service**:
-
    - Generates structured prompts for interacting with the language model.
    - Handles text sanitization and formatting.
 
 5. **Fetch Service**:
-
    - Fetches and processes external HTML content for enrichment or research purposes.
 
 6. **Authentication Service**:
@@ -256,20 +246,17 @@ flowchart LR
 ### Critical Improvements
 
 - [ ] **Async Initialization**
-
   - Race conditions in PromptService tokenizer initialization
   - Need to implement proper async factory pattern
   - Add initialization status checks
 
 - [ ] **Error Recovery**
-
   - Implement retry mechanisms for API calls
   - Add circuit breakers for external services
   - Better error messages and user feedback
   - Handle token estimation failures gracefully
 
 - [ ] **Performance Optimization**
-
   - Add request batching for vector operations
   - Implement caching layer for frequent queries
   - Optimize memory usage for large documents
@@ -284,7 +271,6 @@ flowchart LR
 ### Environment & Configuration
 
 - [ ] **Environment Validation**
-
   - Add strict validation for all env variables
   - Implement secure defaults
   - Add configuration schema validation
@@ -293,7 +279,6 @@ flowchart LR
 ### Testing Improvements
 
 - [ ] **Integration Tests**
-
   - Add end-to-end test scenarios
   - Test external service integrations
   - Add load testing suite
@@ -553,7 +538,6 @@ flowchart TB
 ### Service Interactions
 
 1. **File Upload Flow**
-
    - Client uploads file to Express API
    - File saved to S3/R2
    - Metadata stored in PostgreSQL
@@ -571,14 +555,12 @@ flowchart TB
 ### Performance Considerations
 
 1. **Scaling Strategies**
-
    - Horizontal scaling of API nodes
    - Multiple worker processes for file processing
    - Redis cluster for caching
    - Pinecone distributed vector search
 
 2. **Memory Management**
-
    - Streaming responses for large files
    - Chunk-based processing
    - Redis cache expiration
@@ -593,7 +575,6 @@ flowchart TB
 ### Deployment Guidelines
 
 1. **Prerequisites**
-
    - Node.js 18+
    - PostgreSQL 14+
    - Redis 6+
@@ -612,7 +593,6 @@ flowchart TB
    ```
 
 3. **Deployment Options**
-
    - Docker Compose (recommended)
    - Kubernetes with Helm
    - Manual service deployment
@@ -622,6 +602,14 @@ flowchart TB
    - Grafana dashboards
    - Error tracking (Sentry)
    - Log aggregation (ELK)
+
+```bash
+# Python
+python3 -m grpc_tools.protoc -I. --python_out=./python_service/services --grpc_python_out=./python_service/services ./proto/sanitizer.proto
+
+#TS/JS
+grpc_tools_node_protoc --ts_out=src/proto --js_out=import_style=commonjs,binary:src/proto --grpc_out=src/proto --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --plugin=protoc-gen-grpc=./node_modules/.bin/grpc_tools_node_protoc_plugin -I ./proto ./proto/*.proto
+```
 
 ```
 Copyright (c) 2025 Hitvardhan Singh Solanki
