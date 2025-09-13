@@ -1,4 +1,4 @@
-import { createClient } from "redis";
+import { createClient } from 'redis';
 
 export const redisPub = createClient({ url: process.env.REDIS_URL });
 export const redisSub = createClient({ url: process.env.REDIS_URL });
@@ -17,5 +17,5 @@ export async function connectRedis() {
     redisSub.connect(),
     redisChatHistory.connect(),
   ]);
-  console.log("Redis connected");
+  console.log('Redis connected');
 }

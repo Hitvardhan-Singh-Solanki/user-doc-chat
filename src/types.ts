@@ -10,7 +10,7 @@ export interface User {
   created_at: string;
 }
 
-export type VectorStoreType = "pinecone" | "pgvector";
+export type VectorStoreType = 'pinecone' | 'pgvector';
 
 export type Vector = { id: string; values: number[]; metadata?: any };
 
@@ -36,12 +36,12 @@ export type Client = { res: any };
 
 export type SSEData = {
   fileId: string;
-  status: "failed" | "processed" | "processing";
+  status: 'failed' | 'processed' | 'processing';
   progress?: string | boolean | number | object;
   error: string | null;
 };
 
-export type DocStatus = "new" | "processing" | "processed" | "failed";
+export type DocStatus = 'new' | 'processing' | 'processed' | 'failed';
 export type ISODateString = string;
 
 export interface LegalDocument {
@@ -69,7 +69,7 @@ export interface UserFileRecord {
   file_name: string;
   file_size: string;
   owner_id: string;
-  status: "uploaded" | "processing" | "processed" | "failed";
+  status: 'uploaded' | 'processing' | 'processed' | 'failed';
   error_message?: string | null;
   processing_started_at?: string | null;
   processing_finished_at?: string | null;
@@ -82,7 +82,7 @@ export interface PromptConfig {
   maxLength?: number;
   tone?: string;
   temperature?: number;
-  truncateStrategy?: "truncate-history" | "truncate-context" | "error";
+  truncateStrategy?: 'truncate-history' | 'truncate-context' | 'error';
   language?: string;
   jurisdiction?: string;
   logStats?: boolean;

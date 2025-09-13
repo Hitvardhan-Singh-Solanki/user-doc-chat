@@ -1,9 +1,9 @@
-import { SearchResult } from "../types";
+import { SearchResult } from '../types';
 
 export interface ISearchAdapter {
   search(
     query: string,
     maxResults?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<SearchResult[]>;
 }
