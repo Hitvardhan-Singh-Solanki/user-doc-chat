@@ -85,6 +85,46 @@ export class PromptService {
     return text;
   }
 
+  private truncateByTokens(
+    text: string,
+    maxTokens: number,
+    strategy: "truncate-history" | "truncate-context"
+  ): string {
+    if (!this.tokenizer) {
+      // heuristic fallback: ~4 chars per token
+      return this.truncateText(text, maxTokens * 4, strategy);
+    }
+    if (strategy === "truncate-history") {
+      const lines = text.split("\n").filter(Boolean);
+      const kept: string[] = [];
+      let used = 0;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const t = this.estimateTokens(lines[i]);
+        if (used + t > maxTokens && kept.length > 0) break;
+        kept.unshift(lines[i]);
+        used += t;
+      }
+      return kept.join("\n");
+    }
+    // truncate-context: accumulate sentences from the end with priority bias
+    const priorityRegex =
+      /(Section|Clause|Article|Definition|Preamble)\s+\d+(?:\.\d+)*/i;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean).reverse();
+    const kept: string[] = [];
+    let used = 0;
+    for (const s of sentences) {
+      const t = this.estimateTokens(s);
+      const fits = used + t <= maxTokens;
+      const prioritized = priorityRegex.test(s);
+      if (fits || (prioritized && used < maxTokens)) {
+        kept.push(s);
+        used += t;
+        if (used >= maxTokens) break;
+      }
+    }
+    return kept.reverse().join(" ").trim();
+  }
+
   private validateConfig(config: PromptConfig) {
     if (config.language !== "english")
       throw new Error("Only English language is supported");
@@ -151,24 +191,24 @@ ${sanitizedQuestion}
       const overflow = this.estimateTokens(prompt) - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
       if (finalConfig.truncateStrategy === "truncate-history") {
-        const targetLen = Math.max(
+        const targetTokens = Math.max(
           0,
           this.estimateTokens(sanitizedHistory) - overflow - buffer
         );
-        const truncated = this.truncateText(
+        const truncated = this.truncateByTokens(
           sanitizedHistory,
-          targetLen,
+          targetTokens,
           "truncate-history"
         );
         prompt = prompt.replace(sanitizedHistory, truncated);
       } else if (finalConfig.truncateStrategy === "truncate-context") {
-        const targetLen = Math.max(
+        const targetTokens = Math.max(
           0,
           this.estimateTokens(sanitizedContext) - overflow - buffer
         );
-        const truncated = this.truncateText(
+        const truncated = this.truncateByTokens(
           sanitizedContext,
-          targetLen,
+          targetTokens,
           "truncate-context"
         );
         prompt = prompt.replace(sanitizedContext, truncated);
@@ -226,7 +266,7 @@ ${sanitizedQuestion}
     let prompt = `
 === SYSTEM INSTRUCTION ===
 Version: ${finalConfig.version}
-Role: Summarize the provided text into a concise, legally accurate context for a Q&A system focused on ${defaultConfig.jurisdiction} law.
+Role: Summarize the provided text into a concise, legally accurate context for a Q&A system focused on ${finalConfig.jurisdiction} law.
 Constraints:
 - Retain key facts, clauses, obligations, penalties, and definitions relevant to legal reasoning.
 - Remove redundancies and irrelevant details.

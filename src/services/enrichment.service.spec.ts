@@ -87,7 +87,7 @@ describe("EnrichmentService", () => {
 
     // Mock DeepResearch service
     mockDeepResearch = {
-      summarize: vi.fn(async (text: string) => {
+      analyze: vi.fn(async (text: string) => {
         return "Mock summary of: " + text.substring(0, 50) + "...";
       }),
     };
@@ -99,10 +99,8 @@ describe("EnrichmentService", () => {
     };
 
     svc = new EnrichmentService(
-      mockLLM, 
-      mockVector, 
-      mockFetchHTML, 
-      mockDeepResearch, 
+      mockFetchHTML,
+      mockDeepResearch,
       mockSearchAdapter
     );
   });
@@ -154,7 +152,7 @@ describe("EnrichmentService", () => {
     // fetchHTML should have been called
     expect(mockFetchHTML.fetchHTML).toHaveBeenCalled();
     // deepResearch.summarize should have been called
-    expect(mockDeepResearch.summarize).toHaveBeenCalled();
+    expect(mockDeepResearch.analyze).toHaveBeenCalled();
     // upsertVectors should have been called at least once
     expect(mockVector.upsertVectors).toHaveBeenCalled();
     // verify returned results match searchAdapter output
