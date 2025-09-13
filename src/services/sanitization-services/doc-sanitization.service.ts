@@ -9,19 +9,13 @@ export class DocSanitizationService implements ISanitizeFile {
   private turndown = new TurndownService();
 
   async sanitize(fileBuffer: Buffer): Promise<string> {
-    const imageDir = path.join("/tmp", `docx_images_${uuid()}`);
-    fs.mkdirSync(imageDir, { recursive: true });
-
     const { value: htmlContent } = await mammoth.convertToHtml(
       { buffer: fileBuffer },
       {
         convertImage: mammoth.images.imgElement(async (element) => {
-          const imageName = `${uuid()}.png`;
-          const imagePath = path.join(imageDir, imageName);
-          const imageBuffer = await element.read("base64");
-          fs.writeFileSync(imagePath, Buffer.from(imageBuffer, "base64"));
-          return { src: `images/${imageName}` };
-        }),
+          const base64 = await element.read("base64");
+          return { src: `data:image/png;base64,${base64}` };
+        })
       }
     );
 
