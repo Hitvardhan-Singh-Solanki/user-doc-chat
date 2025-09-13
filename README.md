@@ -588,9 +588,8 @@ flowchart TB
    REDIS_URL=
    S3_BUCKET=
    PINECONE_API_KEY=
-   HUGGINGFACE_API_KEY=
+   HUGGINGFACE_API_KEY="<set_me>"
    JWT_SECRET=
-   ```
 
 3. **Deployment Options**
    - Docker Compose (recommended)

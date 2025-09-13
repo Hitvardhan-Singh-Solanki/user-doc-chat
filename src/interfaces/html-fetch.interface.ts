@@ -1,8 +1,8 @@
-import { SearchResult } from '../types';
+import { SearchResult, EnrichmentOptions } from "../types";
 
 export interface IHTMLFetch {
   fetchHTML(
-    urls: SearchResult[],
-    options?: unknown,
+    results: SearchResult[],
+    options?: EnrichmentOptions
   ): Promise<(string | undefined)[]>;
 }

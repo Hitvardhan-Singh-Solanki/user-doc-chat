@@ -17,12 +17,19 @@ export class LLMService {
   private _enrichmentService!: IEnrichmentService;
 
   constructor() {
-    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN!;
-    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL!;
-    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL!;
+    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || "";
+    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL || "";
+    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || "";
     this.pythonUrl = process.env.PYTHON_LLM_URL;
-    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL!;
+    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL || "";
     this.promptService = new PromptService();
+    if (!this.hfToken) throw new Error("HUGGINGFACE_HUB_TOKEN is required");
+    if (!this.hfChatModel)
+      throw new Error("HUGGINGFACE_CHAT_MODEL is required");
+    if (!this.hfEmbeddingModel)
+      throw new Error("HUGGINGFACE_EMBEDDING_MODEL is required");
+    if (!this.hfSummaryModel)
+      throw new Error("HUGGINGFACE_SUMMARY_MODEL is required");
     this.inferenceClient = new InferenceClient(this.hfToken);
   }
 
@@ -53,7 +60,7 @@ export class LLMService {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    let res: Response;
+    let res: Response | null = null;
     try {
       res = await fetch(this.pythonUrl, {
         method: 'POST',
@@ -61,10 +68,22 @@ export class LLMService {
         signal: controller.signal,
         body: JSON.stringify({ text: this.promptService.sanitizeText(text) }),
       });
+    } catch (err: any) {
+      const isAbort = err?.name === "AbortError";
+      throw new Error(
+        `Python embed API request ${isAbort ? "timed out" : "failed"}: ${
+          err?.message ?? String(err)
+        }`
+      );
     } finally {
       clearTimeout(timeoutId);
     }
 
+    if (!res) {
+      throw new Error(
+        "Python embed API request failed before receiving a response"
+      );
+    }
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(

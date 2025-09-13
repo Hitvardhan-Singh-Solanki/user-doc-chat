@@ -81,6 +81,7 @@ export class EnrichmentService implements IEnrichmentService {
     const sourceText = await this.fetchHTML.fetchHTML(results, {
       maxPagesToFetch: opts.maxPagesToFetch,
       fetchConcurrency: opts.fetchConcurrency,
+      minContentLength: opts.minContentLength,
     });
 
     if (!sourceText || sourceText.length === 0) return results;
@@ -146,8 +147,6 @@ export class EnrichmentService implements IEnrichmentService {
       minContentLength: 200,
       chunkSize: Number(process.env.CHUNK_SIZE) || 800,
       chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
-      userId: `(public)-${uuid()}`,
-      fileId: `(external-search)-${uuid()}`,
     };
   }
 
