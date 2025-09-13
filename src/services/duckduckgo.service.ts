@@ -1,14 +1,14 @@
-import { ISearchAdapter } from "../interfaces/search-adapter.interface";
-import { SearchResult } from "../types";
+import { ISearchAdapter } from '../interfaces/search-adapter.interface';
+import { SearchResult } from '../types';
 
 export class DuckDuckGoAdapter implements ISearchAdapter {
   async search(
     query: string,
     maxResults: number = 5,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<SearchResult[]> {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(
-      query
+      query,
     )}&format=json&no_html=1&skip_disambig=1`;
 
     const controller = signal ? undefined : new AbortController();
@@ -22,8 +22,8 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
       res = await fetch(url, {
         signal: effectiveSignal,
         headers: {
-          Accept: "application/json",
-          "User-Agent": process.env.CRAWLER_USER_AGENT!,
+          Accept: 'application/json',
+          'User-Agent': process.env.CRAWLER_USER_AGENT!,
         },
       });
     } finally {

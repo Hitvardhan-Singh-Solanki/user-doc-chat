@@ -1,16 +1,16 @@
-import http from "http";
-import { Express } from "express";
-import { Server } from "socket.io";
-import { verifyJwt } from "../utils/jwt";
-import { LLMService } from "./llm.service";
-import { VectorStoreService } from "./vector-store.service";
-import { redisChatHistory } from "../repos/redis.repo";
-import { UserInputSchema } from "../schemas/user-input.schema";
-import { EnrichmentService } from "./enrichment.service";
-import { PostgresService } from "./postgres.service";
-import { IDBStore } from "../interfaces/db-store.interface";
-import { DeepResearchService } from "./deep-research.service";
-import { FetchHTMLService } from "./fetch.service";
+import http from 'http';
+import { Express } from 'express';
+import { Server } from 'socket.io';
+import { verifyJwt } from '../utils/jwt';
+import { LLMService } from './llm.service';
+import { VectorStoreService } from './vector-store.service';
+import { redisChatHistory } from '../repos/redis.repo';
+import { UserInputSchema } from '../schemas/user-input.schema';
+import { EnrichmentService } from './enrichment.service';
+import { PostgresService } from './postgres.service';
+import { IDBStore } from '../interfaces/db-store.interface';
+import { DeepResearchService } from './deep-research.service';
+import { FetchHTMLService } from './fetch.service';
 
 export class WebsocketService {
   public io: Server;
@@ -28,8 +28,8 @@ export class WebsocketService {
 
     this.io = new Server(this.server, {
       cors: {
-        origin: "*", //TODO: replace with frontend URL in prod
-        methods: ["GET", "POST"],
+        origin: '*', //TODO: replace with frontend URL in prod
+        methods: ['GET', 'POST'],
       },
     });
 
@@ -49,35 +49,35 @@ export class WebsocketService {
   authVerification() {
     this.io.use((socket, next) => {
       const token = socket.handshake.auth?.token;
-      if (!token) return next(new Error("No token provided"));
+      if (!token) return next(new Error('No token provided'));
 
       const decoded = verifyJwt(token);
-      if (!decoded) return next(new Error("Invalid token"));
+      if (!decoded) return next(new Error('Invalid token'));
       const userId =
         (decoded as any).sub ?? (decoded as any).id ?? (decoded as any).userId;
-      if (!userId) return next(new Error("Invalid token: missing subject/id"));
+      if (!userId) return next(new Error('Invalid token: missing subject/id'));
       (socket as any).userId = String(userId);
       next();
     });
   }
 
   onConnection() {
-    this.io.on("connection", (socket) => {
+    this.io.on('connection', (socket) => {
       const userId = (socket as any).userId;
-      console.log("✅ User connected:", userId);
+      console.log('✅ User connected:', userId);
       socket.join(userId);
 
       this.onQuestion(socket);
 
-      socket.on("disconnect", () => {
-        console.log("❌ User disconnected:", userId);
+      socket.on('disconnect', () => {
+        console.log('❌ User disconnected:', userId);
       });
     });
   }
 
   onQuestion(socket: any) {
     socket.on(
-      "question",
+      'question',
       async ({
         fileId,
         question,
@@ -94,44 +94,43 @@ export class WebsocketService {
         } catch (err: unknown) {
           console.error(err);
           if (err instanceof Error)
-            socket.emit("error", { message: "something went wrong" });
+            socket.emit('error', { message: 'something went wrong' });
         }
-      }
+      },
     );
   }
 
   private async processQuestion(
     question: string,
     userId: string,
-    fileId: string
+    fileId: string,
   ) {
     try {
       const chatId = await this.getOrCreateChat(userId, fileId);
       await this.appendChatHistory(userId, fileId, `User: ${question}`);
-      await this.appendChatMessage(chatId, "user", question);
+      await this.appendChatMessage(chatId, 'user', question);
 
       const qEmbedding = await this.llmService.embeddingHF(question);
 
       const results = await this.pineconeService.query(
         qEmbedding,
         userId,
-        fileId
+        fileId,
       );
 
       if (!results.matches.length) {
         const noContextMsg =
           "No relevant context found. I don't know the answer.";
-        this.io.to(userId).emit("answer_chunk", { token: noContextMsg });
-        this.io.to(userId).emit("answer_complete");
+        this.io.to(userId).emit('answer_chunk', { token: noContextMsg });
+        this.io.to(userId).emit('answer_complete');
 
         await this.appendChatHistory(userId, fileId, `AI: ${noContextMsg}`);
-        await this.appendChatMessage(chatId, "ai", noContextMsg);
+        await this.appendChatMessage(chatId, 'ai', noContextMsg);
         return;
       }
 
-      const context = await this.pineconeService.getContextWithSummarization(
-        results
-      );
+      const context =
+        await this.pineconeService.getContextWithSummarization(results);
 
       const chatHistory = await this.getChatHistory(userId, fileId);
 
@@ -141,23 +140,23 @@ export class WebsocketService {
         context,
       });
 
-      let fullAnswer = "";
+      let fullAnswer = '';
       for await (const token of this.llmService.generateAnswerStream(
-        fullPrompt
+        fullPrompt,
       )) {
-        this.io.to(userId).emit("answer_chunk", { token });
+        this.io.to(userId).emit('answer_chunk', { token });
         fullAnswer += token;
       }
 
       await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
-      await this.appendChatMessage(chatId, "ai", fullAnswer);
+      await this.appendChatMessage(chatId, 'ai', fullAnswer);
       await this.trimChatHistory(userId, fileId);
 
-      this.io.to(userId).emit("answer_complete");
+      this.io.to(userId).emit('answer_complete');
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) {
-        this.io.to(userId).emit("error", { message: "Something went wrong" });
+        this.io.to(userId).emit('error', { message: 'Something went wrong' });
       }
     }
   }
@@ -165,7 +164,7 @@ export class WebsocketService {
   private async appendChatHistory(
     userId: string,
     fileId: string,
-    message: string
+    message: string,
   ) {
     const key = `chat:${userId}:${fileId}`;
     // append message to redis list
@@ -176,7 +175,7 @@ export class WebsocketService {
 
   private async getChatHistory(
     userId: string,
-    fileId: string
+    fileId: string,
   ): Promise<string[]> {
     const key = `chat:${userId}:${fileId}`;
     return await redisChatHistory.lRange(key, 0, -1);
@@ -185,7 +184,7 @@ export class WebsocketService {
   private async trimChatHistory(
     userId: string,
     fileId: string,
-    maxEntries = 100
+    maxEntries = 100,
   ) {
     const key = `chat:${userId}:${fileId}`;
     await redisChatHistory.lTrim(key, -maxEntries, -1);
@@ -197,11 +196,11 @@ export class WebsocketService {
 
   private async getOrCreateChat(
     userId: string,
-    fileId?: string
+    fileId?: string,
   ): Promise<string> {
     const result = await this.db.query<{ id: string }>(
-      "SELECT id FROM chats WHERE user_id=$1 AND file_id=$2 ORDER BY created_at DESC LIMIT 1",
-      [userId, fileId ?? null]
+      'SELECT id FROM chats WHERE user_id=$1 AND file_id=$2 ORDER BY created_at DESC LIMIT 1',
+      [userId, fileId ?? null],
     );
 
     if (result.rowCount! > 0) {
@@ -209,20 +208,20 @@ export class WebsocketService {
     }
 
     const insert = await this.db.query<{ id: string }>(
-      "INSERT INTO chats(user_id, file_id) VALUES($1, $2) RETURNING id",
-      [userId, fileId ?? null]
+      'INSERT INTO chats(user_id, file_id) VALUES($1, $2) RETURNING id',
+      [userId, fileId ?? null],
     );
     return insert.rows[0]!.id;
   }
 
   private async appendChatMessage(
     chatId: string,
-    sender: "user" | "ai",
-    message: string
+    sender: 'user' | 'ai',
+    message: string,
   ) {
     await this.db.query(
-      "INSERT INTO chat_messages(chat_id, sender, message) VALUES($1, $2, $3)",
-      [chatId, sender, message]
+      'INSERT INTO chat_messages(chat_id, sender, message) VALUES($1, $2, $3)',
+      [chatId, sender, message],
     );
   }
 
@@ -232,13 +231,13 @@ export class WebsocketService {
     this.fetchHTMLService = new FetchHTMLService();
     this.deepResearchService = new DeepResearchService(this.llmService);
 
-    this.pineconeService = new VectorStoreService(this.llmService, "pinecone");
+    this.pineconeService = new VectorStoreService(this.llmService, 'pinecone');
 
     this.llmService.enrichmentService = new EnrichmentService(
       this.llmService,
       this.pineconeService,
       this.fetchHTMLService,
-      this.deepResearchService
+      this.deepResearchService,
     );
   }
 }

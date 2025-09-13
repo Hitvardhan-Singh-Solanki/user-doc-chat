@@ -1,49 +1,49 @@
-import { createLogger, format, transports } from "winston";
-import { Request } from "express";
-import prometheusClient from "prom-client";
+import { createLogger, format, transports } from 'winston';
+import { Request } from 'express';
+import prometheusClient from 'prom-client';
 
 // Prometheus metrics
 const metrics = {
   httpRequestDuration: new prometheusClient.Histogram({
-    name: "http_request_duration_seconds",
-    help: "Duration of HTTP requests in seconds",
-    labelNames: ["method", "route", "status_code"],
+    name: 'http_request_duration_seconds',
+    help: 'Duration of HTTP requests in seconds',
+    labelNames: ['method', 'route', 'status_code'],
   }),
   tokenUsage: new prometheusClient.Counter({
-    name: "llm_token_usage_total",
-    help: "Total number of tokens used in LLM requests",
-    labelNames: ["model", "operation"],
+    name: 'llm_token_usage_total',
+    help: 'Total number of tokens used in LLM requests',
+    labelNames: ['model', 'operation'],
   }),
   memoryUsage: new prometheusClient.Gauge({
-    name: "app_memory_usage_bytes",
-    help: "Memory usage in bytes",
+    name: 'app_memory_usage_bytes',
+    help: 'Memory usage in bytes',
   }),
   activeConnections: new prometheusClient.Gauge({
-    name: "websocket_active_connections",
-    help: "Number of active WebSocket connections",
+    name: 'websocket_active_connections',
+    help: 'Number of active WebSocket connections',
   }),
 };
 
 // Configure Winston logger
 const logger = createLogger({
-  level: process.env.LOG_LEVEL || "info",
+  level: process.env.LOG_LEVEL || 'info',
   format: format.combine(
     format.timestamp(),
     format.errors({ stack: true }),
     format.metadata(),
-    format.json()
+    format.json(),
   ),
-  defaultMeta: { service: "user-doc-chat" },
+  defaultMeta: { service: 'user-doc-chat' },
   transports: [
     new transports.Console(),
     new transports.File({
-      filename: "logs/error.log",
-      level: "error",
+      filename: 'logs/error.log',
+      level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
     new transports.File({
-      filename: "logs/combined.log",
+      filename: 'logs/combined.log',
       maxsize: 5242880,
       maxFiles: 5,
     }),
@@ -54,7 +54,7 @@ const logger = createLogger({
 setInterval(() => {
   const used = process.memoryUsage();
   metrics.memoryUsage.set(used.heapUsed);
-  logger.debug("Memory usage", {
+  logger.debug('Memory usage', {
     heap: used.heapUsed,
     rss: used.rss,
     external: used.external,
@@ -65,7 +65,7 @@ setInterval(() => {
 export const requestLogger = (
   req: Request,
   statusCode: number,
-  duration: number
+  duration: number,
 ) => {
   const meta = {
     method: req.method,
@@ -77,13 +77,13 @@ export const requestLogger = (
   };
 
   metrics.httpRequestDuration
-    .labels(req.method, req.route?.path || "unknown", statusCode.toString())
+    .labels(req.method, req.route?.path || 'unknown', statusCode.toString())
     .observe(duration);
 
   if (statusCode >= 400) {
-    logger.error("Request failed", meta);
+    logger.error('Request failed', meta);
   } else {
-    logger.info("Request completed", meta);
+    logger.info('Request completed', meta);
   }
 };
 
@@ -91,10 +91,10 @@ export const requestLogger = (
 export const trackTokenUsage = (
   model: string,
   operation: string,
-  tokens: number
+  tokens: number,
 ) => {
   metrics.tokenUsage.labels(model, operation).inc(tokens);
-  logger.debug("Token usage", { model, operation, tokens });
+  logger.debug('Token usage', { model, operation, tokens });
 };
 
 // WebSocket connection tracking

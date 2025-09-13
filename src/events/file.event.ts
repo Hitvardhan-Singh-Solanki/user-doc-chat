@@ -1,27 +1,27 @@
-import { QueueEvents } from "bullmq";
-import { sseEmitter } from "../services/notify.service";
+import { QueueEvents } from 'bullmq';
+import { sseEmitter } from '../services/notify.service';
 import {
   connectionOptions,
   fileQueue,
   fileQueueName,
-} from "../repos/bullmq.repo";
+} from '../repos/bullmq.repo';
 
 const fileEvents = new QueueEvents(fileQueueName, {
   connection: connectionOptions,
 });
 
-fileEvents.on("completed", async ({ jobId, returnvalue }) => {
+fileEvents.on('completed', async ({ jobId, returnvalue }) => {
   try {
     const rv =
-      typeof returnvalue === "string" ? JSON.parse(returnvalue) : returnvalue;
+      typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
     const { userId, fileId } = (rv || {}) as {
       userId?: string;
       fileId?: string;
     };
     if (!userId || !fileId) return;
-    sseEmitter.send(userId, "file-processed", {
+    sseEmitter.send(userId, 'file-processed', {
       fileId,
-      status: "processed",
+      status: 'processed',
       error: null,
     });
   } catch (err) {
@@ -29,7 +29,7 @@ fileEvents.on("completed", async ({ jobId, returnvalue }) => {
   }
 });
 
-fileEvents.on("failed", async ({ jobId, failedReason }) => {
+fileEvents.on('failed', async ({ jobId, failedReason }) => {
   try {
     const job = await fileQueue.getJob(jobId);
     if (!job) {
@@ -41,25 +41,25 @@ fileEvents.on("failed", async ({ jobId, failedReason }) => {
       fileId?: string;
     };
     if (!userId || !fileId) return;
-    sseEmitter.send(userId, "file-failed", {
+    sseEmitter.send(userId, 'file-failed', {
       fileId,
-      status: "failed",
-      error: failedReason || "Unknown error",
+      status: 'failed',
+      error: failedReason || 'Unknown error',
     });
   } catch (err) {
     console.error(`QueueEvents.failed handler error for job ${jobId}`, err);
   }
 });
 
-fileEvents.on("progress", async ({ jobId, data }) => {
+fileEvents.on('progress', async ({ jobId, data }) => {
   const job = await fileQueue.getJob(jobId);
   if (!job) return;
 
   const { userId, fileId } = job.data;
 
-  sseEmitter.send(userId, "file-progress", {
+  sseEmitter.send(userId, 'file-progress', {
     fileId,
-    status: "processing",
+    status: 'processing',
     progress: data || 0,
     error: null,
   });

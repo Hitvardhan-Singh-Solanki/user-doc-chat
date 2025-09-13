@@ -1,4 +1,4 @@
-import { Vector } from "../types";
+import { Vector } from '../types';
 
 export interface IVectorStore {
   upsertVectors(vectors: Vector[]): Promise<{ upsertedCount: number }>;
@@ -6,6 +6,6 @@ export interface IVectorStore {
     embedding: number[],
     userId: string,
     fileId: string,
-    topK?: number
+    topK?: number,
   ): Promise<any>;
 }

@@ -1,9 +1,9 @@
-import { createLogger, transports, format } from "winston";
-import { z } from "zod";
-import { PromptConfig } from "../types";
-import { LowContentSchema } from "../schemas/low-content.schema";
-import { UserInputSchema } from "../schemas/user-input.schema";
-import { AutoTokenizer } from "@xenova/transformers";
+import { createLogger, transports, format } from 'winston';
+import { z } from 'zod';
+import { PromptConfig } from '../types';
+import { LowContentSchema } from '../schemas/low-content.schema';
+import { UserInputSchema } from '../schemas/user-input.schema';
+import { AutoTokenizer } from '@xenova/transformers';
 
 export class PromptService {
   private logger;
@@ -11,7 +11,7 @@ export class PromptService {
 
   constructor() {
     this.logger = createLogger({
-      level: "debug",
+      level: 'debug',
       format: format.combine(format.timestamp(), format.json()),
       transports: [new transports.Console()],
     });
@@ -21,23 +21,23 @@ export class PromptService {
   private async initializeTokenizer() {
     try {
       this.tokenizer = await AutoTokenizer.from_pretrained(
-        process.env.HUGGINGFACE_CHAT_MODEL!
+        process.env.HUGGINGFACE_CHAT_MODEL!,
       );
     } catch (error) {
-      this.logger.error("Failed to initialize tokenizer", { error });
+      this.logger.error('Failed to initialize tokenizer', { error });
     }
   }
 
   public sanitizeText(input: string): string {
     return input
-      .normalize("NFKC")
-      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
       .replace(/[’‘]/g, "'")
       .replace(/[“”]/g, '"')
-      .replace(/[\r\t]+/g, " ")
-      .replace(/\n+/g, "\n")
-      .replace(/(\bignore previous instructions\b)/gi, "")
-      .replace(/(\bdo anything\b)/gi, "")
+      .replace(/[\r\t]+/g, ' ')
+      .replace(/\n+/g, '\n')
+      .replace(/(\bignore previous instructions\b)/gi, '')
+      .replace(/(\bdo anything\b)/gi, '')
       .trim();
   }
 
@@ -50,68 +50,68 @@ export class PromptService {
   private truncateText(
     text: string,
     maxLength: number,
-    strategy: "truncate-history" | "truncate-context"
+    strategy: 'truncate-history' | 'truncate-context',
   ): string {
     if (text.length <= maxLength) return text;
 
-    if (strategy === "truncate-history") {
-      const lines = text.split("\n").filter(Boolean);
-      while (lines.join("\n").length > maxLength && lines.length > 1) {
+    if (strategy === 'truncate-history') {
+      const lines = text.split('\n').filter(Boolean);
+      while (lines.join('\n').length > maxLength && lines.length > 1) {
         lines.shift();
       }
-      return lines.join("\n") || "(Truncated to empty history)";
+      return lines.join('\n') || '(Truncated to empty history)';
     }
 
-    if (strategy === "truncate-context") {
+    if (strategy === 'truncate-context') {
       const priorityRegex =
         /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
       const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-      let result = "";
+      let result = '';
       for (const sentence of sentences.reverse()) {
         if (result.length + sentence.length <= maxLength) {
-          result = sentence + " " + result;
+          result = sentence + ' ' + result;
         } else if (sentence.match(priorityRegex)) {
           if (result.length + sentence.length <= maxLength + 100) {
-            result = sentence + " " + result;
+            result = sentence + ' ' + result;
           }
         }
       }
       if (result.length > maxLength) {
         result = result.slice(0, maxLength);
       }
-      return result.trim() || "(Truncated to empty context)";
+      return result.trim() || '(Truncated to empty context)';
     }
 
     return text;
   }
 
   private validateConfig(config: PromptConfig) {
-    if (config.language !== "english")
-      throw new Error("Only English language is supported");
-    if (config.jurisdiction && config.jurisdiction !== "INDIA")
-      throw new Error("Only Indian jurisdiction is supported");
+    if (config.language !== 'english')
+      throw new Error('Only English language is supported');
+    if (config.jurisdiction && config.jurisdiction !== 'INDIA')
+      throw new Error('Only Indian jurisdiction is supported');
   }
 
   public mainPrompt(
     input: z.infer<typeof UserInputSchema>,
-    config: PromptConfig = {}
+    config: PromptConfig = {},
   ): string {
     const parsedInput = UserInputSchema.parse(input);
 
     const sanitizedContext = this.sanitizeText(parsedInput.context);
     const sanitizedQuestion = this.sanitizeText(parsedInput.question);
     const sanitizedHistory = this.sanitizeText(
-      parsedInput.chatHistory.join("\n")
+      parsedInput.chatHistory.join('\n'),
     );
 
     const defaultConfig: PromptConfig = {
-      version: "1.0.0",
+      version: '1.0.0',
       maxLength: 8000,
-      tone: "formal",
+      tone: 'formal',
       temperature: 0,
-      truncateStrategy: "truncate-context",
-      language: "english",
-      jurisdiction: "INDIA",
+      truncateStrategy: 'truncate-context',
+      language: 'english',
+      jurisdiction: 'INDIA',
       logStats: true,
       truncateBuffer: 500,
     };
@@ -150,38 +150,38 @@ ${sanitizedQuestion}
     if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
       const overflow = this.estimateTokens(prompt) - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
-      if (finalConfig.truncateStrategy === "truncate-history") {
+      if (finalConfig.truncateStrategy === 'truncate-history') {
         const targetLen = Math.max(
           0,
-          this.estimateTokens(sanitizedHistory) - overflow - buffer
+          this.estimateTokens(sanitizedHistory) - overflow - buffer,
         );
         const truncated = this.truncateText(
           sanitizedHistory,
           targetLen,
-          "truncate-history"
+          'truncate-history',
         );
         prompt = prompt.replace(sanitizedHistory, truncated);
-      } else if (finalConfig.truncateStrategy === "truncate-context") {
+      } else if (finalConfig.truncateStrategy === 'truncate-context') {
         const targetLen = Math.max(
           0,
-          this.estimateTokens(sanitizedContext) - overflow - buffer
+          this.estimateTokens(sanitizedContext) - overflow - buffer,
         );
         const truncated = this.truncateText(
           sanitizedContext,
           targetLen,
-          "truncate-context"
+          'truncate-context',
         );
         prompt = prompt.replace(sanitizedContext, truncated);
-      } else if (finalConfig.truncateStrategy === "error") {
-        throw new Error("Prompt exceeds max length");
+      } else if (finalConfig.truncateStrategy === 'error') {
+        throw new Error('Prompt exceeds max length');
       }
       if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-        throw new Error("Prompt still exceeds maxLength after truncation");
+        throw new Error('Prompt still exceeds maxLength after truncation');
       }
     }
 
     if (finalConfig.logStats) {
-      this.logger.debug("Main Prompt Generated", {
+      this.logger.debug('Main Prompt Generated', {
         version: finalConfig.version,
         length: prompt.length,
         tokens: this.estimateTokens(prompt),
@@ -197,20 +197,20 @@ ${sanitizedQuestion}
 
   public lowPrompt(
     lowContent: z.infer<typeof LowContentSchema>,
-    config: PromptConfig = {}
+    config: PromptConfig = {},
   ): string {
     const parsedContent = LowContentSchema.parse(lowContent);
     const sanitizedContent = parsedContent
       .map(this.sanitizeText)
       .filter((item) => item.length > 0);
     const defaultConfig: PromptConfig = {
-      version: "1.0.0",
+      version: '1.0.0',
       maxLength: 1000,
-      tone: "formal",
+      tone: 'formal',
       temperature: 0,
-      truncateStrategy: "truncate-context",
-      language: "english",
-      jurisdiction: "INDIA",
+      truncateStrategy: 'truncate-context',
+      language: 'english',
+      jurisdiction: 'INDIA',
       logStats: true,
       truncateBuffer: 200,
     };
@@ -220,8 +220,8 @@ ${sanitizedQuestion}
 
     const content =
       sanitizedContent.length > 0
-        ? sanitizedContent.join("\n\n")
-        : "(No content provided)";
+        ? sanitizedContent.join('\n\n')
+        : '(No content provided)';
 
     let prompt = `
 === SYSTEM INSTRUCTION ===
@@ -247,21 +247,21 @@ ${content}
       const buffer = finalConfig.truncateBuffer ?? 0;
       const targetLen = Math.max(
         0,
-        this.estimateTokens(content) - overflow - buffer
+        this.estimateTokens(content) - overflow - buffer,
       );
       const truncated = this.truncateText(
         content,
         targetLen,
-        "truncate-context"
+        'truncate-context',
       );
       prompt = prompt.replace(content, truncated);
       if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-        throw new Error("Low prompt still exceeds maxLength after truncation");
+        throw new Error('Low prompt still exceeds maxLength after truncation');
       }
     }
 
     if (finalConfig.logStats) {
-      this.logger.debug("Low Prompt Generated", {
+      this.logger.debug('Low Prompt Generated', {
         version: finalConfig.version,
         length: prompt.length,
         tokens: this.estimateTokens(prompt),
