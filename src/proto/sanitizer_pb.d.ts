@@ -38,18 +38,6 @@ export namespace SanitizeRequest {
     documentType: string;
     documentData: Uint8Array | string;
   };
-
-  export function setFileData(fileData: NonSharedBuffer) {
-    throw new Error("Function not implemented.");
-  }
-
-  export function setFileType(fileType: string) {
-    throw new Error("Function not implemented.");
-  }
-
-  export function setFileData(fileData: NonSharedBuffer) {
-    throw new Error("Function not implemented.");
-  }
 }
 
 export class SanitizeResponse extends jspb.Message {
@@ -81,8 +69,4 @@ export namespace SanitizeResponse {
   export type AsObject = {
     sanitizedContent: string;
   };
-
-  export function getMarkdown() {
-    throw new Error("Function not implemented.");
-  }
 }

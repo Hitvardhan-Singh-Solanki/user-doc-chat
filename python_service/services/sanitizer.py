@@ -1,6 +1,4 @@
-import base64
 import io
-import binascii
 from docling.document_converter import DocumentConverter
 
 MAX_BYTES = 25 * 1024 * 1024  
@@ -16,16 +14,15 @@ def sanitize_pdf(file_bytes: bytes) -> str:
     
     return markdown_output.strip()
 
-def sanitize_file(file_data: str, file_type: str) -> str:
-    try:
-        file_bytes = base64.b64decode(file_data, validate=True)
-    except (binascii.Error, ValueError) as err:
-        raise ValueError("Invalid base64 file data") from err
-
-    if len(file_bytes) > MAX_BYTES:
+def sanitize_file(file_data: bytes, file_type: str) -> str:
+    """
+    Sanitizes a file by converting its content to a clean markdown string.
+    This function now directly accepts file data as bytes.
+    """
+    if len(file_data) > MAX_BYTES:
         raise ValueError(f"File too large; limit is {MAX_BYTES} bytes")
 
     if file_type == "application/pdf":
-        return sanitize_pdf(file_bytes)
+        return sanitize_pdf(file_data)
     else:
         raise ValueError(f"Unsupported file type: {file_type}")

@@ -7,7 +7,7 @@ export async function sanitizeFile(fileBuffer: Buffer<ArrayBufferLike>) {
 
   const sanitizationFactory = getSanitizer(type.mime);
 
-  const sanitizedContent = sanitizationFactory.sanitize(fileBuffer);
+  const sanitizedContent = await sanitizationFactory.sanitize(fileBuffer);
 
   if (!sanitizedContent) {
     throw new Error("Sanitization resulted in empty content");
