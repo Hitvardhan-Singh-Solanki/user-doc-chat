@@ -179,7 +179,7 @@ describe("DeepResearchService", () => {
       const inputText = "Test text";
       const sanitizedText = "Test text";
       const prompt = "Test prompt";
-      const llmResult = { summary: "Complex object result" };
+      const llmResult = "Complex object result";
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(llmResult);
