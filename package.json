@@ -17,7 +17,9 @@
     "start": "concurrently \"npm run start:api\" \"npm run worker:start\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings 0"
   },
   "keywords": [],
   "author": "",
