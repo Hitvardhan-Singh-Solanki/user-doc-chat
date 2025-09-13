@@ -1,5 +1,5 @@
-import { ISearchAdapter } from "../interfaces/search-adapter.interface";
-import { SearchResult } from "../types";
+import { ISearchAdapter } from '../interfaces/search-adapter.interface';
+import { SearchResult } from '../types';
 
 export class SearchService {
   private adapter: ISearchAdapter;

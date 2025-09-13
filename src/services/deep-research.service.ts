@@ -1,6 +1,6 @@
-import { IDeepResearch } from "../interfaces/deep-research.interface";
-import { LLMService } from "./llm.service";
-import { PromptService } from "./prompt.service";
+import { IDeepResearch } from '../interfaces/deep-research.interface';
+import { LLMService } from './llm.service';
+import { PromptService } from './prompt.service';
 
 export class DeepResearchService implements IDeepResearch {
   private readonly llmService: LLMService;
@@ -12,7 +12,7 @@ export class DeepResearchService implements IDeepResearch {
   }
 
   public async summarize(text: string): Promise<string> {
-    if (!text || !text.trim()) return "";
+    if (!text || !text.trim()) return '';
 
     try {
       const sanitized = this.promptService.sanitizeText(text);
@@ -20,7 +20,7 @@ export class DeepResearchService implements IDeepResearch {
       const chunks = this.llmService.chunkText(
         sanitized,
         Number(process.env.CHUNK_SIZE) || 1000,
-        Number(process.env.CHUNK_OVERLAP) || 100
+        Number(process.env.CHUNK_OVERLAP) || 100,
       );
 
       const summary = await this.llmService.generateLowSummary(chunks, {

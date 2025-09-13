@@ -1,15 +1,15 @@
-import { fileTypeFromBuffer } from "file-type";
-import { uploadFileToMinio } from "./minio.service";
-import { FileJob, MulterFile, UserFileRecord } from "../types";
-import { fileQueue } from "../repos/bullmq.repo";
-import { v4 as uuid } from "uuid";
-import createHttpError from "http-errors";
-import { IDBStore } from "../interfaces/db-store.interface";
+import { fileTypeFromBuffer } from 'file-type';
+import { uploadFileToMinio } from './minio.service';
+import { FileJob, MulterFile, UserFileRecord } from '../types';
+import { fileQueue } from '../repos/bullmq.repo';
+import { v4 as uuid } from 'uuid';
+import createHttpError from 'http-errors';
+import { IDBStore } from '../interfaces/db-store.interface';
 
 const acceptedMimeTypes = [
-  "application/pdf",
-  "text/plain",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  'application/pdf',
+  'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
 export class FileUploadService {
@@ -24,7 +24,7 @@ export class FileUploadService {
       if (!file?.buffer || file.buffer.length === 0) {
         throw createHttpError({
           status: 400,
-          message: "No file content uploaded",
+          message: 'No file content uploaded',
         });
       }
 
@@ -33,7 +33,7 @@ export class FileUploadService {
       if (!mime || !acceptedMimeTypes.includes(mime)) {
         throw createHttpError({
           status: 400,
-          message: "Unsupported file type",
+          message: 'Unsupported file type',
         });
       }
 
@@ -46,26 +46,26 @@ export class FileUploadService {
         VALUES ($1, $2, $3, $4)
         RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
         `,
-        [file.originalname, file.size, userId, "uploaded"]
+        [file.originalname, file.size, userId, 'uploaded'],
       );
       const fileRecord = result.rows[0];
 
       const job: FileJob = { key, userId, fileId: fileRecord.id };
-      console.log("Adding job to queue:", job);
+      console.log('Adding job to queue:', job);
       try {
-        await fileQueue.add("process-file", job);
+        await fileQueue.add('process-file', job);
       } catch (e) {
         await this.db.query(
           `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
-          ["failed", (e as Error).message, fileRecord.id]
+          ['failed', (e as Error).message, fileRecord.id],
         );
         throw e;
       }
       return fileRecord;
     } catch (error) {
-      console.error("File upload failed:", error);
+      console.error('File upload failed:', error);
       if (error instanceof createHttpError.HttpError) throw error;
-      throw createHttpError({ status: 500, message: "File upload failed" });
+      throw createHttpError({ status: 500, message: 'File upload failed' });
     }
   }
 }

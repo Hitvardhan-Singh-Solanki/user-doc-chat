@@ -1,10 +1,10 @@
-import { Queue, QueueEvents } from "bullmq";
+import { Queue, QueueEvents } from 'bullmq';
 
-export const fileQueueName = "file-processing";
-export const legalDocumentsQueueName = "legal-documents";
+export const fileQueueName = 'file-processing';
+export const legalDocumentsQueueName = 'legal-documents';
 
 export const connectionOptions = {
-  host: process.env.REDIS_HOST || "redis",
+  host: process.env.REDIS_HOST || 'redis',
   port: Number(process.env.REDIS_PORT || 6379),
 };
 

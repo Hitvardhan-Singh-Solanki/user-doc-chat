@@ -1,7 +1,7 @@
-import { Readable } from "stream";
-import { minioClient } from "../repos/minio.repo";
+import { Readable } from 'stream';
+import { minioClient } from '../repos/minio.repo';
 
-const bucket = "user-files";
+const bucket = 'user-files';
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
   const exists = await minioClient.bucketExists(bucket);
@@ -16,12 +16,12 @@ export async function downloadFile(key: string): Promise<Buffer> {
 
   return new Promise((resolve, reject) => {
     let total = 0;
-    stream.on("data", (chunk: Buffer) => {
+    stream.on('data', (chunk: Buffer) => {
       total += chunk.length;
       chunks.push(chunk);
     });
-    stream.once("end", () => resolve(Buffer.concat(chunks)));
-    stream.once("error", (err) => {
+    stream.once('end', () => resolve(Buffer.concat(chunks)));
+    stream.once('error', (err) => {
       try {
         stream.destroy();
       } catch {}

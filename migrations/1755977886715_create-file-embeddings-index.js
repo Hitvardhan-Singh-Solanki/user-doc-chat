@@ -9,8 +9,14 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
-    pgm.createIndex("file_embeddings", ["file_id", "chunk_index"], { unique: true, name: "file_embeddings_file_chunk_uidx" });
-    pgm.createIndex("file_embeddings", "pinecone_id", { unique: true, name: "file_embeddings_pinecone_id_uidx" });
+  pgm.createIndex('file_embeddings', ['file_id', 'chunk_index'], {
+    unique: true,
+    name: 'file_embeddings_file_chunk_uidx',
+  });
+  pgm.createIndex('file_embeddings', 'pinecone_id', {
+    unique: true,
+    name: 'file_embeddings_pinecone_id_uidx',
+  });
 };
 
 /**
@@ -19,5 +25,5 @@ export const up = (pgm) => {
  * @returns {Promise<void> | void}
  */
 export const down = (pgm) => {
-    pgm.dropIndex("file_embeddings");
+  pgm.dropIndex('file_embeddings');
 };
