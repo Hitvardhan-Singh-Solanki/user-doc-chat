@@ -146,8 +146,6 @@ export class EnrichmentService implements IEnrichmentService {
       minContentLength: 200,
       chunkSize: Number(process.env.CHUNK_SIZE) || 800,
       chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
-      userId: `(public)-${uuid()}`,
-      fileId: `(external-search)-${uuid()}`,
     };
   }
 
