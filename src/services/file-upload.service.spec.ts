@@ -69,7 +69,6 @@ describe("FileUploadService", () => {
     destination: "",
     filename: "",
     path: "",
-    stream: {} as any,
   });
 
   describe("upload", () => {
@@ -79,11 +78,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "document.pdf",
-        file_size: 2048,
+        file_size: "2048",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/pdf" });
@@ -118,11 +117,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "document.txt",
-        file_size: 512,
+        file_size: "512",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "text/plain" });
@@ -147,11 +146,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "document.docx",
-        file_size: 4096,
+        file_size: "4096",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockFileTypeFromBuffer.mockResolvedValue({
@@ -169,12 +168,17 @@ describe("FileUploadService", () => {
     });
 
     it("should throw error when file buffer is empty", async () => {
-      const mockFile = createMockFile("application/pdf", "test.pdf", 0, Buffer.alloc(0));
+      const mockFile = createMockFile(
+        "application/pdf",
+        "test.pdf",
+        0,
+        Buffer.alloc(0)
+      );
       const userId = "user123";
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("No file content uploaded");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "No file content uploaded"
+      );
 
       expect(mockFileTypeFromBuffer).not.toHaveBeenCalled();
       expect(mockUploadFileToMinio).not.toHaveBeenCalled();
@@ -187,9 +191,9 @@ describe("FileUploadService", () => {
       };
       const userId = "user123";
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("No file content uploaded");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "No file content uploaded"
+      );
     });
 
     it("should throw error for unsupported file type", async () => {
@@ -198,9 +202,9 @@ describe("FileUploadService", () => {
 
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/jpeg" });
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("Unsupported file type");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "Unsupported file type"
+      );
 
       expect(mockUploadFileToMinio).not.toHaveBeenCalled();
     });
@@ -214,11 +218,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "document.pdf",
-        file_size: 1024,
+        file_size: "1024",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockUploadFileToMinio.mockResolvedValue(undefined);
@@ -239,9 +243,9 @@ describe("FileUploadService", () => {
       // Simulate file with PDF extension but actually JPEG content
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/jpeg" });
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("Unsupported file type");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "Unsupported file type"
+      );
     });
 
     it("should handle minio upload failure", async () => {
@@ -251,9 +255,9 @@ describe("FileUploadService", () => {
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/pdf" });
       mockUploadFileToMinio.mockRejectedValue(new Error("Minio upload failed"));
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("File upload failed");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "File upload failed"
+      );
 
       expect(mockDb.query).not.toHaveBeenCalled();
     });
@@ -266,9 +270,9 @@ describe("FileUploadService", () => {
       mockUploadFileToMinio.mockResolvedValue(undefined);
       mockDb.query = vi.fn().mockRejectedValue(new Error("Database error"));
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("File upload failed");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "File upload failed"
+      );
 
       expect(mockFileQueue.add).not.toHaveBeenCalled();
     });
@@ -279,11 +283,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "document.pdf",
-        file_size: 1024,
+        file_size: "1024",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
       const queueError = new Error("Queue processing failed");
 
@@ -297,9 +301,9 @@ describe("FileUploadService", () => {
         .mockResolvedValueOnce({ rows: [] }); // For the update query
       mockFileQueue.add.mockRejectedValue(queueError);
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("File upload failed");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "File upload failed"
+      );
 
       expect(mockDb.query).toHaveBeenCalledTimes(2);
       expect(mockDb.query).toHaveBeenLastCalledWith(
@@ -314,9 +318,9 @@ describe("FileUploadService", () => {
 
       mockFileTypeFromBuffer.mockRejectedValue(new Error("Unknown error"));
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("File upload failed");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "File upload failed"
+      );
     });
 
     it("should preserve HTTP errors without wrapping", async () => {
@@ -326,9 +330,9 @@ describe("FileUploadService", () => {
 
       mockFileTypeFromBuffer.mockRejectedValue(httpError);
 
-      await expect(
-        fileUploadService.upload(mockFile, userId)
-      ).rejects.toThrow("Custom HTTP error");
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        "Custom HTTP error"
+      );
     });
 
     it("should handle empty original filename", async () => {
@@ -337,11 +341,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "",
-        file_size: 1024,
+        file_size: "1024",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/pdf" });
@@ -370,11 +374,11 @@ describe("FileUploadService", () => {
       const mockFileRecord: UserFileRecord = {
         id: "file123",
         file_name: "test file (1) @#$.pdf",
-        file_size: 1024,
+        file_size: "1024",
         owner_id: userId,
         status: "uploaded",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
       };
 
       mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/pdf" });
@@ -408,11 +412,11 @@ describe("FileUploadService", () => {
         const mockFileRecord: UserFileRecord = {
           id: "file123",
           file_name: "test.ext",
-          file_size: 1024,
+          file_size: "1024",
           owner_id: userId,
           status: "uploaded",
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: new Date().toDateString(),
+          updated_at: new Date().toDateString(),
         };
 
         mockFileTypeFromBuffer.mockResolvedValue({ mime: mimeType });
