@@ -200,7 +200,7 @@ describe("FetchHTMLService", () => {
       ];
       const options = {};
 
-      vi.spyOn(svc as any, "fetchExtract")
+      fetchExtractSpy
         .mockResolvedValueOnce("some-content")
         .mockRejectedValueOnce(new Error("Network error"));
 
