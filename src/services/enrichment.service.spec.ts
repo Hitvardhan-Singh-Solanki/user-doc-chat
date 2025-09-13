@@ -8,7 +8,10 @@ import {
   vi,
 } from "vitest";
 import { v4 as uuid } from "uuid";
+import { EnrichmentService } from "./enrichment.service";
 
+// This helper function is not used in the final version of the test file
+// as fetch is not mocked directly, but it's good practice to keep it.
 function makeFetchResponse({
   ok = true,
   status = 200,
@@ -35,67 +38,83 @@ function makeFetchResponse({
   };
 }
 
-let EnrichmentService: any;
+let svc: any;
+let mockLLM: any;
+let mockVector: any;
+let mockSearchAdapter: any;
+let mockFetchHTML: any;
+let mockDeepResearch: any;
 
-beforeAll(async () => {
-  const mod = await import("./enrichment.service");
-  EnrichmentService = mod.EnrichmentService;
+beforeAll(() => {
+  // No dynamic import needed, as EnrichmentService is a named export
+  // and is already imported at the top of the file.
 });
 
 describe("EnrichmentService", () => {
-  let originalFetch: any;
-  let mockLLM: any;
-  let mockVector: any;
-  let mockSearchAdapter: any;
-  let svc: any;
-
   beforeEach(() => {
-    originalFetch = (globalThis as any).fetch;
-
-    // Mock LLMService with embeddingHF that returns a deterministic embedding
+    // Mock LLMService with embeddingHF and generateText spy
     mockLLM = {
       embeddingHF: vi.fn(async (text: string) => {
-        // return embedding length based on text length for test variety
+        // Return a deterministic embedding
         return Array.from(
           { length: 8 },
           (_, i) => (text.length % 10) + i + 0.1
         );
       }),
-      // reuse chunkText from the real service? not needed here; EnrichmentService uses its own chunkText
+      generateText: vi.fn(async (prompt: string) => {
+        return "Optimized query for: " + prompt;
+      }),
     };
 
     // Mock VectorStoreService with upsertVectors spy
     mockVector = {
       upsertVectors: vi.fn(async (vectors: any[]) => {
-        // return a fake upsert result
         return { upserted: vectors.length };
+      }),
+    };
+
+    // Mock FetchHTML service
+    mockFetchHTML = {
+      fetchHTML: vi.fn(async (results: any[], options?: any) => {
+        const paragraph = "Legal text content ".repeat(20);
+        return results.map(() => paragraph);
+      }),
+    };
+
+    // Mock DeepResearch service
+    mockDeepResearch = {
+      summarize: vi.fn(async (text: string) => {
+        return "Mock summary of: " + text.substring(0, 50) + "...";
       }),
     };
 
     // Default search adapter that returns nothing (tests override)
     mockSearchAdapter = {
       search: vi.fn(async (q: string, maxResults?: number) => []),
-      constructor: { name: "MockSearchAdapter" },
     };
 
-    svc = new EnrichmentService(mockLLM, mockVector, mockSearchAdapter);
+    // Correctly instantiate the service with all required mocks
+    svc = new EnrichmentService(
+      mockLLM,
+      mockVector,
+      mockFetchHTML,
+      mockDeepResearch,
+      mockSearchAdapter
+    );
   });
 
   afterEach(() => {
-    (globalThis as any).fetch = originalFetch;
     vi.resetAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("preEmbedDocument embeds document chunks and upserts to vector store", async () => {
     const shortDoc = "This is a test document. Short text only.";
-    // Ensure chunk size is big so it produces one chunk
     const opts = { chunkSize: 1000, chunkOverlap: 0, fileId: "file-1" };
 
     await svc.preEmbedDocument(shortDoc, opts);
 
-    // embeddingHF should be called at least once
     expect(mockLLM.embeddingHF).toHaveBeenCalled();
-    // upsertVectors should be called matching the chunk count (one)
     expect(mockVector.upsertVectors).toHaveBeenCalled();
     const lastCallArgs = mockVector.upsertVectors.mock.calls.slice(-1)[0][0];
     expect(Array.isArray(lastCallArgs)).toBe(true);
@@ -105,12 +124,7 @@ describe("EnrichmentService", () => {
     expect(typeof v.values[0]).toBe("number");
   });
 
-  it("searchAndEmbed fetches pages, extracts text and upserts embeddings", async () => {
-    // create a long HTML body so Readability will extract textContent > minContentLength
-    const paragraph = "Legal text ".repeat(50); // ~500+ chars
-    const html = `<html><body><article><p>${paragraph}</p></article></body></html>`;
-
-    // Mock search adapter to return one result
+  it("searchAndEmbed fetches pages, summarizes, and upserts embeddings", async () => {
     mockSearchAdapter.search = vi.fn(async (_q: string, _n?: number) => [
       {
         title: "Title A",
@@ -119,34 +133,26 @@ describe("EnrichmentService", () => {
       },
     ]);
 
-    // Mock fetch to return HTML with content-type containing html
-    (globalThis as any).fetch = vi.fn(async (url: string) => {
-      expect(url).toBe("https://example.com/pageA");
-      return makeFetchResponse({
-        ok: true,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "content-length": String(html.length),
-        },
-        body: html,
-      });
-    });
-
-    const results = await svc.searchAndEmbed("query x", {
+    await svc.searchAndEmbed("query x", {
       maxResults: 1,
       maxPagesToFetch: 1,
     });
 
-    // search adapter should have been called
     expect(mockSearchAdapter.search).toHaveBeenCalled();
-    // upsertVectors should have been called at least once
+    expect(mockFetchHTML.fetchHTML).toHaveBeenCalled();
+    expect(mockDeepResearch.summarize).toHaveBeenCalled();
+    expect(mockLLM.embeddingHF).toHaveBeenCalled();
     expect(mockVector.upsertVectors).toHaveBeenCalled();
-    // verify returned results match searchAdapter output
-    expect(results.length).toBe(1);
-    expect(results[0].title).toBe("Title A");
+
+    // Verify metadata of upserted vectors
+    const upsertArgs = mockVector.upsertVectors.mock.calls[0][0][0].metadata;
+    expect(upsertArgs.source).toBe("https://example.com/pageA");
+    expect(upsertArgs.title).toBe("Title A");
+    expect(upsertArgs.snippet).toBe("Snippet A");
+    expect(upsertArgs.deepSummary).toContain("Mock summary of:");
   });
 
-  it("searchAndEmbed skips localhost URLs (SSRF protection)", async () => {
+  it("searchAndEmbed skips results for which no content is fetched", async () => {
     mockSearchAdapter.search = vi.fn(async () => [
       {
         title: "Local",
@@ -155,132 +161,66 @@ describe("EnrichmentService", () => {
       },
     ]);
 
-    // spy on fetch to ensure even if called it will not proceed; but fetch shouldn't be used to fetch local content
-    (globalThis as any).fetch = vi.fn(async () => {
-      return makeFetchResponse({
-        ok: true,
-        headers: { "content-type": "text/html" },
-        body: "<html></html>",
-      });
-    });
+    // Mock fetchHTML to return empty array, simulating a failed fetch (e.g., SSRF protection)
+    mockFetchHTML.fetchHTML = vi.fn(async () => []);
 
     const results = await svc.searchAndEmbed("anything", {
       maxResults: 1,
       maxPagesToFetch: 1,
     });
 
-    // upsertVectors should NOT have been called (page skipped)
-    expect(mockVector.upsertVectors).not.toHaveBeenCalled();
-    // fetch may or may not be called depending on early return - ensure safe either way
-    // but service should return the original results array
-    expect(results.length).toBe(1);
-  });
-
-  it("searchAndEmbed skips non-HTML content-type", async () => {
-    mockSearchAdapter.search = vi.fn(async () => [
-      {
-        title: "Api",
-        snippet: "JSON snippet",
-        url: "https://api.example.com/data",
-      },
-    ]);
-
-    (globalThis as any).fetch = vi.fn(async () =>
-      makeFetchResponse({
-        ok: true,
-        headers: {
-          "content-type": "application/json",
-          "content-length": "100",
-        },
-        body: '{"hello":"world"}',
-      })
-    );
-
-    const results = await svc.searchAndEmbed("x", {
-      maxResults: 1,
-      maxPagesToFetch: 1,
-    });
-
-    // should not upsert because content-type is not HTML
+    expect(mockFetchHTML.fetchHTML).toHaveBeenCalled();
+    expect(mockDeepResearch.summarize).not.toHaveBeenCalled();
+    expect(mockLLM.embeddingHF).not.toHaveBeenCalled();
     expect(mockVector.upsertVectors).not.toHaveBeenCalled();
     expect(results.length).toBe(1);
   });
 
-  it("fetchExtractAndUpsert uses snippet when pageText shorter than minContentLength and skips if snippet too short", async () => {
-    // provide search results with snippet shorter than 50 chars -> should be skipped
-    const shortSnippet = "Too short snippet";
+  it("searchAndEmbed skips processing if fetched content is too short", async () => {
     mockSearchAdapter.search = vi.fn(async () => [
       {
         title: "Short",
-        snippet: shortSnippet,
+        snippet: "Short snippet",
         url: "https://example.com/short",
       },
     ]);
 
-    // fetch returns very short html -> pageText short -> fallback to snippet (also short) -> skip upsert
-    (globalThis as any).fetch = vi.fn(async () =>
-      makeFetchResponse({
-        ok: true,
-        headers: { "content-type": "text/html", "content-length": "20" },
-        body: "<html><body><p>Hi</p></body></html>",
-      })
-    );
+    // Mock fetchHTML to return short content (less than the threshold of 50 characters)
+    mockFetchHTML.fetchHTML = vi.fn(async () => ["Short"]);
 
     await svc.searchAndEmbed("q", { maxResults: 1, maxPagesToFetch: 1 });
 
+    expect(mockFetchHTML.fetchHTML).toHaveBeenCalled();
+    expect(mockDeepResearch.summarize).not.toHaveBeenCalled();
+    expect(mockLLM.embeddingHF).not.toHaveBeenCalled();
     expect(mockVector.upsertVectors).not.toHaveBeenCalled();
-
-    // Now a snippet long enough (>50 chars) should be used and upserted
-    const longSnippet = "This is a reasonably long snippet ".repeat(3); // > 50 chars
-    mockSearchAdapter.search = vi.fn(async () => [
-      {
-        title: "LongSnippet",
-        snippet: longSnippet,
-        url: "https://example.com/short",
-      },
-    ]);
-
-    (globalThis as any).fetch = vi.fn(async () =>
-      makeFetchResponse({
-        ok: true,
-        headers: { "content-type": "text/html", "content-length": "20" },
-        body: "<html><body><p>Hi</p></body></html>",
-      })
-    );
-
-    await svc.searchAndEmbed("q", { maxResults: 1, maxPagesToFetch: 1 });
-    expect(mockVector.upsertVectors).toHaveBeenCalled();
   });
 
   it('enrichIfUnknown calls searchAndEmbed when answer contains "I don\'t know"', async () => {
-    // spy on searchAndEmbed
-    const spy = vi.spyOn(svc as any, "searchAndEmbed").mockResolvedValue([]);
-
+    const spy = vi.spyOn(svc, "searchAndEmbed").mockResolvedValue([]);
     const res = await svc.enrichIfUnknown("Q?", "I don't know");
     expect(spy).toHaveBeenCalledWith("Q?", expect.any(Object));
     expect(res).toEqual([]);
     spy.mockRestore();
   });
 
-  it("fetchPageText returns null on too-large content-length", async () => {
-    // Use a large content-length header to trigger maxBytes check
-    mockSearchAdapter.search = vi.fn(async () => [
-      { title: "Large", snippet: "S", url: "https://example.com/huge" },
-    ]);
-
-    (globalThis as any).fetch = vi.fn(async () =>
-      makeFetchResponse({
-        ok: true,
-        headers: {
-          "content-type": "text/html",
-          "content-length": String(10_000_000),
-        },
-        body: "<html></html>",
-      })
+  it("enrichIfUnknown does not call searchAndEmbed when answer is known", async () => {
+    const spy = vi.spyOn(svc, "searchAndEmbed");
+    const res = await svc.enrichIfUnknown(
+      "Q?",
+      "The capital of France is Paris."
     );
+    expect(spy).not.toHaveBeenCalled();
+    expect(res).toBeNull();
+  });
 
-    await svc.searchAndEmbed("x", { maxResults: 1, maxPagesToFetch: 1 });
+  it("preEmbedDocument correctly chunks and embeds long documents", async () => {
+    const longDoc = "a".repeat(3000);
+    const opts = { chunkSize: 1000, chunkOverlap: 100, fileId: "file-2" };
 
-    expect(mockVector.upsertVectors).not.toHaveBeenCalled();
+    await svc.preEmbedDocument(longDoc, opts);
+
+    expect(mockVector.upsertVectors).toHaveBeenCalledTimes(4);
+    expect(mockLLM.embeddingHF).toHaveBeenCalledTimes(4);
   });
 });

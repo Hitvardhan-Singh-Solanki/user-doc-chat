@@ -104,4 +104,6 @@ export interface EnrichmentOptions {
   chunkOverlap?: number;
   userId?: string;
   fileId?: string;
+  sectionTitle?: string;
+  source?: string;
 }
