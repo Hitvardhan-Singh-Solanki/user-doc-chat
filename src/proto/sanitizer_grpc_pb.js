@@ -12,7 +12,9 @@ function serialize_sanitizer_SanitizeRequest(arg) {
 }
 
 function deserialize_sanitizer_SanitizeRequest(buffer_arg) {
-  return sanitizer_pb.SanitizeRequest.deserializeBinary(new Uint8Array(buffer_arg));
+  return sanitizer_pb.SanitizeRequest.deserializeBinary(
+    new Uint8Array(buffer_arg),
+  );
 }
 
 function serialize_sanitizer_SanitizeResponse(arg) {
@@ -23,14 +25,15 @@ function serialize_sanitizer_SanitizeResponse(arg) {
 }
 
 function deserialize_sanitizer_SanitizeResponse(buffer_arg) {
-  return sanitizer_pb.SanitizeResponse.deserializeBinary(new Uint8Array(buffer_arg));
+  return sanitizer_pb.SanitizeResponse.deserializeBinary(
+    new Uint8Array(buffer_arg),
+  );
 }
 
-
 // Defines the service contract for sanitizing documents.
-var SanitizerServiceService = exports.SanitizerServiceService = {
+var SanitizerServiceService = (exports.SanitizerServiceService = {
   // A RPC to sanitize a document.
-sanitizeDocument: {
+  sanitizeDocument: {
     path: '/sanitizer.SanitizerService/SanitizeDocument',
     requestStream: false,
     responseStream: false,
@@ -41,6 +44,9 @@ sanitizeDocument: {
     responseSerialize: serialize_sanitizer_SanitizeResponse,
     responseDeserialize: deserialize_sanitizer_SanitizeResponse,
   },
-};
+});
 
-exports.SanitizerServiceClient = grpc.makeGenericClientConstructor(SanitizerServiceService, 'SanitizerService');
+exports.SanitizerServiceClient = grpc.makeGenericClientConstructor(
+  SanitizerServiceService,
+  'SanitizerService',
+);

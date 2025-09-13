@@ -1,5 +1,5 @@
-const { readdir, stat } = require("fs").promises;
-const path = require("path");
+const { readdir, stat } = require('fs').promises;
+const path = require('path');
 
 async function analyzeDirectory(dir, ignore = []) {
   const files = [];
@@ -32,18 +32,18 @@ async function analyzeDirectory(dir, ignore = []) {
 
 // Usage
 const ignoreDirs = [
-  "node_modules",
-  ".git",
-  ".env",
-  ".idea",
-  "__pycache__",
-  "dist",
-  "coverage",
-  "venv",
-  ".gitignore",
-  "package-lock.json",
+  'node_modules',
+  '.git',
+  '.env',
+  '.idea',
+  '__pycache__',
+  'dist',
+  'coverage',
+  'venv',
+  '.gitignore',
+  'package-lock.json',
 ];
 
-analyzeDirectory(".", ignoreDirs).then((files) => {
+analyzeDirectory('.', ignoreDirs).then((files) => {
   console.table(files);
 });
