@@ -20,7 +20,7 @@
     "coverage": "vitest run --coverage",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0 --fix",
-    "generate-proto": "grpc_tools_node_protoc --ts_out=src/proto --js_out=import_style=commonjs,binary:src/proto --grpc_out=src/proto --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --plugin=protoc-gen-grpc=./node_modules/.bin/grpc_tools_node_protoc_plugin -I ./proto ./proto/*.proto"
+    "generate-proto": "grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_out=grpc_js:./src/proto -I ./proto ./proto/sanitizer.proto"
   },
   "keywords": [],
   "author": "",
@@ -37,7 +37,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/turndown": "^5.0.5",
     "@vitest/coverage-v8": "^3.2.4",
-    "eslint": "^9.35.0",
+    "typescript-eslint": "^8.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "grpc-tools": "^1.13.0",

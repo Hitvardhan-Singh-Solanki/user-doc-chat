@@ -1,5 +1,6 @@
 import eslintRecommended from '@eslint/js';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
+import tseslint from 'typescript-eslint';
 
 export default [
   {
@@ -26,11 +27,12 @@ export default [
     ],
   },
   eslintRecommended.configs.recommended,
-  prettierRecommended,
+  ...tseslint.configs.recommended,
   {
     rules: {
       eqeqeq: 'error',
       'no-console': 'warn',
     },
   },
+  prettierRecommended,
 ];
