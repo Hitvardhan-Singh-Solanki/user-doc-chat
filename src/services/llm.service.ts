@@ -1,10 +1,10 @@
-import { InferenceClient } from "@huggingface/inference";
-import { z } from "zod";
-import { PromptConfig, SearchResult } from "../types";
-import { PromptService } from "./prompt.service";
-import { UserInputSchema } from "../schemas/user-input.schema";
-import { LowContentSchema } from "../schemas/low-content.schema";
-import { IEnrichmentService } from "../interfaces/enrichment.interface";
+import { InferenceClient } from '@huggingface/inference';
+import { z } from 'zod';
+import { PromptConfig, SearchResult } from '../types';
+import { PromptService } from './prompt.service';
+import { UserInputSchema } from '../schemas/user-input.schema';
+import { LowContentSchema } from '../schemas/low-content.schema';
+import { IEnrichmentService } from '../interfaces/enrichment.interface';
 
 export class LLMService {
   private hfToken: string;
@@ -33,7 +33,7 @@ export class LLMService {
   chunkText(
     text: string,
     chunkSize: number = Number(process.env.CHUNK_SIZE) || 500,
-    overlap: number = Number(process.env.CHUNK_OVERLAP) || 50
+    overlap: number = Number(process.env.CHUNK_OVERLAP) || 50,
   ): string[] {
     const chunks: string[] = [];
     const size = Math.max(1, Math.floor(chunkSize));
@@ -49,15 +49,15 @@ export class LLMService {
 
   async embeddingPython(text: string, timeoutMs = 10_000): Promise<number[]> {
     if (!this.pythonUrl)
-      throw new Error("PYTHON_LLM_URL environment variable is not set");
+      throw new Error('PYTHON_LLM_URL environment variable is not set');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let res: Response;
     try {
       res = await fetch(this.pythonUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({ text: this.promptService.sanitizeText(text) }),
       });
@@ -68,7 +68,7 @@ export class LLMService {
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(
-        `Python embed API request failed: ${res.status} ${res.statusText} - ${errText}`
+        `Python embed API request failed: ${res.status} ${res.statusText} - ${errText}`,
       );
     }
 
@@ -76,9 +76,9 @@ export class LLMService {
     const emb = data?.embedding;
     if (
       !Array.isArray(emb) ||
-      !emb.every((n: unknown) => typeof n === "number")
+      !emb.every((n: unknown) => typeof n === 'number')
     ) {
-      throw new Error("Python API returned invalid embeddings");
+      throw new Error('Python API returned invalid embeddings');
     }
 
     return emb as number[];
@@ -86,7 +86,7 @@ export class LLMService {
 
   async embeddingHF(text: string): Promise<number[]> {
     if (!this.hfToken || !this.hfEmbeddingModel)
-      throw new Error("HuggingFace token or embedding model missing");
+      throw new Error('HuggingFace token or embedding model missing');
 
     const response = await this.inferenceClient.featureExtraction({
       model: this.hfEmbeddingModel,
@@ -94,33 +94,33 @@ export class LLMService {
     });
 
     if (!Array.isArray(response))
-      throw new Error("HuggingFace API returned invalid embeddings");
+      throw new Error('HuggingFace API returned invalid embeddings');
 
-    if (response.length > 0 && typeof response[0] === "number")
+    if (response.length > 0 && typeof response[0] === 'number')
       return response as number[];
     if (
       Array.isArray(response[0]) &&
-      (response[0] as any[]).every((n) => typeof n === "number")
+      (response[0] as any[]).every((n) => typeof n === 'number')
     )
       return response[0] as number[];
 
-    throw new Error("Unexpected HuggingFace embeddings shape");
+    throw new Error('Unexpected HuggingFace embeddings shape');
   }
 
   async *generateAnswerStream(
     userInput: z.infer<typeof UserInputSchema>,
-    config?: PromptConfig
+    config?: PromptConfig,
   ) {
-    if (!this.hfToken) throw new Error("HuggingFace token missing");
+    if (!this.hfToken) throw new Error('HuggingFace token missing');
 
     const prompt = this.promptService.mainPrompt(userInput, config);
 
     const stream = await this.inferenceClient.chatCompletionStream({
       model: this.hfChatModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: 'user', content: prompt }],
     });
 
-    let finalAnswer = "";
+    let finalAnswer = '';
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;
@@ -134,14 +134,14 @@ export class LLMService {
       const enrichmentResults: SearchResult[] | null = this._enrichmentService
         ? await this._enrichmentService.enrichIfUnknown(
             userInput.question,
-            finalAnswer
+            finalAnswer,
           )
         : null;
 
       if (enrichmentResults?.length) {
         const enrichedContext = enrichmentResults
           .map((r) => `${r.title}: ${r.snippet}`)
-          .join("\n\n");
+          .join('\n\n');
 
         const enrichedPrompt = this.promptService.mainPrompt(
           {
@@ -149,12 +149,12 @@ export class LLMService {
             context: enrichedContext,
             chatHistory: userInput.chatHistory ?? [],
           },
-          config
+          config,
         );
 
         const enrichedStream = await this.inferenceClient.chatCompletionStream({
           model: this.hfChatModel,
-          messages: [{ role: "user", content: enrichedPrompt }],
+          messages: [{ role: 'user', content: enrichedPrompt }],
         });
 
         for await (const chunk of enrichedStream) {
@@ -163,32 +163,32 @@ export class LLMService {
         }
       }
     } catch (e) {
-      console.warn("Enrichment failed; continuing without it:", e);
+      console.warn('Enrichment failed; continuing without it:', e);
     }
   }
 
   async generateLowSummary(
     lowContent: string[],
-    config?: PromptConfig
+    config?: PromptConfig,
   ): Promise<string> {
-    if (!this.hfToken) throw new Error("HuggingFace token missing");
+    if (!this.hfToken) throw new Error('HuggingFace token missing');
     const prompt = this.promptService.lowPrompt(
       LowContentSchema.parse(lowContent),
-      config
+      config,
     );
     const chatCompletionOut = await this.inferenceClient.chatCompletion({
       model: this.hfSummaryModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: 'user', content: prompt }],
     });
 
-    return chatCompletionOut.choices[0]?.message?.content || "";
+    return chatCompletionOut.choices[0]?.message?.content || '';
   }
 
   buildPrompt(
     context: string,
     question: string,
     chatHistory: string[],
-    config?: PromptConfig
+    config?: PromptConfig,
   ): string {
     const sanitizedInput = UserInputSchema.parse({
       context,
@@ -204,14 +204,14 @@ export class LLMService {
   }
 
   async generateText(queryPrompt: string): Promise<string> {
-    if (!this.hfToken) throw new Error("HuggingFace token missing");
+    if (!this.hfToken) throw new Error('HuggingFace token missing');
     const text = await this.inferenceClient.textGeneration({
       model: this.hfSummaryModel,
       inputs: queryPrompt,
     });
 
-    if (typeof text === "string") return text;
+    if (typeof text === 'string') return text;
     if (text?.generated_text) return text.generated_text;
-    throw new Error("Unexpected text generation response");
+    throw new Error('Unexpected text generation response');
   }
 }

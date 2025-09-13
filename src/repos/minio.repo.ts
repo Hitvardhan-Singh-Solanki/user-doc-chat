@@ -1,4 +1,4 @@
-import { Client } from "minio";
+import { Client } from 'minio';
 
 export const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT!,

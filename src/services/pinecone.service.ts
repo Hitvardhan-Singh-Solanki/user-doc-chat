@@ -1,12 +1,12 @@
-import { IVectorStore } from "../interfaces/vector-store.interface";
-import { Vector } from "../types";
-import { pinecone } from "../repos/pinecone.repo";
+import { IVectorStore } from '../interfaces/vector-store.interface';
+import { Vector } from '../types';
+import { pinecone } from '../repos/pinecone.repo';
 
 export class PineconeVectorStore implements IVectorStore {
   private indexName: string;
 
   constructor(indexName: string | undefined = process.env.PINECONE_INDEX_NAME) {
-    if (!indexName) throw new Error("index not set");
+    if (!indexName) throw new Error('index not set');
     this.indexName = indexName;
   }
 
@@ -34,7 +34,7 @@ export class PineconeVectorStore implements IVectorStore {
     embedding: number[],
     userId: string,
     fileId: string,
-    topK = 5
+    topK = 5,
   ) {
     const index = pinecone.index(this.indexName);
     return index.query({

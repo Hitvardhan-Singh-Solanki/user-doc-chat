@@ -1,10 +1,10 @@
-import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
-import * as dnsPromises from "dns/promises";
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
+import * as dnsPromises from 'dns/promises';
 
 // Mock external dependencies
-vi.mock("p-limit", () => ({
+vi.mock('p-limit', () => ({
   default: vi.fn((concurrency) => {
     let active = 0;
     const queue: (() => Promise<any>)[] = [];
@@ -35,25 +35,25 @@ vi.mock("p-limit", () => ({
   }),
 }));
 
-vi.mock("net", () => ({
+vi.mock('net', () => ({
   default: {
-    isIP: (ip: string) => (ip.includes(":") ? 6 : ip.includes(".") ? 4 : 0),
+    isIP: (ip: string) => (ip.includes(':') ? 6 : ip.includes('.') ? 4 : 0),
   },
 }));
 
 // A more robust mock for dns/promises
-vi.mock("dns/promises", () => ({
+vi.mock('dns/promises', () => ({
   lookup: vi.fn(async (hostname: string) => {
-    return { address: "8.8.8.8" };
+    return { address: '8.8.8.8' };
   }),
 }));
 
 // A more robust mock for jsdom and readability
-vi.mock("jsdom", () => ({
+vi.mock('jsdom', () => ({
   JSDOM: vi.fn((html: string, options: any) => ({
     window: {
       document: {
-        title: "Mock Document Title",
+        title: 'Mock Document Title',
         body: {
           innerHTML: html,
           textContent: html,
@@ -63,36 +63,36 @@ vi.mock("jsdom", () => ({
   })),
 }));
 
-vi.mock("@mozilla/readability", () => ({
+vi.mock('@mozilla/readability', () => ({
   Readability: vi.fn((dom) => ({
     parse: () => {
       // Direct return for successful parsing in the test.
       return {
-        title: "Mock Title",
-        content: "<p>Mock Content</p>",
-        textContent: "This is some mock article content.",
+        title: 'Mock Title',
+        content: '<p>Mock Content</p>',
+        textContent: 'This is some mock article content.',
         length: 34,
-        excerpt: "Mock Excerpt",
-        byline: "Mock Byline",
-        dir: "ltr",
-        siteName: "Mock Site",
-        lang: "en",
+        excerpt: 'Mock Excerpt',
+        byline: 'Mock Byline',
+        dir: 'ltr',
+        siteName: 'Mock Site',
+        lang: 'en',
         publishedTime: null,
       };
     },
   })),
 }));
 
-import { FetchHTMLService } from "./fetch.service";
-import { SearchResult } from "../types";
+import { FetchHTMLService } from './fetch.service';
+import { SearchResult } from '../types';
 
 // Helper function to create mock fetch responses
 function makeFetchResponse({
   ok = true,
   status = 200,
-  statusText = "OK",
+  statusText = 'OK',
   headers = {},
-  body = "",
+  body = '',
   chunks = false,
 }: {
   ok?: boolean;
@@ -139,7 +139,7 @@ function makeFetchResponse({
   } as unknown as Response;
 }
 
-describe("FetchHTMLService", () => {
+describe('FetchHTMLService', () => {
   let svc: FetchHTMLService;
   let originalFetch: any;
 
@@ -149,9 +149,9 @@ describe("FetchHTMLService", () => {
     originalFetch = global.fetch;
 
     // Spy on private methods for testing
-    vi.spyOn(svc as any, "fetchPageText");
-    vi.spyOn(svc as any, "fetchExtract");
-    vi.spyOn(svc as any, "isPrivateAddress");
+    vi.spyOn(svc as any, 'fetchPageText');
+    vi.spyOn(svc as any, 'fetchExtract');
+    vi.spyOn(svc as any, 'isPrivateAddress');
 
     // Mock global fetch
     global.fetch = vi.fn(async () => makeFetchResponse({}));
@@ -164,15 +164,15 @@ describe("FetchHTMLService", () => {
     vi.restoreAllMocks();
   });
 
-  describe("fetchHTML", () => {
-    it("should fetch a limited number of pages based on options", async () => {
+  describe('fetchHTML', () => {
+    it('should fetch a limited number of pages based on options', async () => {
       const results: SearchResult[] = [
-        { url: "https://example.com/1", title: "A", snippet: "..." },
-        { url: "https://example.com/2", title: "B", snippet: "..." },
-        { url: "https://example.com/3", title: "C", snippet: "..." },
-        { url: "https://example.com/4", title: "D", snippet: "..." },
-        { url: "https://example.com/5", title: "E", snippet: "..." },
-        { url: "https://example.com/6", title: "F", snippet: "..." },
+        { url: 'https://example.com/1', title: 'A', snippet: '...' },
+        { url: 'https://example.com/2', title: 'B', snippet: '...' },
+        { url: 'https://example.com/3', title: 'C', snippet: '...' },
+        { url: 'https://example.com/4', title: 'D', snippet: '...' },
+        { url: 'https://example.com/5', title: 'E', snippet: '...' },
+        { url: 'https://example.com/6', title: 'F', snippet: '...' },
       ];
       const options = { maxPagesToFetch: 3 };
 
@@ -182,26 +182,26 @@ describe("FetchHTMLService", () => {
       expect(fetched.length).toBe(3);
     });
 
-    it("should handle errors from fetchExtract gracefully", async () => {
+    it('should handle errors from fetchExtract gracefully', async () => {
       const results: SearchResult[] = [
-        { url: "https://example.com/ok", title: "OK", snippet: "..." },
-        { url: "https://example.com/fail", title: "FAIL", snippet: "..." },
+        { url: 'https://example.com/ok', title: 'OK', snippet: '...' },
+        { url: 'https://example.com/fail', title: 'FAIL', snippet: '...' },
       ];
       const options = {};
 
-      vi.spyOn(svc as any, "fetchExtract")
-        .mockResolvedValueOnce("some-content")
-        .mockRejectedValueOnce(new Error("Network error"));
+      vi.spyOn(svc as any, 'fetchExtract')
+        .mockResolvedValueOnce('some-content')
+        .mockRejectedValueOnce(new Error('Network error'));
 
       const fetched = await svc.fetchHTML(results, options);
       expect(fetched.length).toBe(2);
-      expect(fetched[0]).toBe("some-content");
+      expect(fetched[0]).toBe('some-content');
       expect(fetched[1]).toBeUndefined();
     });
 
-    it("should use default options when not provided", async () => {
+    it('should use default options when not provided', async () => {
       const results: SearchResult[] = [
-        { url: "https://example.com/1", title: "A", snippet: "..." },
+        { url: 'https://example.com/1', title: 'A', snippet: '...' },
       ];
       await svc.fetchHTML(results, {});
       expect((svc as any).fetchExtract).toHaveBeenCalledWith(
@@ -212,18 +212,18 @@ describe("FetchHTMLService", () => {
           minContentLength: 2000,
           chunkSize: 1000,
           maxResults: 10,
-        }
+        },
       );
     });
 
-    it("should return an empty array for empty input", async () => {
+    it('should return an empty array for empty input', async () => {
       const fetched = await svc.fetchHTML([], {});
       expect(fetched).toEqual([]);
       expect((svc as any).fetchExtract).not.toHaveBeenCalled();
     });
   });
 
-  describe("fetchExtract", () => {
+  describe('fetchExtract', () => {
     const opts = {
       maxPagesToFetch: 5,
       fetchConcurrency: 2,
@@ -232,56 +232,56 @@ describe("FetchHTMLService", () => {
       maxResults: 10,
     } as Required<any>;
 
-    it("should use page text if it meets minContentLength", async () => {
-      const longText = "a".repeat(3000);
-      vi.spyOn(svc as any, "fetchPageText").mockResolvedValue(longText);
+    it('should use page text if it meets minContentLength', async () => {
+      const longText = 'a'.repeat(3000);
+      vi.spyOn(svc as any, 'fetchPageText').mockResolvedValue(longText);
 
       const result = await (svc as any).fetchExtract(
-        { url: "https://example.com", snippet: "" },
-        opts
+        { url: 'https://example.com', snippet: '' },
+        opts,
       );
       expect(result).toBe(longText);
     });
 
-    it("should use snippet if page text is too short but snippet is long enough", async () => {
-      const shortText = "a".repeat(100);
-      const longSnippet = "b".repeat(500);
-      vi.spyOn(svc as any, "fetchPageText").mockResolvedValue(shortText);
+    it('should use snippet if page text is too short but snippet is long enough', async () => {
+      const shortText = 'a'.repeat(100);
+      const longSnippet = 'b'.repeat(500);
+      vi.spyOn(svc as any, 'fetchPageText').mockResolvedValue(shortText);
 
       const result = await (svc as any).fetchExtract(
-        { url: "https://example.com", snippet: longSnippet },
-        opts
+        { url: 'https://example.com', snippet: longSnippet },
+        opts,
       );
       expect(result).toBe(longSnippet);
     });
 
-    it("should return empty string if both page text and snippet are too short", async () => {
-      const shortText = "a".repeat(100);
-      const shortSnippet = "b".repeat(30);
-      vi.spyOn(svc as any, "fetchPageText").mockResolvedValue(shortText);
+    it('should return empty string if both page text and snippet are too short', async () => {
+      const shortText = 'a'.repeat(100);
+      const shortSnippet = 'b'.repeat(30);
+      vi.spyOn(svc as any, 'fetchPageText').mockResolvedValue(shortText);
 
       const result = await (svc as any).fetchExtract(
-        { url: "https://example.com", snippet: shortSnippet },
-        opts
+        { url: 'https://example.com', snippet: shortSnippet },
+        opts,
       );
-      expect(result).toBe("");
+      expect(result).toBe('');
     });
   });
 
-  describe("fetchPageText", () => {
-    it("should return null for non-http/https protocols", async () => {
-      const result = await (svc as any).fetchPageText("ftp://example.com");
+  describe('fetchPageText', () => {
+    it('should return null for non-http/https protocols', async () => {
+      const result = await (svc as any).fetchPageText('ftp://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("should return null for localhost and private IP addresses", async () => {
+    it('should return null for localhost and private IP addresses', async () => {
       const urls = [
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://10.0.0.1",
-        "http://192.168.1.1",
-        "http://172.16.0.1",
+        'http://localhost',
+        'http://127.0.0.1',
+        'http://10.0.0.1',
+        'http://192.168.1.1',
+        'http://172.16.0.1',
       ];
       for (const url of urls) {
         const result = await (svc as any).fetchPageText(url);
@@ -290,88 +290,88 @@ describe("FetchHTMLService", () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("should return null if dns lookup resolves to a private IP", async () => {
+    it('should return null if dns lookup resolves to a private IP', async () => {
       vi.mocked(dnsPromises).lookup.mockResolvedValueOnce({
-        address: "192.168.1.1",
+        address: '192.168.1.1',
         family: 4,
       });
-      const result = await (svc as any).fetchPageText("http://example.com");
+      const result = await (svc as any).fetchPageText('http://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("should return null on network error", async () => {
-      global.fetch = vi.fn(() => Promise.reject(new Error("Network failed")));
-      const result = await (svc as any).fetchPageText("https://example.com");
+    it('should return null on network error', async () => {
+      global.fetch = vi.fn(() => Promise.reject(new Error('Network failed')));
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
-    it("should return null on non-ok response status", async () => {
+    it('should return null on non-ok response status', async () => {
       global.fetch = vi.fn(() =>
-        Promise.resolve(makeFetchResponse({ ok: false, status: 404 }))
+        Promise.resolve(makeFetchResponse({ ok: false, status: 404 })),
       );
-      const result = await (svc as any).fetchPageText("https://example.com");
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
-    it("should return null on redirect (3xx status)", async () => {
+    it('should return null on redirect (3xx status)', async () => {
       global.fetch = vi.fn(() =>
-        Promise.resolve(makeFetchResponse({ status: 301, ok: true }))
+        Promise.resolve(makeFetchResponse({ status: 301, ok: true })),
       );
-      const result = await (svc as any).fetchPageText("https://example.com");
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
-    it("should return null for non-HTML content-type", async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve(
-          makeFetchResponse({
-            headers: { "Content-Type": "application/json" },
-          })
-        )
-      );
-      const result = await (svc as any).fetchPageText("https://example.com");
-      expect(result).toBeNull();
-    });
-
-    it("should return null if content-length is too large", async () => {
+    it('should return null for non-HTML content-type', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve(
           makeFetchResponse({
-            headers: { "Content-Length": "3000000" },
-          })
-        )
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
       );
-      const result = await (svc as any).fetchPageText("https://example.com");
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
-    it("should return null if streamed content exceeds maxBytes", async () => {
-      const mockBody = "a".repeat(2_000_001);
+    it('should return null if content-length is too large', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(
+          makeFetchResponse({
+            headers: { 'Content-Length': '3000000' },
+          }),
+        ),
+      );
+      const result = await (svc as any).fetchPageText('https://example.com');
+      expect(result).toBeNull();
+    });
+
+    it('should return null if streamed content exceeds maxBytes', async () => {
+      const mockBody = 'a'.repeat(2_000_001);
       global.fetch = vi.fn(() =>
         Promise.resolve(
           makeFetchResponse({
             body: mockBody,
             chunks: true,
-          })
-        )
+          }),
+        ),
       );
 
-      const result = await (svc as any).fetchPageText("https://example.com");
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
-    it("should return null on timeout", async () => {
+    it('should return null on timeout', async () => {
       const timeoutPromise = (svc as any).fetchPageText(
-        "https://example.com",
-        100
+        'https://example.com',
+        100,
       );
       await vi.advanceTimersByTimeAsync(100);
       const result = await timeoutPromise;
       expect(result).toBeNull();
     });
 
-    it.skip("should successfully fetch, parse, and return text content", async () => {
+    it.skip('should successfully fetch, parse, and return text content', async () => {
       const mockHtml = `
         <html>
           <body>
@@ -380,60 +380,60 @@ describe("FetchHTMLService", () => {
           </body>
         </html>
       `;
-      const expectedText = "This is some mock article content.";
+      const expectedText = 'This is some mock article content.';
       global.fetch = vi.fn(() =>
         Promise.resolve(
           makeFetchResponse({
-            headers: { "Content-Type": "text/html" },
+            headers: { 'Content-Type': 'text/html' },
             body: mockHtml,
-          })
-        )
+          }),
+        ),
       );
 
-      const result = await (svc as any).fetchPageText("https://example.com");
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBe(expectedText);
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://example.com",
-        expect.any(Object)
+        'https://example.com',
+        expect.any(Object),
       );
       expect(vi.mocked(JSDOM)).toHaveBeenCalledWith(mockHtml, {
-        url: "https://example.com",
+        url: 'https://example.com',
       });
     });
   });
 
-  describe("isPrivateAddress", () => {
-    it("should correctly identify private IPv4 addresses", () => {
+  describe('isPrivateAddress', () => {
+    it('should correctly identify private IPv4 addresses', () => {
       const privateAddresses = [
-        "10.0.0.1",
-        "127.0.0.1",
-        "192.168.1.1",
-        "172.16.0.1",
-        "172.31.255.255",
+        '10.0.0.1',
+        '127.0.0.1',
+        '192.168.1.1',
+        '172.16.0.1',
+        '172.31.255.255',
       ];
       privateAddresses.forEach((ip) => {
         expect((svc as any).isPrivateAddress(ip)).toBe(true);
       });
     });
 
-    it("should correctly identify public IPv4 addresses", () => {
-      const publicAddresses = ["8.8.8.8", "203.0.113.5", "1.1.1.1"];
+    it('should correctly identify public IPv4 addresses', () => {
+      const publicAddresses = ['8.8.8.8', '203.0.113.5', '1.1.1.1'];
       publicAddresses.forEach((ip) => {
         expect((svc as any).isPrivateAddress(ip)).toBe(false);
       });
     });
 
-    it("should correctly identify private IPv6 addresses", () => {
-      const privateAddresses = ["fe80::1", "::1", "fc00::", "fdff::1"];
+    it('should correctly identify private IPv6 addresses', () => {
+      const privateAddresses = ['fe80::1', '::1', 'fc00::', 'fdff::1'];
       privateAddresses.forEach((ip) => {
         expect((svc as any).isPrivateAddress(ip)).toBe(true);
       });
     });
 
-    it("should correctly identify public IPv6 addresses", () => {
+    it('should correctly identify public IPv6 addresses', () => {
       const publicAddresses = [
-        "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-        "2606:4700::1111",
+        '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        '2606:4700::1111',
       ];
       publicAddresses.forEach((ip) => {
         expect((svc as any).isPrivateAddress(ip)).toBe(false);

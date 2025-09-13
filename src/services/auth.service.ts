@@ -1,6 +1,6 @@
-import { IDBStore } from "../interfaces/db-store.interface";
-import { User } from "../types";
-import { hashPassword, comparePassword } from "../utils/hash";
+import { IDBStore } from '../interfaces/db-store.interface';
+import { User } from '../types';
+import { hashPassword, comparePassword } from '../utils/hash';
 
 export class AuthService {
   private db: IDBStore;
@@ -18,14 +18,14 @@ export class AuthService {
       const normalizedEmail = email.trim().toLowerCase();
 
       const result = await this.db.query<User>(
-        "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at",
-        [normalizedEmail, hashed]
+        'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
+        [normalizedEmail, hashed],
       );
 
       return result.rows[0];
     } catch (err: any) {
       if (this.isUniqueViolation(err)) {
-        throw new Error("Email already in use");
+        throw new Error('Email already in use');
       }
       throw err;
     }
@@ -36,23 +36,23 @@ export class AuthService {
    */
   public async login(
     email: string,
-    password: string
+    password: string,
   ): Promise<{ id: string; email: string }> {
     const result = await this.db.query<User>(
-      "SELECT id, email, password_hash, created_at FROM users WHERE email = $1",
-      [email]
+      'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
+      [email],
     );
 
     const user = result.rows[0];
     if (!user) {
-      throw new Error("Invalid credentials");
+      throw new Error('Invalid credentials');
     }
 
     const isValid = await comparePassword(
       password,
-      (user as any).password_hash
+      (user as any).password_hash,
     );
-    if (!isValid) throw new Error("Invalid credentials");
+    if (!isValid) throw new Error('Invalid credentials');
 
     return { id: user.id, email: user.email };
   }
@@ -62,7 +62,7 @@ export class AuthService {
    */
   private isUniqueViolation(err: unknown): boolean {
     return (
-      typeof err === "object" && err !== null && (err as any).code === "23505"
+      typeof err === 'object' && err !== null && (err as any).code === '23505'
     );
   }
 }

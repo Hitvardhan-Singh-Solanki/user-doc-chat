@@ -1,18 +1,18 @@
-import { Vector, VectorStoreType } from "../types";
-import { LLMService } from "./llm.service";
-import { PineconeVectorStore } from "./pinecone.service";
-import { IVectorStore } from "../interfaces/vector-store.interface";
-import { PostgresService } from "./postgres.service";
+import { Vector, VectorStoreType } from '../types';
+import { LLMService } from './llm.service';
+import { PineconeVectorStore } from './pinecone.service';
+import { IVectorStore } from '../interfaces/vector-store.interface';
+import { PostgresService } from './postgres.service';
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;
   private maxContextTokens: number;
   private llm: LLMService;
 
-  constructor(llm: LLMService, store: VectorStoreType = "pinecone") {
+  constructor(llm: LLMService, store: VectorStoreType = 'pinecone') {
     this.llm = llm;
     this.maxContextTokens = Number(process.env.MAX_CONTEXT_TOKENS) || 2000;
-    if (store === "pinecone") {
+    if (store === 'pinecone') {
       this.vectorStore = new PineconeVectorStore();
     } else {
       this.vectorStore = PostgresService.getInstance();
@@ -27,7 +27,7 @@ export class VectorStoreService {
     embedding: number[],
     userId: string,
     fileId: string,
-    topK: number = Number(process.env.PINECONE_TOP_K) || 5
+    topK: number = Number(process.env.PINECONE_TOP_K) || 5,
   ) {
     return await this.vectorStore.queryVector(embedding, userId, fileId, topK);
   }
@@ -40,13 +40,13 @@ export class VectorStoreService {
     const summarizedLow = await this.summarizeLowRelevanceChunks(lowRelevance);
 
     const contextChunks = [...highRelevance, summarizedLow].filter(Boolean);
-    let context = "";
+    let context = '';
     let tokenCount = 0;
 
     for (const chunk of contextChunks) {
       const estimatedTokens = Math.ceil(chunk.length / 4);
       if (tokenCount + estimatedTokens > this.maxContextTokens) break;
-      context += chunk + "\n\n";
+      context += chunk + '\n\n';
       tokenCount += estimatedTokens;
     }
 
@@ -60,8 +60,8 @@ export class VectorStoreService {
 
     results.matches.forEach((match, idx) => {
       const text = Array.isArray(match.metadata?.text)
-        ? match.metadata.text.join(" ")
-        : String(match.metadata?.text ?? "");
+        ? match.metadata.text.join(' ')
+        : String(match.metadata?.text ?? '');
       if (idx < topK) highRelevance.push(text);
       else lowRelevance.push(text);
     });
@@ -70,9 +70,9 @@ export class VectorStoreService {
   }
 
   private async summarizeLowRelevanceChunks(
-    lowRelevance: string[]
+    lowRelevance: string[],
   ): Promise<string> {
-    if (!lowRelevance.length) return "";
+    if (!lowRelevance.length) return '';
 
     return this.llm.generateLowSummary(lowRelevance);
   }

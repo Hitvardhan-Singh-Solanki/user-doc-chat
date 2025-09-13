@@ -2,6 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "main.js",
+  "type": "module",
   "scripts": {
     "dev:api": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build:api": "tsc",

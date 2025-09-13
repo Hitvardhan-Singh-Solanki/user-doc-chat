@@ -1,14 +1,14 @@
-import "dotenv/config";
-import { Job, Worker } from "bullmq";
-import { v4 as uuid } from "uuid";
-import { downloadFile } from "./minio.service";
-import { VectorStoreService } from "./vector-store.service";
-import { FileJob, Vector } from "../types";
-import { sanitizeFile } from "../utils/sanitize-file";
-import { connectionOptions, fileQueueName } from "../repos/bullmq.repo";
-import { IDBStore } from "../interfaces/db-store.interface";
-import { LLMService } from "./llm.service";
-import { EnrichmentService } from "./enrichment.service";
+import 'dotenv/config';
+import { Job, Worker } from 'bullmq';
+import { v4 as uuid } from 'uuid';
+import { downloadFile } from './minio.service';
+import { VectorStoreService } from './vector-store.service';
+import { FileJob, Vector } from '../types';
+import { sanitizeFile } from '../utils/sanitize-file';
+import { connectionOptions, fileQueueName } from '../repos/bullmq.repo';
+import { IDBStore } from '../interfaces/db-store.interface';
+import { LLMService } from './llm.service';
+import { EnrichmentService } from './enrichment.service';
 
 export class FileWorkerService {
   private db: IDBStore;
@@ -23,8 +23,8 @@ export class FileWorkerService {
     enrichmentService: EnrichmentService,
     vectorStore: VectorStoreService = new VectorStoreService(
       llmService,
-      "pinecone"
-    )
+      'pinecone',
+    ),
   ) {
     this.db = dbStore;
     this.llmService = llmService;
@@ -39,19 +39,19 @@ export class FileWorkerService {
       connection: connectionOptions,
     });
 
-    this.worker.on("failed", (job, err) =>
-      console.error(`Job ${job?.id} failed:`, err)
+    this.worker.on('failed', (job, err) =>
+      console.error(`Job ${job?.id} failed:`, err),
     );
-    this.worker.on("error", (err) => console.error("Worker error:", err));
+    this.worker.on('error', (err) => console.error('Worker error:', err));
 
-    console.log("FileWorkerService started", this.worker.id);
+    console.log('FileWorkerService started', this.worker.id);
   }
 
   /** Main job processor */
   private async processJob(job: Job) {
     const payload = job.data as FileJob;
     if (!payload?.fileId || !payload?.userId || !payload?.key)
-      throw new Error("Invalid job data");
+      throw new Error('Invalid job data');
 
     try {
       job.updateProgress(5);
@@ -86,28 +86,28 @@ export class FileWorkerService {
   private async markFileProcessing(fileId: string) {
     await this.db.query(
       `UPDATE user_files SET status=$1, processing_started_at=NOW() WHERE id=$2`,
-      ["processing", fileId]
+      ['processing', fileId],
     );
   }
 
   private async markFileProcessed(fileId: string) {
     await this.db.query(
       `UPDATE user_files SET status=$1, processing_finished_at=NOW() WHERE id=$2`,
-      ["processed", fileId]
+      ['processed', fileId],
     );
   }
 
   private async markFileFailed(fileId: string, error: Error) {
     await this.db.query(
       `UPDATE user_files SET error_message=$1, status=$2, processing_finished_at=NOW() WHERE id=$3`,
-      [error.message, "failed", fileId]
+      [error.message, 'failed', fileId],
     );
   }
 
   /** Step 1: Download and sanitize */
   private async downloadAndSanitize(
     payload: FileJob,
-    job: Job
+    job: Job,
   ): Promise<string> {
     const fileBuffer = await downloadFile(payload.key);
     job.updateProgress(20);
@@ -122,9 +122,9 @@ export class FileWorkerService {
   private async extractAndPreEmbedLegalChunks(
     payload: FileJob,
     text: string,
-    job: Job
+    job: Job,
   ) {
-    let legalChunks = await this.extractLegalChunksFromText(text, 25);
+    const legalChunks = await this.extractLegalChunksFromText(text, 25);
     if (!legalChunks.length) return;
 
     job.updateProgress(40);
@@ -139,7 +139,7 @@ export class FileWorkerService {
     const chunks = this.llmService.chunkText(
       text,
       Number(process.env.CHUNK_SIZE) || 800,
-      Number(process.env.CHUNK_OVERLAP) || 100
+      Number(process.env.CHUNK_OVERLAP) || 100,
     );
 
     const batch: Vector[] = [];
@@ -159,19 +159,19 @@ export class FileWorkerService {
   /** Utility: Pre-embed chunk via enrichment service or direct embed */
   private async preEmbedChunk(
     payload: FileJob,
-    chunk: { sectionTitle: string; content: string }
+    chunk: { sectionTitle: string; content: string },
   ) {
     if (this.enrichmentService) {
       await this.enrichmentService.preEmbedDocument(chunk.content, {
         fileId: payload.fileId,
         userId: payload.userId,
         sectionTitle: chunk.sectionTitle,
-        source: "pre-legal-extract",
+        source: 'pre-legal-extract',
       });
     } else {
       const vector = await this.createVector(payload, chunk.content, uuid(), {
         sectionTitle: chunk.sectionTitle,
-        type: "legal-section",
+        type: 'legal-section',
       });
       await this.vectorStore.upsertVectors([vector]);
     }
@@ -182,7 +182,7 @@ export class FileWorkerService {
     payload: FileJob,
     text: string,
     id: string | number,
-    extraMeta: Record<string, any> = {}
+    extraMeta: Record<string, any> = {},
   ): Promise<Vector> {
     const embedding = await this.llmService.embeddingHF(text);
     return {
@@ -201,7 +201,7 @@ export class FileWorkerService {
   /** Utility: Extract legal chunks with LLM fallback to regex */
   private async extractLegalChunksFromText(
     text: string,
-    maxChunks: number
+    maxChunks: number,
   ): Promise<{ sectionTitle: string; content: string }[]> {
     const cleaned = text.trim();
     if (!cleaned) return [];
@@ -210,11 +210,11 @@ export class FileWorkerService {
     if ((this.llmService as any).extractLegalChunks) {
       try {
         const chunks = await (this.llmService as any).extractLegalChunks(
-          cleaned
+          cleaned,
         );
         return chunks.slice(0, maxChunks);
       } catch (err) {
-        console.warn("LLM extraction failed, fallback to regex:", err);
+        console.warn('LLM extraction failed, fallback to regex:', err);
       }
     }
 
