@@ -163,9 +163,10 @@ export class FetchHTMLService implements IHTMLFetch {
       if (redirectCount >= maxRedirects) {
         return null; // Stop if max redirects hit
       }
-      const newUrl = res.headers.get("location");
-      if (newUrl) {
-        return await this.fetchPageText(newUrl, timeoutMs, redirectCount + 1);
+      const loc = res.headers.get("location");
+      if (loc) {
+        const nextUrl = new URL(loc, url).toString();
+        return await this.fetchPageText(nextUrl, timeoutMs, redirectCount + 1);
       }
       return null; // Redirect status but no location header
     }
