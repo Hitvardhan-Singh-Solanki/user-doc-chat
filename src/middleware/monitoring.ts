@@ -23,7 +23,6 @@ export const metricsEndpoint = async (req: Request, res: Response) => {
   try {
     res.set('Content-Type', register.contentType);
     res.send(await register.metrics());
-    res.send(await register.metrics());
   } catch (error) {
     logger.error('Failed to generate metrics', { error });
     res.status(500).send('Failed to generate metrics');

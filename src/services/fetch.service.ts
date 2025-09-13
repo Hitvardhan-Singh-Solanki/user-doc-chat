@@ -1,19 +1,19 @@
-import pLimit from 'p-limit';
-import net from 'net';
-import { JSDOM } from 'jsdom';
-import { lookup } from 'dns/promises';
-import { IHTMLFetch } from '../interfaces/html-fetch.interface';
-import { EnrichmentOptions, SearchResult } from '../types';
-import { Readability } from '@mozilla/readability';
+import pLimit from "p-limit";
+import net from "net";
+import { JSDOM } from "jsdom";
+import { lookup } from "dns/promises";
+import { IHTMLFetch } from "../interfaces/html-fetch.interface";
+import { EnrichmentOptions, SearchResult } from "../types";
+import { Readability } from "@mozilla/readability";
 
 export class FetchHTMLService implements IHTMLFetch {
   async fetchHTML(
     results: SearchResult[],
-    options: EnrichmentOptions,
+    options: EnrichmentOptions
   ): Promise<(string | undefined)[]> {
     const toFetch = results.slice(
       0,
-      Math.min(results.length, options.maxPagesToFetch || 5),
+      Math.min(results.length, options.maxPagesToFetch || 5)
     );
 
     const limit = pLimit(options.fetchConcurrency || 2);
@@ -32,10 +32,10 @@ export class FetchHTMLService implements IHTMLFetch {
         try {
           return await this.fetchExtract(r, requiredOptions);
         } catch (err) {
-          console.error('searchAndEmbed: processing failed for', r.url, err);
+          console.error("searchAndEmbed: processing failed for", r.url, err);
           return undefined;
         }
-      }),
+      })
     );
 
     const res = await Promise.all(tasks);
@@ -47,17 +47,17 @@ export class FetchHTMLService implements IHTMLFetch {
 
   private async fetchExtract(
     result: SearchResult,
-    opts: Required<EnrichmentOptions>,
+    opts: Required<EnrichmentOptions>
   ): Promise<string> {
     const pageText = await this.fetchPageText(result.url);
 
     const sourceText =
       pageText && pageText.length >= opts.minContentLength
         ? pageText
-        : result.snippet || '';
+        : result.snippet || "";
 
     if (!sourceText || sourceText.length < 50) {
-      return '';
+      return "";
     }
 
     return sourceText;
@@ -66,7 +66,7 @@ export class FetchHTMLService implements IHTMLFetch {
   private async fetchPageText(
     url: string,
     timeoutMs = 10000,
-    redirectCount = 0,
+    redirectCount = 0
   ): Promise<string | null> {
     const MAX_REDIRECTS = 5;
 
@@ -83,13 +83,13 @@ export class FetchHTMLService implements IHTMLFetch {
 
       const res = await fetch(url, {
         signal: controller.signal,
-        redirect: 'manual',
+        redirect: "manual",
         headers: {
           ...(process.env.CRAWLER_USER_AGENT
-            ? { 'User-Agent': process.env.CRAWLER_USER_AGENT }
-            : { 'User-Agent': 'user-doc-chat/1.0 (+enrichment)' }),
+            ? { "User-Agent": process.env.CRAWLER_USER_AGENT }
+            : { "User-Agent": "user-doc-chat/1.0 (+enrichment)" }),
           Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
       });
 
@@ -100,7 +100,7 @@ export class FetchHTMLService implements IHTMLFetch {
         redirectCount,
         MAX_REDIRECTS,
         url,
-        timeoutMs,
+        timeoutMs
       );
       if (redirection !== undefined) {
         return redirection;
@@ -117,7 +117,7 @@ export class FetchHTMLService implements IHTMLFetch {
 
       return this.parseHtml(html, url);
     } catch (err) {
-      console.debug('fetchPageText error', err);
+      console.debug("fetchPageText error", err);
       return null;
     }
   }
@@ -129,10 +129,10 @@ export class FetchHTMLService implements IHTMLFetch {
 
       const host = u.hostname.toLowerCase();
       if (
-        host === 'localhost' ||
-        host.endsWith('.local') ||
+        host === "localhost" ||
+        host.endsWith(".local") ||
         /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
-        host === '::1'
+        host === "::1"
       ) {
         return false;
       }
@@ -157,15 +157,16 @@ export class FetchHTMLService implements IHTMLFetch {
     redirectCount: number,
     maxRedirects: number,
     url: string,
-    timeoutMs: number,
+    timeoutMs: number
   ): Promise<string | null | undefined> {
     if (res.status >= 300 && res.status < 400) {
       if (redirectCount >= maxRedirects) {
         return null; // Stop if max redirects hit
       }
-      const newUrl = res.headers.get('location');
-      if (newUrl) {
-        return await this.fetchPageText(newUrl, timeoutMs, redirectCount + 1);
+      const loc = res.headers.get("location");
+      if (loc) {
+        const nextUrl = new URL(loc, url).toString();
+        return await this.fetchPageText(nextUrl, timeoutMs, redirectCount + 1);
       }
       return null; // Redirect status but no location header
     }
@@ -176,11 +177,11 @@ export class FetchHTMLService implements IHTMLFetch {
     if (!res.ok) {
       return false;
     }
-    const ct = (res.headers.get('content-type') || '').toLowerCase();
-    if (!ct.includes('html') && !ct.includes('xml')) {
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if (!ct.includes("html") && !ct.includes("xml")) {
       return false;
     }
-    const len = Number(res.headers.get('content-length') || '0');
+    const len = Number(res.headers.get("content-length") || "0");
     const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000);
     if (len && len > maxBytes) {
       return false;
@@ -220,7 +221,7 @@ export class FetchHTMLService implements IHTMLFetch {
     if (!article || !article.textContent) {
       return null;
     }
-    const text = article.textContent.replace(/\s+/g, ' ').trim();
+    const text = article.textContent.replace(/\s+/g, " ").trim();
     return text;
   }
 
@@ -235,6 +236,6 @@ export class FetchHTMLService implements IHTMLFetch {
     }
     // IPv6: loopback, link-local, unique-local
     const a = address.toLowerCase();
-    return a === '::1' || a.startsWith('fe80:') || /^fc|fd/.test(a.slice(0, 2));
+    return a === "::1" || a.startsWith("fe80:") || /^fc|fd/.test(a.slice(0, 2));
   }
 }

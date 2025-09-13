@@ -1,19 +1,21 @@
 #!/bin/bash
+set -Eeuo pipefail
+IFS=$'\n\t'
 
 echo "=== Service Dependency Analysis ==="
 echo ""
 
 # Find all service files
-services=($(find src/services -name "*.service.ts" -not -name "*.spec.ts" | sort))
+mapfile -d '' -t services < <(find src/services -type f -name "*.service.ts" -not -name "*.spec.ts" -print0 | sort -z)
 
 for service in "${services[@]}"; do
-    echo "$(basename $service):"
+    echo "$(basename "$service"):"
     
     # Find service imports in this file
-    service_imports=$(grep -n "import.*Service.*from.*service" "$service" 2>/dev/null || true)
+    service_imports="$(grep -nE '^[[:space:]]*import[[:space:]].*[[:space:]]from[[:space:]]+["'"'"'][^"'"'"']*\.service["'"'"']' -- "$service" 2>/dev/null || true)"
     
     if [ -n "$service_imports" ]; then
-        echo "$service_imports" | while read -r line; do
+        printf '%s\n' "$service_imports" | while IFS= read -r line; do
             echo "  └─ $line"
         done
     else
@@ -27,22 +29,34 @@ echo ""
 
 # Check each service file for imports that might create cycles
 for service in "${services[@]}"; do
-    service_name=$(basename "$service" .ts)
-    echo "Checking $service_name for cycles..."
-    
-    # Get all services that import this one
-    importers=$(grep -l "$service_name" src/services/*.service.ts 2>/dev/null | grep -v "$service" || true)
-    
-    if [ -n "$importers" ]; then
-        for importer in $importers; do
-            importer_name=$(basename "$importer" .ts)
-            # Check if this service imports the importer back
-            cycle_check=$(grep "$importer_name" "$service" 2>/dev/null || true)
-            if [ -n "$cycle_check" ]; then
-                echo "  ⚠️  POTENTIAL CYCLE: $service_name ↔ $importer_name"
-                echo "    $service_name imports: $cycle_check"
-                echo "    $importer_name imports this service"
-            fi
-        done
+    service_name="$(basename "$service" .ts)"         # e.g. foo.service
+    service_mod="${service_name%.service}"            # e.g. foo
+    printf "Checking %s for cycles...\n" "$service_name"
+
+    service_mod_esc="$(printf '%s' "$service_mod" | sed -E 's/[][^$.*/+?(){}|\\-]/\\&/g')"
+    importers=()
+    if ((${#services[@]})); then
+      while IFS= read -r -d '' importer; do
+
+
+        [[ "$importer" == "$service" ]] && continue
+        importers+=("$importer")
+      done < <(
+        grep -Z -l -E "^[[:space:]]*import[[:space:]].*[[:space:]]from[[:space:]]+['\"][^'\"]*(${service_mod_esc}|${service_mod_esc}\.service)['\"]" -- "${services[@]}" 2>/dev/null || true
+      )
     fi
+    for importer in "${importers[@]}"; do
+        importer_name="$(basename "$importer" .ts)"    # e.g. bar.service
+        importer_mod="${importer_name%.service}"
+        importer_mod_esc="$(printf '%s' "$importer_mod" | sed -E 's/[][^$.*/+?(){}|\\-]/\\&/g')"
+        # Check if this service imports the importer back (reciprocal)
+        if grep -q -E "^[[:space:]]*import[[:space:]].*[[:space:]]from[[:space:]]+['\"][^'\"]*(${importer_mod_esc}|${importer_mod_esc}\.service)['\"]" -- "$service" 2>/dev/null; then
+            echo "  ⚠️  POTENTIAL CYCLE: $service_name ↔ $importer_name"
+            # Show matching lines for clarity
+            echo "    $service_name imports:"
+            grep -nE "^[[:space:]]*import[[:space:]].*[[:space:]]from[[:space:]]+['\"][^'\"]*(${importer_mod_esc}|${importer_mod_esc}\.service)['\"]" -- "$service" || true
+            echo "    $importer_name imports this service:"
+            grep -nE "^[[:space:]]*import[[:space:]].*[[:space:]]from[[:space:]]+['\"][^'\"]*(${service_mod_esc}|${service_mod_esc}\.service)['\"]" -- "$importer" || true
+        fi
+    done
 done
