@@ -74,9 +74,9 @@ jobs:
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: test-secret
+          SANITIZER_HOST: 127.0.0.1:50051
           HUGGINGFACE_HUB_TOKEN: ${{ secrets.HUGGINGFACE_HUB_TOKEN }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-          SANITIZER_HOST: 127.0.0.1:50051
           HUGGINGFACE_CHAT_MODEL: ${{ secrets.HUGGINGFACE_CHAT_MODEL }}
           HUGGINGFACE_SUMMARY_MODEL: ${{ secrets.HUGGINGFACE_SUMMARY_MODEL }}
           HUGGINGFACE_EMBEDDING_MODEL: ${{ secrets.HUGGINGFACE_EMBEDDING_MODEL }}
