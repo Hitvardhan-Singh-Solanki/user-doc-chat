@@ -89,9 +89,14 @@ export class AuthController {
 
       log.info({ userId: user.id }, 'User logged in successfully');
       return res.status(200).json({ token });
-    } catch (_err: unknown) {
-      log.warn('Attempted login with invalid credentials');
-      return res.status(401).json({ error: 'Invalid credentials' });
+    } catch (err: unknown) {
+      const msg = (err as any)?.message;
+      if (msg === 'Invalid credentials') {
+        log.warn('Attempted login with invalid credentials');
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      log.error({ err, stack: (err as Error).stack }, 'Unexpected error during login');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
   };
 }
