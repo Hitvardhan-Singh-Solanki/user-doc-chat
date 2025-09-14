@@ -18,7 +18,7 @@ export class FileController {
    * Handles uploading a file and queueing it for processing
    */
   public fileUploadAsync = async (req: Request, res: Response) => {
-    const log = req.log.child({ handler: 'fileUpload' });
+    const log = req.log?.child({ handler: 'fileUpload' });
     log.info('Received file upload request');
 
     try {

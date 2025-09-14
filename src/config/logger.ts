@@ -1,7 +1,5 @@
 import pino, { LoggerOptions } from 'pino';
 
-import pino, { LoggerOptions } from 'pino';
-
 // TODO: Different logging for production and development
 const options: LoggerOptions =
   process.env.NODE_ENV !== 'production'
