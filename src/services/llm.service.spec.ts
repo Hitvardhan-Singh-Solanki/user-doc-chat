@@ -153,24 +153,24 @@ describe('LLMService (unit)', () => {
     );
   });
 
-  it('embeddingHF handles flat and nested array replies', async () => {
+  it('getEmbedding handles flat and nested array replies', async () => {
     process.env.HUGGINGFACE_HUB_TOKEN = 'token';
     process.env.HUGGINGFACE_EMBEDDING_MODEL = 'embed-model';
     const svc = new LLMService();
 
     // flat array
     (HF.featureExtraction as any).mockResolvedValue([1, 2, 3]);
-    const emb1 = await svc.embeddingHF('text');
+    const emb1 = await svc.getEmbedding('text');
     expect(emb1).toEqual([1, 2, 3]);
 
     // nested array
     (HF.featureExtraction as any).mockResolvedValue([[4, 5, 6]]);
-    const emb2 = await svc.embeddingHF('text2');
+    const emb2 = await svc.getEmbedding('text2');
     expect(emb2).toEqual([4, 5, 6]);
 
     // invalid shape
     (HF.featureExtraction as any).mockResolvedValue([['no', 'nums']]);
-    await expect(svc.embeddingHF('bad')).rejects.toThrow();
+    await expect(svc.getEmbedding('bad')).rejects.toThrow();
   });
 
   it('generateAnswerStream yields tokens and calls enrichment (which may no-op)', async () => {
@@ -260,8 +260,6 @@ describe('LLMService (unit)', () => {
     };
     svc.enrichmentService = throwingEnr as any;
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
     const userInput = { question: 'Q', context: '', chatHistory: [] };
     const tokens: string[] = [];
     for await (const t of svc.generateAnswerStream(userInput as any)) {
@@ -270,9 +268,6 @@ describe('LLMService (unit)', () => {
 
     expect(tokens.join('')).toContain("I don't know");
     expect(throwingEnr.enrichIfUnknown).toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalled();
-
-    warnSpy.mockRestore();
   });
 
   it('buildPrompt and buildLowPrompt call underlying prompt utilities', () => {

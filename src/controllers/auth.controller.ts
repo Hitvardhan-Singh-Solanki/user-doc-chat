@@ -16,6 +16,9 @@ export class AuthController {
    * Handles user signup
    */
   public signUp = async (req: Request, res: Response) => {
+    const log = req.log.child({ handler: 'signUp' });
+    log.info('Received signup request');
+
     try {
       const { email, password } = req.body as {
         email?: unknown;
@@ -28,6 +31,7 @@ export class AuthController {
         !email ||
         !password
       ) {
+        log.warn({ body: req.body }, 'Missing email or password in request');
         return res
           .status(400)
           .json({ error: 'Email and password are required' });
@@ -36,12 +40,21 @@ export class AuthController {
       const user = await this.authService.signUp(email, password);
       const token = signJwt({ userId: user.id, email: user.email });
 
-      return res.status(201).json(token);
+      log.info(
+        { userId: user.id, email: user.email },
+        'User signed up successfully',
+      );
+      return res.status(201).json({ token });
     } catch (err: unknown) {
       if ((err as any)?.message === 'Email already in use') {
+        log.warn('Attempted signup with an existing email');
         return res.status(409).json({ error: 'Email already in use' });
       }
-      console.error(err);
+
+      log.error(
+        { err, stack: (err as Error).stack },
+        'An unexpected error occurred during signup',
+      );
       return res.status(500).json({ error: 'Something went wrong' });
     }
   };
@@ -50,6 +63,9 @@ export class AuthController {
    * Handles user login
    */
   public login = async (req: Request, res: Response) => {
+    const log = req.log.child({ handler: 'login' });
+    log.info('Received login request');
+
     try {
       const { email, password } = req.body as {
         email?: unknown;
@@ -62,6 +78,7 @@ export class AuthController {
         !email ||
         !password
       ) {
+        log.warn({ body: req.body }, 'Missing email or password in request');
         return res
           .status(400)
           .json({ error: 'Email and password are required' });
@@ -70,8 +87,10 @@ export class AuthController {
       const user = await this.authService.login(email, password);
       const token = signJwt({ userId: user.id, email: user.email });
 
-      return res.status(200).json(token);
+      log.info({ userId: user.id }, 'User logged in successfully');
+      return res.status(200).json({ token });
     } catch (_err: unknown) {
+      log.warn('Attempted login with invalid credentials');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
   };

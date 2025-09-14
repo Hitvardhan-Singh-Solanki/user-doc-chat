@@ -17,7 +17,7 @@ vi.mock('../services/postgres.service', () => ({
 
 vi.mock('./llm.service', () => ({
   LLMService: vi.fn().mockImplementation(() => ({
-    embeddingHF: vi.fn().mockResolvedValue([0.1, 0.2]),
+    getEmbedding: vi.fn().mockResolvedValue([0.1, 0.2]),
     generateAnswerStream: async function* () {
       yield 'Hello';
       yield ' World';

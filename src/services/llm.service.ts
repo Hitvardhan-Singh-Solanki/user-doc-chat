@@ -1,10 +1,13 @@
 import { InferenceClient } from '@huggingface/inference';
 import { z } from 'zod';
+import CircuitBreaker from 'opossum';
 import { PromptConfig, SearchResult } from '../types';
 import { PromptService } from './prompt.service';
 import { UserInputSchema } from '../schemas/user-input.schema';
 import { LowContentSchema } from '../schemas/low-content.schema';
 import { IEnrichmentService } from '../interfaces/enrichment.interface';
+import { logger } from '../config/logger';
+import { createCircuitBreaker } from '../utils/cb';
 
 export class LLMService {
   private hfToken: string;
@@ -15,22 +18,43 @@ export class LLMService {
   private promptService!: PromptService;
   private inferenceClient!: InferenceClient;
   private _enrichmentService!: IEnrichmentService;
+  private readonly embeddingBreaker: CircuitBreaker<[string], number[]>;
 
   constructor() {
-    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || "";
-    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL || "";
-    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || "";
+    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || '';
+    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL || '';
+    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || '';
     this.pythonUrl = process.env.PYTHON_LLM_URL;
-    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL || "";
-    this.promptService = new PromptService();
-    if (!this.hfToken) throw new Error("HUGGINGFACE_HUB_TOKEN is required");
+    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL || '';
+
+    if (!this.hfToken) throw new Error('HUGGINGFACE_HUB_TOKEN is required');
     if (!this.hfChatModel)
-      throw new Error("HUGGINGFACE_CHAT_MODEL is required");
+      throw new Error('HUGGINGFACE_CHAT_MODEL is required');
     if (!this.hfEmbeddingModel)
-      throw new Error("HUGGINGFACE_EMBEDDING_MODEL is required");
+      throw new Error('HUGGINGFACE_EMBEDDING_MODEL is required');
     if (!this.hfSummaryModel)
-      throw new Error("HUGGINGFACE_SUMMARY_MODEL is required");
+      throw new Error('HUGGINGFACE_SUMMARY_MODEL is required');
+
+    this.promptService = new PromptService();
     this.inferenceClient = new InferenceClient(this.hfToken);
+
+    // 🛡️ Initialize the circuit breaker for the embedding service
+    this.embeddingBreaker = createCircuitBreaker(this.embeddingHF.bind(this), {
+      timeout: 5000,
+      errorThresholdPercentage: 50,
+      resetTimeout: 30000,
+    });
+
+    // 🔍 Add event listeners for logging circuit state changes
+    this.embeddingBreaker.on('open', () =>
+      logger.warn('LLM Embedding Circuit Breaker: OPEN 🔴'),
+    );
+    this.embeddingBreaker.on('halfOpen', () =>
+      logger.info('LLM Embedding Circuit Breaker: HALF-OPEN 🟡'),
+    );
+    this.embeddingBreaker.on('close', () =>
+      logger.info('LLM Embedding Circuit Breaker: CLOSED 🟢'),
+    );
   }
 
   set enrichmentService(enr: IEnrichmentService) {
@@ -69,11 +93,11 @@ export class LLMService {
         body: JSON.stringify({ text: this.promptService.sanitizeText(text) }),
       });
     } catch (err: any) {
-      const isAbort = err?.name === "AbortError";
+      const isAbort = err?.name === 'AbortError';
       throw new Error(
-        `Python embed API request ${isAbort ? "timed out" : "failed"}: ${
+        `Python embed API request ${isAbort ? 'timed out' : 'failed'}: ${
           err?.message ?? String(err)
-        }`
+        }`,
       );
     } finally {
       clearTimeout(timeoutId);
@@ -81,7 +105,7 @@ export class LLMService {
 
     if (!res) {
       throw new Error(
-        "Python embed API request failed before receiving a response"
+        'Python embed API request failed before receiving a response',
       );
     }
     if (!res.ok) {
@@ -103,7 +127,8 @@ export class LLMService {
     return emb as number[];
   }
 
-  async embeddingHF(text: string): Promise<number[]> {
+  // Private method, protected by the circuit breaker
+  private async embeddingHF(text: string): Promise<number[]> {
     if (!this.hfToken || !this.hfEmbeddingModel)
       throw new Error('HuggingFace token or embedding model missing');
 
@@ -124,6 +149,19 @@ export class LLMService {
       return response[0] as number[];
 
     throw new Error('Unexpected HuggingFace embeddings shape');
+  }
+
+  // 🚀 Public method to be called by other services
+  public async getEmbedding(text: string): Promise<number[]> {
+    try {
+      return await this.embeddingBreaker.fire(text);
+    } catch (err) {
+      logger.error(
+        { err, isBreaker: this.embeddingBreaker.opened },
+        'LLM Embedding call failed via circuit breaker',
+      );
+      throw err;
+    }
   }
 
   async *generateAnswerStream(
@@ -182,7 +220,7 @@ export class LLMService {
         }
       }
     } catch (e) {
-      console.warn('Enrichment failed; continuing without it:', e);
+      logger.warn({ err: e }, 'Enrichment failed; continuing without it');
     }
   }
 
