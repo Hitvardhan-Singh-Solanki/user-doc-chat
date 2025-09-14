@@ -284,7 +284,10 @@ Return the clauses as a JSON array. Each clause should include the section numbe
   }
 
   public generateOptimizedSearchPrompt(userQuestion: string): string {
-    this.logger.info({ userQuestion }, 'Creating optimized search prompt.');
+    this.logger.info(
+      { questionLength: userQuestion.length },
+      'Creating optimized search prompt.',
+    );
     return `
 Rewrite the following user question as a single, concise search query optimized for a search engine, 
 focusing on Indian legal information. Use keywords and core legal concepts, avoiding conversational words. 
