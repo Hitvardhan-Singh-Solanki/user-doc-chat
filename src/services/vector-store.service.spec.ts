@@ -99,14 +99,14 @@ describe('VectorStoreService', () => {
   });
 
   it('summarizeLowRelevanceChunks returns empty string when no low relevance', async () => {
-    // @ts-ignore access private method
+    // accessing private method for testing
     const summary = await (svc as any).summarizeLowRelevanceChunks([]);
     expect(summary).toBe('');
   });
 
   it('splitChunksByRelevance separates high and low relevance correctly', () => {
     process.env.PINECONE_TOP_K = '3'; // ensure topK matches test
-    // @ts-ignore access private method
+    //  accessing private method for testing
     const { highRelevance, lowRelevance } = (svc as any).splitChunksByRelevance(
       {
         matches: Array.from({ length: 3 }, (_, i) => ({
