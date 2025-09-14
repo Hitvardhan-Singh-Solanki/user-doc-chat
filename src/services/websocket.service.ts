@@ -11,6 +11,7 @@ import { PostgresService } from './postgres.service';
 import { IDBStore } from '../interfaces/db-store.interface';
 import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
+import { logger } from '../config/logger';
 
 export class WebsocketService {
   public io: Server;
@@ -21,6 +22,7 @@ export class WebsocketService {
   private pineconeService!: VectorStoreService;
   private fetchHTMLService!: FetchHTMLService;
   private deepResearchService!: DeepResearchService;
+  private logger = logger;
 
   private constructor(app: Express) {
     this.server = http.createServer(app);
@@ -49,13 +51,22 @@ export class WebsocketService {
   authVerification() {
     this.io.use((socket, next) => {
       const token = socket.handshake.auth?.token;
-      if (!token) return next(new Error('No token provided'));
+      if (!token) {
+        this.logger.warn('No token provided in WebSocket handshake');
+        return next(new Error('No token provided'));
+      }
 
       const decoded = verifyJwt(token);
-      if (!decoded) return next(new Error('Invalid token'));
+      if (!decoded) {
+        this.logger.warn('Invalid token provided in WebSocket handshake');
+        return next(new Error('Invalid token'));
+      }
       const userId =
         (decoded as any).sub ?? (decoded as any).id ?? (decoded as any).userId;
-      if (!userId) return next(new Error('Invalid token: missing subject/id'));
+      if (!userId) {
+        this.logger.warn('Invalid token: missing subject/id');
+        return next(new Error('Invalid token: missing subject/id'));
+      }
       (socket as any).userId = String(userId);
       next();
     });
@@ -64,13 +75,13 @@ export class WebsocketService {
   onConnection() {
     this.io.on('connection', (socket) => {
       const userId = (socket as any).userId;
-      console.log('✅ User connected:', userId);
+      this.logger.info({ userId }, 'User connected');
       socket.join(userId);
 
       this.onQuestion(socket);
 
       socket.on('disconnect', () => {
-        console.log('❌ User disconnected:', userId);
+        this.logger.info({ userId }, 'User disconnected');
       });
     });
   }
@@ -88,11 +99,14 @@ export class WebsocketService {
       }) => {
         const userId = (socket as any).userId;
         try {
-          console.log(`Incoming messsage: ${userId} asked: ${question}`);
+          this.logger.info({ userId, question }, 'Incoming message');
 
           await this.processQuestion(question, userId, fileId);
         } catch (err: unknown) {
-          console.error(err);
+          this.logger.error(
+            { err },
+            'An error occurred during question processing',
+          );
           if (err instanceof Error)
             socket.emit('error', { message: 'something went wrong' });
         }
@@ -110,7 +124,7 @@ export class WebsocketService {
       await this.appendChatHistory(userId, fileId, `User: ${question}`);
       await this.appendChatMessage(chatId, 'user', question);
 
-      const qEmbedding = await this.llmService.embeddingHF(question);
+      const qEmbedding = await this.llmService.getEmbedding(question);
 
       const results = await this.pineconeService.query(
         qEmbedding,
@@ -154,7 +168,7 @@ export class WebsocketService {
 
       this.io.to(userId).emit('answer_complete');
     } catch (err: unknown) {
-      console.error(err);
+      this.logger.error({ err }, 'Error in processQuestion');
       if (err instanceof Error) {
         this.io.to(userId).emit('error', { message: 'Something went wrong' });
       }

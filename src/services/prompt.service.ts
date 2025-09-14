@@ -1,115 +1,157 @@
-import { createLogger, transports, format } from "winston";
-import { z } from "zod";
-import { PromptConfig } from "../types";
-import { LowContentSchema } from "../schemas/low-content.schema";
-import { UserInputSchema } from "../schemas/user-input.schema";
-import { AutoTokenizer } from "@xenova/transformers";
+import { z } from 'zod';
+import { PromptConfig } from '../types';
+import { LowContentSchema } from '../schemas/low-content.schema';
+import { UserInputSchema } from '../schemas/user-input.schema';
+import { AutoTokenizer } from '@xenova/transformers';
+import { logger } from '../config/logger';
 
 export class PromptService {
   private logger;
   private tokenizer: any;
 
   constructor() {
-    this.logger = createLogger({
-      level: "debug",
-      format: format.combine(format.timestamp(), format.json()),
-      transports: [new transports.Console()],
-    });
+    this.logger = logger;
     this.initializeTokenizer();
+    this.logger.info('PromptService initialized.');
   }
 
   private async initializeTokenizer() {
     try {
+      this.logger.info('Initializing tokenizer...');
       this.tokenizer = await AutoTokenizer.from_pretrained(
-        process.env.HUGGINGFACE_CHAT_MODEL!
+        process.env.HUGGINGFACE_CHAT_MODEL!,
       );
+      this.logger.info('Tokenizer initialized successfully.');
     } catch (error) {
-      this.logger.error("Failed to initialize tokenizer", { error });
+      // FIX: Corrected log order to pass object first, then message
+      this.logger.error({ error }, 'Failed to initialize tokenizer');
     }
   }
 
   public sanitizeText(input: string): string {
-    return input
-      .normalize("NFKC")
-      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    const sanitized = input
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
       .replace(/[’‘]/g, "'")
       .replace(/[“”]/g, '"')
-      .replace(/[\r\t]+/g, " ")
-      .replace(/\n+/g, "\n")
-      .replace(/(\bignore previous instructions\b)/gi, "")
-      .replace(/(\bdo anything\b)/gi, "")
+      .replace(/[\r\t]+/g, ' ')
+      .replace(/\n+/g, '\n')
+      .replace(/(\bignore previous instructions\b)/gi, '')
+      .replace(/(\bdo anything\b)/gi, '')
       .trim();
+    this.logger.debug(
+      { originalLength: input.length, sanitizedLength: sanitized.length },
+      'Text sanitized.',
+    );
+    return sanitized;
   }
 
   private estimateTokens(text: string): number {
-    if (!this.tokenizer) return Math.ceil(text.length / 4);
+    if (!this.tokenizer) {
+      this.logger.warn(
+        'Tokenizer not available. Using a heuristic for token estimation.',
+      );
+      return Math.ceil(text.length / 4);
+    }
     const tokens = this.tokenizer.encode(text);
+    this.logger.debug(
+      { textLength: text.length, tokens: tokens.length },
+      'Estimated tokens.',
+    );
     return tokens.length;
   }
 
   private truncateText(
     text: string,
     maxLength: number,
-    strategy: "truncate-history" | "truncate-context"
+    strategy: 'truncate-history' | 'truncate-context',
   ): string {
     if (text.length <= maxLength) return text;
+    this.logger.info(
+      { strategy, maxLength, originalLength: text.length },
+      'Truncating text by character count.',
+    );
 
-    if (strategy === "truncate-history") {
-      const lines = text.split("\n").filter(Boolean);
-      while (lines.join("\n").length > maxLength && lines.length > 1) {
+    if (strategy === 'truncate-history') {
+      const lines = text.split('\n').filter(Boolean);
+      while (lines.join('\n').length > maxLength && lines.length > 1) {
         lines.shift();
       }
-      return lines.join("\n") || "(Truncated to empty history)";
+      const truncated = lines.join('\n') || '(Truncated to empty history)';
+      this.logger.debug(
+        { truncatedLength: truncated.length },
+        'History truncated.',
+      );
+      return truncated;
     }
 
-    if (strategy === "truncate-context") {
+    if (strategy === 'truncate-context') {
       const priorityRegex =
         /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
       const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-      let result = "";
+      let result = '';
       for (const sentence of sentences.reverse()) {
         if (result.length + sentence.length <= maxLength) {
-          result = sentence + " " + result;
+          result = sentence + ' ' + result;
         } else if (sentence.match(priorityRegex)) {
           if (result.length + sentence.length <= maxLength + 100) {
-            result = sentence + " " + result;
+            result = sentence + ' ' + result;
           }
         }
       }
       if (result.length > maxLength) {
         result = result.slice(0, maxLength);
       }
-      return result.trim() || "(Truncated to empty context)";
+      const truncated = result.trim() || '(Truncated to empty context)';
+      this.logger.debug(
+        { truncatedLength: truncated.length },
+        'Context truncated.',
+      );
+      return truncated;
     }
-
+    this.logger.warn({ strategy }, 'Unknown truncation strategy.');
     return text;
   }
 
   private truncateByTokens(
     text: string,
     maxTokens: number,
-    strategy: "truncate-history" | "truncate-context"
+    strategy: 'truncate-history' | 'truncate-context',
   ): string {
     if (!this.tokenizer) {
-      // heuristic fallback: ~4 chars per token
+      this.logger.warn(
+        'Tokenizer not available. Falling back to heuristic truncation.',
+      );
       return this.truncateText(text, maxTokens * 4, strategy);
     }
-    if (strategy === "truncate-history") {
-      const lines = text.split("\n").filter(Boolean);
+    this.logger.info(
+      { strategy, maxTokens, originalTokens: this.estimateTokens(text) },
+      'Truncating text by token count.',
+    );
+
+    if (strategy === 'truncate-history') {
+      const lines = text.split('\n').filter(Boolean);
       const kept: string[] = [];
       let used = 0;
       for (let i = lines.length - 1; i >= 0; i--) {
         const t = this.estimateTokens(lines[i]);
-        if (used + t > maxTokens && kept.length > 0) break;
+        if (used + t > maxTokens && kept.length > 0) {
+          this.logger.debug('Stopping history truncation due to token limit.');
+          break;
+        }
         kept.unshift(lines[i]);
         used += t;
       }
-      return kept.join("\n");
+      return kept.join('\n');
     }
+
     // truncate-context: accumulate sentences from the end with priority bias
     const priorityRegex =
       /(Section|Clause|Article|Definition|Preamble)\s+\d+(?:\.\d+)*/i;
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean).reverse();
+    const sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .filter(Boolean)
+      .reverse();
     const kept: string[] = [];
     let used = 0;
     for (const s of sentences) {
@@ -119,45 +161,59 @@ export class PromptService {
       if (fits || (prioritized && used < maxTokens)) {
         kept.push(s);
         used += t;
-        if (used >= maxTokens) break;
+        if (used >= maxTokens) {
+          this.logger.debug('Stopping context truncation due to token limit.');
+          break;
+        }
       }
     }
-    return kept.reverse().join(" ").trim();
+    return kept.reverse().join(' ').trim();
   }
 
   private validateConfig(config: PromptConfig) {
-    if (config.language !== "english")
-      throw new Error("Only English language is supported");
-    if (config.jurisdiction && config.jurisdiction !== "INDIA")
-      throw new Error("Only Indian jurisdiction is supported");
+    if (config.language !== 'english') {
+      this.logger.error({ config }, 'Unsupported language.');
+      throw new Error('Only English language is supported');
+    }
+    if (config.jurisdiction && config.jurisdiction !== 'INDIA') {
+      this.logger.error({ config }, 'Unsupported jurisdiction.');
+      throw new Error('Only Indian jurisdiction is supported');
+    }
   }
 
   public mainPrompt(
     input: z.infer<typeof UserInputSchema>,
-    config: PromptConfig = {}
+    config: PromptConfig = {},
   ): string {
     const parsedInput = UserInputSchema.parse(input);
-
     const sanitizedContext = this.sanitizeText(parsedInput.context);
     const sanitizedQuestion = this.sanitizeText(parsedInput.question);
     const sanitizedHistory = this.sanitizeText(
-      parsedInput.chatHistory.join("\n")
+      parsedInput.chatHistory.join('\n'),
     );
 
     const defaultConfig: PromptConfig = {
-      version: "1.0.0",
+      version: '1.0.0',
       maxLength: 8000,
-      tone: "formal",
+      tone: 'formal',
       temperature: 0,
-      truncateStrategy: "truncate-context",
-      language: "english",
-      jurisdiction: "INDIA",
+      truncateStrategy: 'truncate-context',
+      language: 'english',
+      jurisdiction: 'INDIA',
       logStats: true,
       truncateBuffer: 500,
     };
 
     const finalConfig = { ...defaultConfig, ...config };
-    this.validateConfig(finalConfig);
+    try {
+      this.validateConfig(finalConfig);
+    } catch (e) {
+      this.logger.error(
+        { error: e, config: finalConfig },
+        'Invalid prompt configuration.',
+      );
+      throw e;
+    }
 
     let prompt = `
 === SYSTEM INSTRUCTION ===
@@ -187,49 +243,70 @@ ${sanitizedQuestion}
 === ANSWER ===
 `.trim();
 
-    if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-      const overflow = this.estimateTokens(prompt) - finalConfig.maxLength!;
+    const initialTokens = this.estimateTokens(prompt);
+    if (initialTokens > finalConfig.maxLength!) {
+      // FIX: Corrected log order
+      this.logger.warn(
+        { initialTokens, maxLength: finalConfig.maxLength },
+        'Prompt exceeds max length. Starting truncation.',
+      );
+      const overflow = initialTokens - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
-      if (finalConfig.truncateStrategy === "truncate-history") {
+
+      let truncatedText: string;
+      if (finalConfig.truncateStrategy === 'truncate-history') {
         const targetTokens = Math.max(
           0,
-          this.estimateTokens(sanitizedHistory) - overflow - buffer
+          this.estimateTokens(sanitizedHistory) - overflow - buffer,
         );
-        const truncated = this.truncateByTokens(
+        truncatedText = this.truncateByTokens(
           sanitizedHistory,
           targetTokens,
-          "truncate-history"
+          'truncate-history',
         );
-        prompt = prompt.replace(sanitizedHistory, truncated);
-      } else if (finalConfig.truncateStrategy === "truncate-context") {
+        prompt = prompt.replace(sanitizedHistory, truncatedText);
+      } else if (finalConfig.truncateStrategy === 'truncate-context') {
         const targetTokens = Math.max(
           0,
-          this.estimateTokens(sanitizedContext) - overflow - buffer
+          this.estimateTokens(sanitizedContext) - overflow - buffer,
         );
-        const truncated = this.truncateByTokens(
+        truncatedText = this.truncateByTokens(
           sanitizedContext,
           targetTokens,
-          "truncate-context"
+          'truncate-context',
         );
-        prompt = prompt.replace(sanitizedContext, truncated);
-      } else if (finalConfig.truncateStrategy === "error") {
-        throw new Error("Prompt exceeds max length");
+        prompt = prompt.replace(sanitizedContext, truncatedText);
+      } else if (finalConfig.truncateStrategy === 'error') {
+        this.logger.error(
+          "Prompt exceeds max length with 'error' truncation strategy.",
+        );
+        throw new Error('Prompt exceeds max length');
       }
-      if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-        throw new Error("Prompt still exceeds maxLength after truncation");
+
+      const finalTokens = this.estimateTokens(prompt);
+      if (finalTokens > finalConfig.maxLength!) {
+        // FIX: Corrected log order
+        this.logger.error(
+          { finalTokens, maxLength: finalConfig.maxLength },
+          'Prompt still exceeds maxLength after truncation.',
+        );
+        throw new Error('Prompt still exceeds maxLength after truncation');
       }
     }
 
     if (finalConfig.logStats) {
-      this.logger.debug("Main Prompt Generated", {
-        version: finalConfig.version,
-        length: prompt.length,
-        tokens: this.estimateTokens(prompt),
-        tone: finalConfig.tone,
-        language: finalConfig.language,
-        jurisdiction: finalConfig.jurisdiction,
-        questionLength: sanitizedQuestion.length,
-      });
+      this.logger.info(
+        {
+          version: finalConfig.version,
+          length: prompt.length,
+          tokens: this.estimateTokens(prompt),
+          tone: finalConfig.tone,
+          language: finalConfig.language,
+          jurisdiction: finalConfig.jurisdiction,
+          questionLength: sanitizedQuestion.length,
+        },
+        'Main Prompt Generated',
+      );
     }
 
     return prompt;
@@ -237,31 +314,39 @@ ${sanitizedQuestion}
 
   public lowPrompt(
     lowContent: z.infer<typeof LowContentSchema>,
-    config: PromptConfig = {}
+    config: PromptConfig = {},
   ): string {
     const parsedContent = LowContentSchema.parse(lowContent);
     const sanitizedContent = parsedContent
       .map(this.sanitizeText)
       .filter((item) => item.length > 0);
     const defaultConfig: PromptConfig = {
-      version: "1.0.0",
+      version: '1.0.0',
       maxLength: 1000,
-      tone: "formal",
+      tone: 'formal',
       temperature: 0,
-      truncateStrategy: "truncate-context",
-      language: "english",
-      jurisdiction: "INDIA",
+      truncateStrategy: 'truncate-context',
+      language: 'english',
+      jurisdiction: 'INDIA',
       logStats: true,
       truncateBuffer: 200,
     };
 
     const finalConfig = { ...defaultConfig, ...config };
-    this.validateConfig(finalConfig);
+    try {
+      this.validateConfig(finalConfig);
+    } catch (e) {
+      this.logger.error(
+        { error: e, config: finalConfig },
+        'Invalid low prompt configuration.',
+      );
+      throw e;
+    }
 
     const content =
       sanitizedContent.length > 0
-        ? sanitizedContent.join("\n\n")
-        : "(No content provided)";
+        ? sanitizedContent.join('\n\n')
+        : '(No content provided)';
 
     let prompt = `
 === SYSTEM INSTRUCTION ===
@@ -282,40 +367,57 @@ ${content}
 === SUMMARY ===
 `.trim();
 
-    if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-      const overflow = this.estimateTokens(prompt) - finalConfig.maxLength!;
+    const initialTokens = this.estimateTokens(prompt);
+    if (initialTokens > finalConfig.maxLength!) {
+      // FIX: Corrected log order
+      this.logger.warn(
+        { initialTokens, maxLength: finalConfig.maxLength },
+        'Low prompt exceeds max length. Starting truncation.',
+      );
+      const overflow = initialTokens - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
       const targetLen = Math.max(
         0,
-        this.estimateTokens(content) - overflow - buffer
+        this.estimateTokens(content) - overflow - buffer,
       );
       const truncated = this.truncateText(
         content,
         targetLen,
-        "truncate-context"
+        'truncate-context',
       );
       prompt = prompt.replace(content, truncated);
-      if (this.estimateTokens(prompt) > finalConfig.maxLength!) {
-        throw new Error("Low prompt still exceeds maxLength after truncation");
+
+      const finalTokens = this.estimateTokens(prompt);
+      if (finalTokens > finalConfig.maxLength!) {
+        // FIX: Corrected log order
+        this.logger.error(
+          { finalTokens, maxLength: finalConfig.maxLength },
+          'Low prompt still exceeds maxLength after truncation.',
+        );
+        throw new Error('Low prompt still exceeds maxLength after truncation');
       }
     }
 
     if (finalConfig.logStats) {
-      this.logger.debug("Low Prompt Generated", {
-        version: finalConfig.version,
-        length: prompt.length,
-        tokens: this.estimateTokens(prompt),
-        tone: finalConfig.tone,
-        language: finalConfig.language,
-        jurisdiction: finalConfig.jurisdiction,
-        inputCount: sanitizedContent.length,
-      });
+      this.logger.info(
+        {
+          version: finalConfig.version,
+          length: prompt.length,
+          tokens: this.estimateTokens(prompt),
+          tone: finalConfig.tone,
+          language: finalConfig.language,
+          jurisdiction: finalConfig.jurisdiction,
+          inputCount: sanitizedContent.length,
+        },
+        'Low Prompt Generated',
+      );
     }
 
     return prompt;
   }
 
   public createSummarizationPrompt(opts: { text: string }): string {
+    this.logger.info('Creating summarization prompt.');
     return `
 Extract all legal clauses from the following text, including nested clauses and cross-references, relevant to Indian law:
 
@@ -330,6 +432,7 @@ Return the clauses as a JSON array. Each clause should include the section numbe
   }
 
   public generateOptimizedSearchPrompt(userQuestion: string): string {
+    this.logger.info({ userQuestion }, 'Creating optimized search prompt.');
     return `
 Rewrite the following user question as a single, concise search query optimized for a search engine, 
 focusing on Indian legal information. Use keywords and core legal concepts, avoiding conversational words. 
