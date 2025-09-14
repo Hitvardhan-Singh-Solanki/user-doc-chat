@@ -427,14 +427,17 @@ Optimized search query:
       const t = this.estimateTokens(s);
       const fits = used + t <= maxTokens;
       const prioritized = priorityRegex.test(s);
-      if (fits || (prioritized && used < maxTokens)) {
-        kept.push(s);
-        used += t;
-        if (used >= maxTokens) {
-          this.logger.debug('Stopping context truncation due to token limit.');
-          break;
-        }
+      if (!fits && !(prioritized && used < maxTokens)) continue;
+      if (used + t > maxTokens) {
+        const remaining = Math.max(0, maxTokens - used);
+        if (remaining === 0) break;
+        kept.push(this.truncateText(s, remaining * 4, 'truncate-context'));
+        used = maxTokens;
+        this.logger.debug('Stopping context truncation due to token limit.');
+        break;
       }
+      kept.push(s);
+      used += t;
     }
     return kept.reverse().join(' ').trim();
   }
