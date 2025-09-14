@@ -40,10 +40,9 @@ export class EnrichmentService implements IEnrichmentService {
     options: EnrichmentOptions = {},
   ): Promise<void> {
     const opts = { ...this.defaultOptions(), ...options };
-    const { fileId } = opts;
-    const log = this.log.child({ handler: 'preEmbedDocument', fileId });
+    const { fileId, userId } = opts;
+    const log = this.log.child({ handler: 'preEmbedDocument', fileId, userId });
     log.info('Starting document pre-embedding process.');
-
     const sanitized = this.promptService.sanitizeText(docText);
     const chunks = this.chunkText(sanitized, opts.chunkSize, opts.chunkOverlap);
     log.info({ chunkCount: chunks.length }, 'Document chunked for embedding.');
