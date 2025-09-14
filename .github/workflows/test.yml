@@ -2,9 +2,9 @@ name: Test Pipeline
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
 
 jobs:
   test:
@@ -89,6 +89,7 @@ jobs:
           HUGGINGFACE_CHAT_MODEL: some-fake-model-for-testing-only
           HUGGINGFACE_SUMMARY_MODEL: some-fake-model-for-testing-only
           HUGGINGFACE_EMBEDDING_MODEL: some-fake-model-for-testing-only
+          DATABASE_URL: some-test-url
         run: npm test
 
       - name: Upload test coverage
