@@ -1,14 +1,19 @@
-import "dotenv/config";
-import { Job, Worker } from "bullmq";
-import { v4 as uuid } from "uuid";
-import { downloadFile } from "./minio.service";
-import { VectorStoreService } from "./vector-store.service";
-import { FileJob, Vector } from "../types";
-import { sanitizeFile } from "../utils/sanitize-file";
-import { connectionOptions, fileQueueName } from "../repos/bullmq.repo";
-import { IDBStore } from "../interfaces/db-store.interface";
-import { LLMService } from "./llm.service";
-import { EnrichmentService } from "./enrichment.service";
+// src/services/file-worker.service.ts
+
+import 'dotenv/config';
+import { Job, Worker } from 'bullmq';
+import { v4 as uuid } from 'uuid';
+import { downloadFile } from './minio.service';
+import { VectorStoreService } from './vector-store.service';
+import { FileJob, Vector } from '../types';
+import { sanitizeFile } from '../utils/sanitize-file';
+import { connectionOptions, fileQueueName } from '../repos/bullmq.repo';
+import { IDBStore } from '../interfaces/db-store.interface';
+import { LLMService } from './llm.service';
+import { EnrichmentService } from './enrichment.service';
+import { logger } from '../config/logger';
+import retry from 'async-retry';
+import { Logger } from 'pino';
 
 export class FileWorkerService {
   private db: IDBStore;
@@ -21,7 +26,7 @@ export class FileWorkerService {
     dbStore: IDBStore,
     llmService: LLMService,
     enrichmentService: EnrichmentService,
-    vectorStore: VectorStoreService
+    vectorStore: VectorStoreService,
   ) {
     this.db = dbStore;
     this.llmService = llmService;
@@ -36,117 +41,183 @@ export class FileWorkerService {
       concurrency: 5,
     });
 
-    this.worker.on("failed", (job, err) =>
-      console.error(`Job ${job?.id} failed:`, err)
+    this.worker.on('failed', (job, err) =>
+      logger.error(
+        { jobId: job?.id, jobName: job?.name, err: err.message },
+        'Job failed',
+      ),
     );
-    this.worker.on("error", (err) => console.error("Worker error:", err));
-
-    console.log("FileWorkerService started", this.worker.id);
+    this.worker.on('error', (err) =>
+      logger.error({ err: err.message }, 'Worker error'),
+    );
+    logger.info('File processing worker started.');
   }
 
   /** Main job processor */
   private async processJob(job: Job) {
+    // 🔍 Create a child logger with job-specific context
+    const jobLogger = logger.child({
+      jobId: job.id,
+      jobName: job.name,
+      fileId: job.data.fileId,
+      userId: job.data.userId,
+      correlationId: job.data.correlationId,
+    });
+
     const payload = job.data as FileJob;
-    if (!payload?.fileId || !payload?.userId || !payload?.key)
-      throw new Error("Invalid job data");
+    if (!payload?.fileId || !payload?.userId || !payload?.key) {
+      jobLogger.error('Invalid job data received');
+      throw new Error('Invalid job data');
+    }
+
+    jobLogger.info('Starting file processing job');
 
     try {
-      job.updateProgress(5);
+      await this.markFileProcessing(payload.fileId, jobLogger);
+      await job.updateProgress(10);
 
-      await this.markFileProcessing(payload.fileId);
-
-      job.updateProgress(10);
-
-      const text = await this.downloadAndSanitize(payload, job);
-
-      job.updateProgress(40);
+      const text = await this.downloadAndSanitize(payload, jobLogger);
+      await job.updateProgress(40);
+      jobLogger.info({ sanitizedTextLength: text.length }, 'File sanitized');
 
       await this.enrichmentService.preEmbedDocument(text, {
         fileId: payload.fileId,
         userId: payload.userId,
       });
+      await job.updateProgress(70);
 
-      job.updateProgress(70);
-
-      // Embed full document
       const chunks = this.llmService.chunkText(
         text,
         Number(process.env.CHUNK_SIZE) || 800,
-        Number(process.env.CHUNK_OVERLAP) || 100
+        Number(process.env.CHUNK_OVERLAP) || 100,
       );
+      jobLogger.info({ chunkCount: chunks.length }, 'Document chunked');
 
+      // Upsert vectors in batches with retry logic
       const batch: Vector[] = [];
       for (let i = 0; i < chunks.length; i++) {
+        const embedding = await retry(
+          () => this.llmService.getEmbedding(chunks[i]), // 🚨 Use circuit breaker protected method
+          {
+            retries: 3,
+            factor: 2,
+            onRetry: (error, attempt) => {
+              jobLogger.warn(
+                { attempt, error: (error as Error).message },
+                'Embedding failed, retrying...',
+              );
+            },
+          },
+        );
+
         batch.push(
-          await this.createVector(payload, chunks[i], uuid(), {
-            type: "full-document",
-          })
+          this.createVector(payload, chunks[i], uuid(), embedding, {
+            type: 'full-document',
+          }),
         );
 
         if (batch.length >= 50) {
-          await this.vectorStore.upsertVectors(batch.splice(0));
+          // 🔄 Retry upsert operation
+          await retry(() => this.vectorStore.upsertVectors(batch.splice(0)), {
+            retries: 3,
+            factor: 2,
+            onRetry: (error, attempt) => {
+              jobLogger.warn(
+                { attempt, error: (error as Error).message },
+                'Vector upsert failed, retrying...',
+              );
+            },
+          });
         }
 
-        job.updateProgress(70 + Math.floor(((i + 1) / chunks.length) * 20));
+        const progress = 70 + Math.floor(((i + 1) / chunks.length) * 20);
+        await job.updateProgress(progress);
+        jobLogger.debug({ progress }, 'Processing chunk');
       }
-      if (batch.length) await this.vectorStore.upsertVectors(batch);
 
-      job.updateProgress(90);
-      await this.markFileProcessed(payload.fileId);
-      job.updateProgress(100);
+      // Final batch upsert
+      if (batch.length) {
+        await retry(() => this.vectorStore.upsertVectors(batch), {
+          retries: 3,
+          factor: 2,
+          onRetry: (error, attempt) => {
+            jobLogger.warn(
+              { attempt, error: (error as Error).message },
+              'Final vector upsert failed, retrying...',
+            );
+          },
+        });
+      }
+
+      await this.markFileProcessed(payload.fileId, jobLogger);
+      jobLogger.info('File processing job completed successfully');
+      await job.updateProgress(100);
 
       return { userId: payload.userId, fileId: payload.fileId };
     } catch (error) {
-      await this.markFileFailed(payload.fileId, error as Error);
+      jobLogger.error(
+        { error: (error as Error).message, stack: (error as Error).stack },
+        'An error occurred during job processing',
+      );
+      await this.markFileFailed(payload.fileId, error as Error, jobLogger);
       throw error;
     }
   }
 
   // ------------------ Private helpers ------------------
 
-  private async markFileProcessing(fileId: string) {
+  private async markFileProcessing(fileId: string, logger: Logger) {
+    logger.info('Marking file status as "processing" in DB');
     await this.db.query(
       `UPDATE user_files SET status=$1, processing_started_at=NOW() WHERE id=$2`,
-      ["processing", fileId]
+      ['processing', fileId],
     );
   }
 
-  private async markFileProcessed(fileId: string) {
+  private async markFileProcessed(fileId: string, logger: Logger) {
+    logger.info('Marking file status as "processed" in DB');
     await this.db.query(
       `UPDATE user_files SET status=$1, processing_finished_at=NOW() WHERE id=$2`,
-      ["processed", fileId]
+      ['processed', fileId],
     );
   }
 
-  private async markFileFailed(fileId: string, error: Error) {
+  private async markFileFailed(fileId: string, error: Error, logger: Logger) {
+    logger.error('Marking file status as "failed" in DB');
     await this.db.query(
       `UPDATE user_files SET error_message=$1, status=$2, processing_finished_at=NOW() WHERE id=$3`,
-      [error.message, "failed", fileId]
+      [error.message, 'failed', fileId],
     );
   }
 
   /** Step 1: Download and sanitize */
   private async downloadAndSanitize(
     payload: FileJob,
-    job: Job
+    logger: Logger,
   ): Promise<string> {
-    const fileBuffer = await downloadFile(payload.key);
-    job.updateProgress(20);
+    const fileBuffer = await retry(() => downloadFile(payload.key), {
+      retries: 5,
+      factor: 2,
+      onRetry: (error, attempt) => {
+        logger.warn(
+          { attempt, error: (error as Error).message },
+          'File download failed, retrying...',
+        );
+      },
+    });
 
     const sanitizedText = await sanitizeFile(fileBuffer);
-    job.updateProgress(35);
-
     return sanitizedText;
   }
 
   /** Utility: Create vector with metadata */
-  private async createVector(
+  private createVector(
     payload: FileJob,
     text: string,
     id: string,
-    extraMeta: Record<string, any> = {}
-  ): Promise<Vector> {
-    const embedding = await this.llmService.embeddingHF(text);
+    embedding: number[],
+    extraMeta: Record<string, any> = {},
+  ): Vector {
     return {
       id: `${payload.fileId}-${id}`,
       values: embedding,

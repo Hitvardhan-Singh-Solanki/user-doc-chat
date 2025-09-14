@@ -1,5 +1,6 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
+import { logger } from '../config/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN!;
@@ -40,7 +41,7 @@ export function verifyJwt(
   try {
     return jwt.verify(token, JWT_SECRET, { algorithms }) as CustomJwtPayload;
   } catch (error) {
-    console.error('JWT verification failed:', error);
+    logger.error({ error }, 'JWT verification failed:');
     return null;
   }
 }

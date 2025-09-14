@@ -1,9 +1,9 @@
-import type { EnrichmentOptions, SearchResult } from "../types";
+import type { EnrichmentOptions, SearchResult } from '../types';
 
 export interface IEnrichmentService {
   enrichIfUnknown(
     userQuestion: string,
     llmAnswer: string,
-    options?: EnrichmentOptions
+    options?: EnrichmentOptions,
   ): Promise<SearchResult[] | null>;
 }

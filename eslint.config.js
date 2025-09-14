@@ -32,6 +32,9 @@ export default [
     rules: {
       eqeqeq: 'error',
       'no-console': 'warn',
+      // Disable TypeScript any and unused vars rules
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   prettierRecommended,

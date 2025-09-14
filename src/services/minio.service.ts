@@ -22,9 +22,7 @@ export async function downloadFile(key: string): Promise<Buffer> {
     });
     stream.once('end', () => resolve(Buffer.concat(chunks)));
     stream.once('error', (err) => {
-      try {
-        stream.destroy();
-      } catch {}
+      stream.destroy();
       reject(err);
     });
   });

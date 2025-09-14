@@ -1,8 +1,8 @@
-import { SearchResult, EnrichmentOptions } from "../types";
+import { SearchResult, EnrichmentOptions } from '../types';
 
 export interface IHTMLFetch {
   fetchHTML(
     results: SearchResult[],
-    options?: EnrichmentOptions
+    options?: EnrichmentOptions,
   ): Promise<(string | undefined)[]>;
 }
