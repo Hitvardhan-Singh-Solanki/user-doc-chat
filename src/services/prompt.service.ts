@@ -404,7 +404,11 @@ Optimized search query:
       let used = 0;
       for (let i = lines.length - 1; i >= 0; i--) {
         const t = this.estimateTokens(lines[i]);
-        if (used + t > maxTokens && kept.length > 0) {
+        if (used + t > maxTokens) {
+          if (kept.length === 0 && maxTokens > 0) {
+            // Clip the most recent line to fit roughly by chars
+            return this.truncateText(lines[i], maxTokens * 4, 'truncate-history');
+          }
           this.logger.debug('Stopping history truncation due to token limit.');
           break;
         }
