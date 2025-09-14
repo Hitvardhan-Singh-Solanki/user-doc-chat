@@ -95,7 +95,10 @@ export class AuthController {
         log.warn('Attempted login with invalid credentials');
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-      log.error({ err, stack: (err as Error).stack }, 'Unexpected error during login');
+      log.error(
+        { err, stack: (err as Error).stack },
+        'Unexpected error during login',
+      );
       return res.status(500).json({ error: 'Something went wrong' });
     }
   };

@@ -47,8 +47,9 @@ export class FileUploadService {
       log.info({ mime, size: file.size }, 'File type and size are valid');
 
       const safeName = String(file.originalname || '')
-        .replace(/[\/\\\u0000-\u001F]/g, '') // drop slashes/control chars
-        .slice(0, 200); // cap length
+        // eslint-disable-next-line no-control-regex, no-useless-escape
+        .replace(/[\/\\\u0000-\u001F]/g, '')
+        .slice(0, 200);
       const key = `${uuid()}-${safeName}`;
       log.info({ key }, 'Uploading file to MinIO');
       await uploadFileToMinio(key, file.buffer!);
