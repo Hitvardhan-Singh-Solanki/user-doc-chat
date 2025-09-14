@@ -46,11 +46,13 @@ export class FileUploadService {
       }
       log.info({ mime, size: file.size }, 'File type and size are valid');
 
-      const key = `${uuid()}-${file.originalname}`;
+      const safeName = String(file.originalname || '')
+        .replace(/[\/\\\u0000-\u001F]/g, '') // drop slashes/control chars
+        .slice(0, 200); // cap length
+      const key = `${uuid()}-${safeName}`;
       log.info({ key }, 'Uploading file to MinIO');
       await uploadFileToMinio(key, file.buffer!);
       log.info('File successfully uploaded to MinIO');
-
       log.info('Inserting file record into database');
       const result = await this.db.query<UserFileRecord>(
         `
