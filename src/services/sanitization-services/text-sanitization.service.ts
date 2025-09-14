@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex */
 import { ISanitizeFile } from '../../interfaces/sanitize-file.interface';
 
 export class TextSanitizationService implements ISanitizeFile {

@@ -71,7 +71,7 @@ vi.mock('../config/logger', () => {
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn(function () {
-      // @ts-ignore
+      // @ts-expect-error ignore this line as this is a test to return the same instance
       return this;
     }),
   };
