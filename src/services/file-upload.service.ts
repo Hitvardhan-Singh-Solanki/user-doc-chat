@@ -46,10 +46,16 @@ export class FileUploadService {
       }
       log.info({ mime, size: file.size }, 'File type and size are valid');
 
-      const safeName = String(file.originalname || '')
-        // eslint-disable-next-line no-control-regex, no-useless-escape
-        .replace(/[\/\\\u0000-\u001F]/g, '')
-        .slice(0, 200);
+import path from 'path';
+
+      const safeName =
+        path
+          .basename(String(file.originalname || ''))
+          .normalize('NFKC')
+          .replace(/[^A-Za-z0-9._-]+/g, '-')  // whitelist
+          .replace(/-+/g, '-')
+          .replace(/^\.+/, '')                // no leading dots
+          .slice(0, 100) || 'file';
       const key = `${uuid()}-${safeName}`;
       log.info({ key }, 'Uploading file to MinIO');
       await uploadFileToMinio(key, file.buffer!);
