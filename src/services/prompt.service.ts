@@ -346,11 +346,13 @@ Optimized search query:
       while (lines.join('\n').length > maxLength && lines.length > 1) {
         lines.shift();
       }
-      const truncated = lines.join('\n') || '(Truncated to empty history)';
-      this.logger.debug(
-        { truncatedLength: truncated.length },
-        'History truncated.',
-      );
+      let joined = lines.join('\n');
+      if (joined.length > maxLength) {
+        // Keep the most recent tail
+        joined = joined.slice(-maxLength);
+      }
+      const truncated = joined; // may be ''
+      this.logger.debug({ truncatedLength: truncated.length }, 'History truncated.');
       return truncated;
     }
 
