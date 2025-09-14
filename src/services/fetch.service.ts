@@ -5,7 +5,7 @@ import { lookup } from 'dns/promises';
 import { IHTMLFetch } from '../interfaces/html-fetch.interface';
 import { EnrichmentOptions, SearchResult } from '../types';
 import { Readability } from '@mozilla/readability';
-import { logger } from '../config/logger'; // Assuming you have a configured logger
+import { logger } from '../config/logger';
 
 export class FetchHTMLService implements IHTMLFetch {
   private readonly log = logger.child({ component: 'FetchHTMLService' });

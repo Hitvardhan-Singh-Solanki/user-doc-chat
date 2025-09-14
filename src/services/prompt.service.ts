@@ -15,19 +15,6 @@ export class PromptService {
     this.logger.info('PromptService initialized.');
   }
 
-  private async initializeTokenizer() {
-    try {
-      this.logger.info('Initializing tokenizer...');
-      this.tokenizer = await AutoTokenizer.from_pretrained(
-        process.env.HUGGINGFACE_CHAT_MODEL!,
-      );
-      this.logger.info('Tokenizer initialized successfully.');
-    } catch (error) {
-      // FIX: Corrected log order to pass object first, then message
-      this.logger.error({ error }, 'Failed to initialize tokenizer');
-    }
-  }
-
   public sanitizeText(input: string): string {
     const sanitized = input
       .normalize('NFKC')
@@ -44,141 +31,6 @@ export class PromptService {
       'Text sanitized.',
     );
     return sanitized;
-  }
-
-  private estimateTokens(text: string): number {
-    if (!this.tokenizer) {
-      this.logger.warn(
-        'Tokenizer not available. Using a heuristic for token estimation.',
-      );
-      return Math.ceil(text.length / 4);
-    }
-    const tokens = this.tokenizer.encode(text);
-    this.logger.debug(
-      { textLength: text.length, tokens: tokens.length },
-      'Estimated tokens.',
-    );
-    return tokens.length;
-  }
-
-  private truncateText(
-    text: string,
-    maxLength: number,
-    strategy: 'truncate-history' | 'truncate-context',
-  ): string {
-    if (text.length <= maxLength) return text;
-    this.logger.info(
-      { strategy, maxLength, originalLength: text.length },
-      'Truncating text by character count.',
-    );
-
-    if (strategy === 'truncate-history') {
-      const lines = text.split('\n').filter(Boolean);
-      while (lines.join('\n').length > maxLength && lines.length > 1) {
-        lines.shift();
-      }
-      const truncated = lines.join('\n') || '(Truncated to empty history)';
-      this.logger.debug(
-        { truncatedLength: truncated.length },
-        'History truncated.',
-      );
-      return truncated;
-    }
-
-    if (strategy === 'truncate-context') {
-      const priorityRegex =
-        /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
-      const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-      let result = '';
-      for (const sentence of sentences.reverse()) {
-        if (result.length + sentence.length <= maxLength) {
-          result = sentence + ' ' + result;
-        } else if (sentence.match(priorityRegex)) {
-          if (result.length + sentence.length <= maxLength + 100) {
-            result = sentence + ' ' + result;
-          }
-        }
-      }
-      if (result.length > maxLength) {
-        result = result.slice(0, maxLength);
-      }
-      const truncated = result.trim() || '(Truncated to empty context)';
-      this.logger.debug(
-        { truncatedLength: truncated.length },
-        'Context truncated.',
-      );
-      return truncated;
-    }
-    this.logger.warn({ strategy }, 'Unknown truncation strategy.');
-    return text;
-  }
-
-  private truncateByTokens(
-    text: string,
-    maxTokens: number,
-    strategy: 'truncate-history' | 'truncate-context',
-  ): string {
-    if (!this.tokenizer) {
-      this.logger.warn(
-        'Tokenizer not available. Falling back to heuristic truncation.',
-      );
-      return this.truncateText(text, maxTokens * 4, strategy);
-    }
-    this.logger.info(
-      { strategy, maxTokens, originalTokens: this.estimateTokens(text) },
-      'Truncating text by token count.',
-    );
-
-    if (strategy === 'truncate-history') {
-      const lines = text.split('\n').filter(Boolean);
-      const kept: string[] = [];
-      let used = 0;
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const t = this.estimateTokens(lines[i]);
-        if (used + t > maxTokens && kept.length > 0) {
-          this.logger.debug('Stopping history truncation due to token limit.');
-          break;
-        }
-        kept.unshift(lines[i]);
-        used += t;
-      }
-      return kept.join('\n');
-    }
-
-    // truncate-context: accumulate sentences from the end with priority bias
-    const priorityRegex =
-      /(Section|Clause|Article|Definition|Preamble)\s+\d+(?:\.\d+)*/i;
-    const sentences = text
-      .split(/(?<=[.!?])\s+/)
-      .filter(Boolean)
-      .reverse();
-    const kept: string[] = [];
-    let used = 0;
-    for (const s of sentences) {
-      const t = this.estimateTokens(s);
-      const fits = used + t <= maxTokens;
-      const prioritized = priorityRegex.test(s);
-      if (fits || (prioritized && used < maxTokens)) {
-        kept.push(s);
-        used += t;
-        if (used >= maxTokens) {
-          this.logger.debug('Stopping context truncation due to token limit.');
-          break;
-        }
-      }
-    }
-    return kept.reverse().join(' ').trim();
-  }
-
-  private validateConfig(config: PromptConfig) {
-    if (config.language !== 'english') {
-      this.logger.error({ config }, 'Unsupported language.');
-      throw new Error('Only English language is supported');
-    }
-    if (config.jurisdiction && config.jurisdiction !== 'INDIA') {
-      this.logger.error({ config }, 'Unsupported jurisdiction.');
-      throw new Error('Only Indian jurisdiction is supported');
-    }
   }
 
   public mainPrompt(
@@ -318,7 +170,7 @@ ${sanitizedQuestion}
   ): string {
     const parsedContent = LowContentSchema.parse(lowContent);
     const sanitizedContent = parsedContent
-      .map(this.sanitizeText)
+      .map((t) => this.sanitizeText(t))
       .filter((item) => item.length > 0);
     const defaultConfig: PromptConfig = {
       version: '1.0.0',
@@ -442,5 +294,153 @@ User question: "${userQuestion}"
 
 Optimized search query:
 `.trim();
+  }
+
+  private async initializeTokenizer() {
+    try {
+      this.logger.info('Initializing tokenizer...');
+      this.tokenizer = await AutoTokenizer.from_pretrained(
+        process.env.HUGGINGFACE_CHAT_MODEL!,
+      );
+      this.logger.info('Tokenizer initialized successfully.');
+    } catch (error) {
+      // FIX: Corrected log order to pass object first, then message
+      this.logger.error({ error }, 'Failed to initialize tokenizer');
+    }
+  }
+
+  private estimateTokens(text: string): number {
+    if (!this.tokenizer) {
+      this.logger.warn(
+        'Tokenizer not available. Using a heuristic for token estimation.',
+      );
+      return Math.ceil(text.length / 4);
+    }
+    const tokens = this.tokenizer.encode(text);
+    this.logger.debug(
+      { textLength: text.length, tokens: tokens.length },
+      'Estimated tokens.',
+    );
+    return tokens.length;
+  }
+
+  private truncateText(
+    text: string,
+    maxLength: number,
+    strategy: 'truncate-history' | 'truncate-context',
+  ): string {
+    if (text.length <= maxLength) return text;
+    this.logger.info(
+      { strategy, maxLength, originalLength: text.length },
+      'Truncating text by character count.',
+    );
+
+    if (strategy === 'truncate-history') {
+      const lines = text.split('\n').filter(Boolean);
+      while (lines.join('\n').length > maxLength && lines.length > 1) {
+        lines.shift();
+      }
+      const truncated = lines.join('\n') || '(Truncated to empty history)';
+      this.logger.debug(
+        { truncatedLength: truncated.length },
+        'History truncated.',
+      );
+      return truncated;
+    }
+
+    if (strategy === 'truncate-context') {
+      const priorityRegex =
+        /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
+      const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+      let result = '';
+      for (const sentence of sentences.reverse()) {
+        if (result.length + sentence.length <= maxLength) {
+          result = sentence + ' ' + result;
+        } else if (sentence.match(priorityRegex)) {
+          if (result.length + sentence.length <= maxLength + 100) {
+            result = sentence + ' ' + result;
+          }
+        }
+      }
+      if (result.length > maxLength) {
+        result = result.slice(0, maxLength);
+      }
+      const truncated = result.trim() || '(Truncated to empty context)';
+      this.logger.debug(
+        { truncatedLength: truncated.length },
+        'Context truncated.',
+      );
+      return truncated;
+    }
+    this.logger.warn({ strategy }, 'Unknown truncation strategy.');
+    return text;
+  }
+
+  private truncateByTokens(
+    text: string,
+    maxTokens: number,
+    strategy: 'truncate-history' | 'truncate-context',
+  ): string {
+    if (!this.tokenizer) {
+      this.logger.warn(
+        'Tokenizer not available. Falling back to heuristic truncation.',
+      );
+      return this.truncateText(text, maxTokens * 4, strategy);
+    }
+    this.logger.info(
+      { strategy, maxTokens, originalTokens: this.estimateTokens(text) },
+      'Truncating text by token count.',
+    );
+
+    if (strategy === 'truncate-history') {
+      const lines = text.split('\n').filter(Boolean);
+      const kept: string[] = [];
+      let used = 0;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const t = this.estimateTokens(lines[i]);
+        if (used + t > maxTokens && kept.length > 0) {
+          this.logger.debug('Stopping history truncation due to token limit.');
+          break;
+        }
+        kept.unshift(lines[i]);
+        used += t;
+      }
+      return kept.join('\n');
+    }
+
+    // truncate-context: accumulate sentences from the end with priority bias
+    const priorityRegex =
+      /(Section|Clause|Article|Definition|Preamble)\s+\d+(?:\.\d+)*/i;
+    const sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .filter(Boolean)
+      .reverse();
+    const kept: string[] = [];
+    let used = 0;
+    for (const s of sentences) {
+      const t = this.estimateTokens(s);
+      const fits = used + t <= maxTokens;
+      const prioritized = priorityRegex.test(s);
+      if (fits || (prioritized && used < maxTokens)) {
+        kept.push(s);
+        used += t;
+        if (used >= maxTokens) {
+          this.logger.debug('Stopping context truncation due to token limit.');
+          break;
+        }
+      }
+    }
+    return kept.reverse().join(' ').trim();
+  }
+
+  private validateConfig(config: PromptConfig) {
+    if (config.language !== 'english') {
+      this.logger.error({ config }, 'Unsupported language.');
+      throw new Error('Only English language is supported');
+    }
+    if (config.jurisdiction && config.jurisdiction !== 'INDIA') {
+      this.logger.error({ config }, 'Unsupported jurisdiction.');
+      throw new Error('Only Indian jurisdiction is supported');
+    }
   }
 }
