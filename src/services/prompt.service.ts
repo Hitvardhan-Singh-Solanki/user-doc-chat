@@ -319,12 +319,15 @@ Optimized search query:
       );
       return Math.ceil(text.length / 4);
     }
-    const tokens = this.tokenizer.encode(text);
+    const encoded = this.tokenizer.encode(text);
+    const tokenCount = Array.isArray(encoded)
+      ? encoded.length
+      : (encoded?.input_ids?.length ?? encoded?.ids?.length ?? 0);
     this.logger.debug(
-      { textLength: text.length, tokens: tokens.length },
+      { textLength: text.length, tokens: tokenCount },
       'Estimated tokens.',
     );
-    return tokens.length;
+    return tokenCount;
   }
 
   private truncateText(
