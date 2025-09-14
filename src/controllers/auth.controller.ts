@@ -78,7 +78,7 @@ export class AuthController {
         !email ||
         !password
       ) {
-        log.warn({ body: req.body }, 'Missing email or password in request');
+        log.warn('Missing email or password in request');
         return res
           .status(400)
           .json({ error: 'Email and password are required' });
