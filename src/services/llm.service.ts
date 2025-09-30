@@ -8,6 +8,8 @@ import { LowContentSchema } from '../schemas/low-content.schema';
 import { IEnrichmentService } from '../interfaces/enrichment.interface';
 import { logger } from '../config/logger';
 import { createCircuitBreaker } from '../utils/cb';
+import { XenovaTokenizerAdapter } from './xenova.service';
+import { SimpleTokenizerAdapter } from './custom-tokenizer.service';
 
 export class LLMService {
   private hfToken: string;
@@ -35,25 +37,37 @@ export class LLMService {
     if (!this.hfSummaryModel)
       throw new Error('HUGGINGFACE_SUMMARY_MODEL is required');
 
-    this.promptService = new PromptService();
+    const simpleTokenizer = new SimpleTokenizerAdapter();
+    this.promptService = new PromptService(simpleTokenizer);
+
+    const xenovaAdapter = new XenovaTokenizerAdapter(this.hfChatModel);
+
+    xenovaAdapter
+      .init()
+      .then(() => {
+        logger.info('Xenova tokenizer initialized successfully');
+        this.promptService = new PromptService(xenovaAdapter);
+      })
+      .catch((err) => {
+        logger.error({ err }, 'Failed to initialize Xenova tokenizer');
+      });
+
     this.inferenceClient = new InferenceClient(this.hfToken);
 
-    // 🛡️ Initialize the circuit breaker for the embedding service
     this.embeddingBreaker = createCircuitBreaker(this.embeddingHF.bind(this), {
       timeout: 5000,
       errorThresholdPercentage: 50,
       resetTimeout: 30000,
     });
 
-    // 🔍 Add event listeners for logging circuit state changes
     this.embeddingBreaker.on('open', () =>
-      logger.warn('LLM Embedding Circuit Breaker: OPEN 🔴'),
+      logger.warn('LLM Embedding Circuit Breaker: OPEN'),
     );
     this.embeddingBreaker.on('halfOpen', () =>
-      logger.info('LLM Embedding Circuit Breaker: HALF-OPEN 🟡'),
+      logger.info('LLM Embedding Circuit Breaker: HALF-OPEN'),
     );
     this.embeddingBreaker.on('close', () =>
-      logger.info('LLM Embedding Circuit Breaker: CLOSED 🟢'),
+      logger.info('LLM Embedding Circuit Breaker: CLOSED'),
     );
   }
 
