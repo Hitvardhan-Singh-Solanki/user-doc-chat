@@ -1,5 +1,5 @@
-import { ISearchAdapter } from '../interfaces/search-adapter.interface';
-import { SearchResult } from '../types';
+import { ISearchAdapter } from '../common/interfaces/search-adapter.interface';
+import { SearchResult } from '../common/types';
 
 export class SerpApiAdapter implements ISearchAdapter {
   private apiKey: string;

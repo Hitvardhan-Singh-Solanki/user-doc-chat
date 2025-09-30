@@ -86,12 +86,59 @@ The **AI Legal Document Q&A App** project aims to simplify document interaction 
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Node.js (TypeScript, Express)
+- **Backend**: Node.js (TypeScript, Express) with modular architecture
 - **AI/LLM**: OpenAI API / local LLMs
 - **Vector Store**: PostgreSQL + pgvector / Pinecone / Weaviate / ChromaDB
 - **Storage**: S3 / Cloudflare R2
 - **Frontend**: React / Vue (chat interface)
 - **Containerization**: Docker & Docker Compose
+
+## 🏗️ Architecture
+
+The application follows a **modular domain-driven design** with clear separation of concerns:
+
+```
+src/
+├── app.ts                    # Express app setup
+├── server.ts                 # Server bootstrap
+├── config/                   # Configuration
+├── common/                   # Shared utilities
+│   ├── errors/              # Error handling
+│   ├── middleware/          # Shared middleware
+│   ├── utils/               # Utility functions
+│   ├── interfaces/          # TypeScript interfaces
+│   └── types/               # Type definitions
+├── modules/                  # Feature modules
+│   ├── auth/                # Authentication domain
+│   │   ├── controllers/     # Auth controllers
+│   │   ├── services/        # Auth business logic
+│   │   ├── routes/          # Auth routes
+│   │   ├── schemas/         # Auth validation schemas
+│   │   └── tests/           # Auth tests
+│   ├── files/               # File management domain
+│   │   ├── controllers/     # File controllers
+│   │   ├── services/        # File processing logic
+│   │   ├── workers/         # Background workers
+│   │   ├── events/          # File events
+│   │   └── sanitization/    # File sanitization services
+│   ├── chat/                # Chat and LLM domain
+│   │   ├── services/        # LLM, prompt, enrichment services
+│   │   └── tests/           # Chat tests
+│   ├── vector/              # Vector operations domain
+│   │   ├── services/        # Vector store services
+│   │   └── repos/           # Vector repositories
+│   └── health/              # Health check domain
+├── repos/                    # Repository layer
+├── services/                 # Shared services
+└── tests/                    # Test setup
+```
+
+### Key Benefits:
+- **Domain Separation**: Each feature is self-contained
+- **Scalability**: Easy to add new features or modify existing ones
+- **Maintainability**: Related code is grouped together
+- **Testability**: Tests are co-located with their modules
+- **Team Collaboration**: Multiple developers can work on different modules
 
 ---
 
@@ -297,32 +344,41 @@ flowchart LR
 ```bash
 # Clone repo
 git clone <repo-url>
-cd ai-doc-qa-app
+cd user-doc-chat
 
 # Install dependencies
 npm install
 
-# Start services
-docker-compose up --build
+# Development setup
+npm run dev          # Starts both API server and worker
+npm run dev:api      # Starts only the API server
+npm run worker:dev   # Starts only the file processing worker
 
+# Production build
+npm run build        # Builds both API and worker
+npm run start        # Starts both API server and worker in production
 
-## for dev
-docker-compose -f docker-compose.dev.yml up --build -d
+# Database migrations
+npm run migrate:up   # Run pending migrations
+npm run migrate:down # Rollback last migration
 
-## for prod
-docker-compose up --build -d
+# Testing
+npm test             # Run all tests
+npm run test:watch   # Run tests in watch mode
+npm run coverage     # Generate test coverage report
 
+# Code quality
+npm run lint         # Run ESLint
+npm run lint-fix     # Fix ESLint issues
+npm run type-check   # TypeScript type checking
 
-## for stopping
-docker-compose down
+# Docker setup
+docker-compose up --build                    # Production
+docker-compose -f docker-compose.dev.yml up --build -d  # Development
 
-## migrations
-docker compose run --rm backend npx node-pg-migrate up
-docker compose -f docker-compose.dev.yml run --rm backend npx node-pg-migrate up
-
-## python embedding endpoint
+# Python embedding service (optional)
 pip install -r requirements.txt
-cd llm_service
+cd python_service
 uvicorn main:app --port 8000
 ```
 
@@ -504,14 +560,48 @@ flowchart TB
         SSE[SSE Client]
     end
 
-    subgraph Backend
-        API[Express API]
-        Auth[Auth Service]
-        Queue[BullMQ Queue]
-        Worker[File Worker]
-        Vector[Vector Store]
-        LLM[LLM Service]
-        Redis[Redis Cache]
+    subgraph "Modular Backend"
+        subgraph "API Layer"
+            API[Express API - server.ts]
+            APP[App Setup - app.ts]
+        end
+        
+        subgraph "Auth Module"
+            AuthCtrl[Auth Controller]
+            AuthSvc[Auth Service]
+            AuthRoutes[Auth Routes]
+        end
+        
+        subgraph "Files Module"
+            FileCtrl[File Controller]
+            FileSvc[File Upload Service]
+            FileWorker[File Worker]
+            Sanitization[Sanitization Services]
+        end
+        
+        subgraph "Chat Module"
+            ChatSvc[WebSocket Service]
+            LLM[LLM Service]
+            Prompt[Prompt Service]
+            Enrichment[Enrichment Service]
+        end
+        
+        subgraph "Vector Module"
+            VectorSvc[Vector Store Service]
+            PineconeSvc[Pinecone Service]
+        end
+        
+        subgraph "Common Layer"
+            Middleware[Shared Middleware]
+            Utils[Utility Functions]
+            Types[Type Definitions]
+        end
+        
+        subgraph "Infrastructure"
+            Queue[BullMQ Queue]
+            Redis[Redis Cache]
+            Repos[Repository Layer]
+        end
     end
 
     subgraph Storage
@@ -523,34 +613,78 @@ flowchart TB
     UI --> API
     WS --> API
     SSE --> API
-    API --> Auth
-    API --> Queue
-    Queue --> Worker
-    Worker --> S3
-    Worker --> Vector
-    Vector --> PC
-    API --> LLM
+    
+    API --> APP
+    APP --> AuthRoutes
+    APP --> FileCtrl
+    APP --> ChatSvc
+    
+    AuthRoutes --> AuthCtrl
+    AuthCtrl --> AuthSvc
+    AuthSvc --> PG
+    
+    FileCtrl --> FileSvc
+    FileSvc --> Queue
+    Queue --> FileWorker
+    FileWorker --> Sanitization
+    FileWorker --> S3
+    FileWorker --> VectorSvc
+    
+    ChatSvc --> LLM
+    ChatSvc --> Prompt
+    ChatSvc --> Enrichment
     LLM --> PC
+    Enrichment --> VectorSvc
+    
+    VectorSvc --> PineconeSvc
+    PineconeSvc --> PC
+    
     API --> Redis
-    Auth --> PG
+    ChatSvc --> Redis
 ```
 
 ### Service Interactions
 
 1. **File Upload Flow**
-   - Client uploads file to Express API
-   - File saved to S3/R2
+   - Client uploads file to Express API (`/modules/files/controllers/`)
+   - File saved to S3/R2 via file upload service
    - Metadata stored in PostgreSQL
    - Processing job added to BullMQ
-   - Worker processes and vectors stored in Pinecone
+   - Worker (`/modules/files/workers/`) processes and vectors stored in Pinecone
    - Progress tracked via SSE
 
 2. **Query Flow**
-   - Client sends question via WebSocket
-   - Question embedded and matched in Pinecone
-   - Relevant chunks retrieved and sent to LLM
+   - Client sends question via WebSocket (`/modules/chat/services/websocket.service.ts`)
+   - Question embedded and matched in Pinecone via vector service
+   - Relevant chunks retrieved and sent to LLM service
    - Answer streamed back to client
    - Chat history stored in Redis
+
+### Development Workflow
+
+The modular architecture enables efficient development workflows:
+
+1. **Feature Development**
+   - Work within specific modules (e.g., `/modules/auth/`)
+   - Each module is self-contained with its own tests
+   - Changes are isolated and don't affect other modules
+
+2. **Testing Strategy**
+   - Unit tests are co-located with their modules
+   - Integration tests can focus on specific module interactions
+   - End-to-end tests verify complete user flows
+
+3. **Code Organization**
+   - Controllers handle HTTP requests/responses
+   - Services contain business logic
+   - Repositories handle data access
+   - Common utilities are shared across modules
+
+4. **Adding New Features**
+   - Create new module under `/modules/`
+   - Follow the established pattern: controllers, services, routes, tests
+   - Import shared utilities from `/common/`
+   - Register routes in `app.ts`
 
 ### Performance Considerations
 

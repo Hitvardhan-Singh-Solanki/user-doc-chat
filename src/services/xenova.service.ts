@@ -1,5 +1,5 @@
 import { AutoTokenizer } from '@xenova/transformers';
-import { ITokenizer } from '../interfaces/tokenizer.interface';
+import { ITokenizer } from '../common/interfaces/tokenizer.interface';
 
 export class XenovaTokenizerAdapter implements ITokenizer {
   private tokenizer: any;

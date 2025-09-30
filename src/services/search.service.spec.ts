@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SearchService } from './search.service';
-import { ISearchAdapter } from '../interfaces/search-adapter.interface';
-import { SearchResult } from '../types';
+import { ISearchAdapter } from '../common/interfaces/search-adapter.interface';
+import { SearchResult } from '../common/types';
 
 describe('SearchService', () => {
   let searchService: SearchService;

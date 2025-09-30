@@ -1,4 +1,4 @@
-import { ITokenizer } from '../interfaces/tokenizer.interface';
+import { ITokenizer } from '../common/interfaces/tokenizer.interface';
 
 export class SimpleTokenizerAdapter implements ITokenizer {
   encode(text: string): number[] {
