@@ -1,7 +1,7 @@
 import { Server } from 'http';
-import { connectRedis } from './repos/redis.repo';
-import { WebsocketService } from './modules/chat/services/websocket.service';
-import { logger } from './config/logger';
+import { connectRedis } from './infrastructure/database/repositories/redis.repo';
+import { WebsocketService } from './domains/chat/services/websocket.service';
+import { logger } from './config/logger.config';
 import { createApp } from './app';
 
 (async () => {

@@ -1,11 +1,11 @@
 import express from 'express';
-import './modules/files/events/file.event';
-import authRoutes from './modules/auth/routes/auth.routes';
-import healthRoutes from './modules/health/routes/health.route';
-import fileRoutes from './modules/files/routes/file.routes';
-import { WebsocketService } from './modules/chat/services/websocket.service';
-import { requestLogger } from './common/middleware/monitoring';
-import { logger } from './config/logger';
+import './domains/files/events/file.event';
+import authRoutes from './domains/auth/routes/auth.routes';
+import healthRoutes from './domains/health/routes/health.route';
+import fileRoutes from './domains/files/routes/file.routes';
+import { WebsocketService } from './domains/chat/services/websocket.service';
+import { requestLogger } from './shared/middleware/monitoring.middleware';
+import { logger } from './config/logger.config';
 
 export function createApp(): express.Application {
   const app = express();

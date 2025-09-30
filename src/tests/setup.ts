@@ -18,6 +18,22 @@ vi.mock('bullmq', () => {
         on: vi.fn(),
       };
     }),
+    Queue: vi.fn().mockImplementation((queueName, options) => {
+      return {
+        name: queueName,
+        add: vi.fn(),
+        getJobs: vi.fn(),
+        clean: vi.fn(),
+        close: vi.fn(),
+      };
+    }),
+    QueueEvents: vi.fn().mockImplementation((queueName, options) => {
+      return {
+        name: queueName,
+        on: vi.fn(),
+        close: vi.fn(),
+      };
+    }),
   };
 });
 
