@@ -2,16 +2,16 @@ import { z } from 'zod';
 import { PromptConfig } from '../types';
 import { LowContentSchema } from '../schemas/low-content.schema';
 import { UserInputSchema } from '../schemas/user-input.schema';
-import { AutoTokenizer } from '@xenova/transformers';
 import { logger } from '../config/logger';
+import { ITokenizer } from '../interfaces/tokenizer.interface';
 
 export class PromptService {
   private logger;
-  private tokenizer: any;
+  private tokenizer: ITokenizer;
 
-  constructor() {
+  constructor(tokenizer: ITokenizer) {
     this.logger = logger;
-    this.initializeTokenizer();
+    this.tokenizer = tokenizer;
     this.logger.info('PromptService initialized.');
   }
 
@@ -95,7 +95,7 @@ ${sanitizedQuestion}
 === ANSWER ===
 `.trim();
 
-    const initialTokens = this.estimateTokens(prompt);
+    const initialTokens = this.tokenizer.countTokens(prompt);
     if (initialTokens > finalConfig.maxLength!) {
       // FIX: Corrected log order
       this.logger.warn(
@@ -109,7 +109,7 @@ ${sanitizedQuestion}
       if (finalConfig.truncateStrategy === 'truncate-history') {
         const targetTokens = Math.max(
           0,
-          this.estimateTokens(sanitizedHistory) - overflow - buffer,
+          this.tokenizer.countTokens(sanitizedHistory) - overflow - buffer,
         );
         truncatedText = this.truncateByTokens(
           sanitizedHistory,
@@ -120,7 +120,7 @@ ${sanitizedQuestion}
       } else if (finalConfig.truncateStrategy === 'truncate-context') {
         const targetTokens = Math.max(
           0,
-          this.estimateTokens(sanitizedContext) - overflow - buffer,
+          this.tokenizer.countTokens(sanitizedContext) - overflow - buffer,
         );
         truncatedText = this.truncateByTokens(
           sanitizedContext,
@@ -135,7 +135,7 @@ ${sanitizedQuestion}
         throw new Error('Prompt exceeds max length');
       }
 
-      const finalTokens = this.estimateTokens(prompt);
+      const finalTokens = this.tokenizer.countTokens(prompt);
       if (finalTokens > finalConfig.maxLength!) {
         // FIX: Corrected log order
         this.logger.error(
@@ -151,7 +151,7 @@ ${sanitizedQuestion}
         {
           version: finalConfig.version,
           length: prompt.length,
-          tokens: this.estimateTokens(prompt),
+          tokens: this.tokenizer.countTokens(prompt),
           tone: finalConfig.tone,
           language: finalConfig.language,
           jurisdiction: finalConfig.jurisdiction,
@@ -219,7 +219,7 @@ ${content}
 === SUMMARY ===
 `.trim();
 
-    const initialTokens = this.estimateTokens(prompt);
+    const initialTokens = this.tokenizer.countTokens(prompt);
     if (initialTokens > finalConfig.maxLength!) {
       // FIX: Corrected log order
       this.logger.warn(
@@ -230,7 +230,7 @@ ${content}
       const buffer = finalConfig.truncateBuffer ?? 0;
       const targetLen = Math.max(
         0,
-        this.estimateTokens(content) - overflow - buffer,
+        this.tokenizer.countTokens(content) - overflow - buffer,
       );
       const truncated = this.truncateText(
         content,
@@ -239,7 +239,7 @@ ${content}
       );
       prompt = prompt.replace(content, truncated);
 
-      const finalTokens = this.estimateTokens(prompt);
+      const finalTokens = this.tokenizer.countTokens(prompt);
       if (finalTokens > finalConfig.maxLength!) {
         // FIX: Corrected log order
         this.logger.error(
@@ -255,7 +255,7 @@ ${content}
         {
           version: finalConfig.version,
           length: prompt.length,
-          tokens: this.estimateTokens(prompt),
+          tokens: this.tokenizer.countTokens(prompt),
           tone: finalConfig.tone,
           language: finalConfig.language,
           jurisdiction: finalConfig.jurisdiction,
@@ -297,34 +297,6 @@ User question: "${userQuestion}"
 
 Optimized search query:
 `.trim();
-  }
-
-  private async initializeTokenizer() {
-    try {
-      this.logger.info('Initializing tokenizer...');
-      this.tokenizer = await AutoTokenizer.from_pretrained(
-        process.env.HUGGINGFACE_CHAT_MODEL!,
-      );
-      this.logger.info('Tokenizer initialized successfully.');
-    } catch (error) {
-      // FIX: Corrected log order to pass object first, then message
-      this.logger.error({ error }, 'Failed to initialize tokenizer');
-    }
-  }
-
-  private estimateTokens(text: string): number {
-    if (!this.tokenizer) {
-      this.logger.warn(
-        'Tokenizer not available. Using a heuristic for token estimation.',
-      );
-      return Math.ceil(text.length / 4);
-    }
-    const tokens = this.tokenizer.encode(text);
-    this.logger.debug(
-      { textLength: text.length, tokens: tokens.length },
-      'Estimated tokens.',
-    );
-    return tokens.length;
   }
 
   private truncateText(
@@ -384,55 +356,18 @@ Optimized search query:
     maxTokens: number,
     strategy: 'truncate-history' | 'truncate-context',
   ): string {
-    if (!this.tokenizer) {
-      this.logger.warn(
-        'Tokenizer not available. Falling back to heuristic truncation.',
-      );
-      return this.truncateText(text, maxTokens * 4, strategy);
-    }
-    this.logger.info(
-      { strategy, maxTokens, originalTokens: this.estimateTokens(text) },
-      'Truncating text by token count.',
-    );
-
-    if (strategy === 'truncate-history') {
-      const lines = text.split('\n').filter(Boolean);
-      const kept: string[] = [];
-      let used = 0;
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const t = this.estimateTokens(lines[i]);
-        if (used + t > maxTokens && kept.length > 0) {
-          this.logger.debug('Stopping history truncation due to token limit.');
-          break;
-        }
-        kept.unshift(lines[i]);
-        used += t;
-      }
-      return kept.join('\n');
-    }
-
-    // truncate-context: accumulate sentences from the end with priority bias
-    const priorityRegex =
-      /(Section|Clause|Article|Definition|Preamble)\s+\d+(?:\.\d+)*/i;
-    const sentences = text
-      .split(/(?<=[.!?])\s+/)
-      .filter(Boolean)
-      .reverse();
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
     const kept: string[] = [];
     let used = 0;
-    for (const s of sentences) {
-      const t = this.estimateTokens(s);
-      const fits = used + t <= maxTokens;
-      const prioritized = priorityRegex.test(s);
-      if (fits || (prioritized && used < maxTokens)) {
+
+    for (const s of sentences.reverse()) {
+      const t = this.tokenizer.countTokens(s);
+      if (used + t <= maxTokens) {
         kept.push(s);
         used += t;
-        if (used >= maxTokens) {
-          this.logger.debug('Stopping context truncation due to token limit.');
-          break;
-        }
       }
     }
+
     return kept.reverse().join(' ').trim();
   }
 
