@@ -9,9 +9,9 @@
     "migrate:create": "node-pg-migrate create",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "worker:dev": "ts-node-dev --respawn --transpile-only src/modules/files/workers/user-document-consumer.worker.ts",
+    "worker:dev": "ts-node-dev --respawn --transpile-only src/domains/files/workers/file-processing.worker.ts",
     "worker:build": "tsc",
-    "worker:start": "node dist/modules/files/workers/user-document-consumer.worker.js",
+    "worker:start": "node dist/domains/files/workers/file-processing.worker.js",
     "dev": "concurrently \"npm run dev:api\" \"npm run worker:dev\"",
     "build": "npm run build:api && npm run worker:build",
     "start": "concurrently \"npm run start:api\" \"npm run worker:start\"",
@@ -21,7 +21,7 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint-fix": "eslint . --max-warnings 0 --fix",
-    "generate-proto": "grpc_tools_node_protoc   --js_out=import_style=commonjs,binary:./src/proto   --grpc_out=grpc_js:./src/proto   --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts   --ts_out=grpc_js:./src/proto   -I ./proto   ./proto/sanitizer.proto"
+    "generate-proto": "grpc_tools_node_protoc   --js_out=import_style=commonjs,binary:./src/infrastructure/external-services/grpc/proto   --grpc_out=grpc_js:./src/infrastructure/external-services/grpc/proto   --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts   --ts_out=grpc_js:./src/infrastructure/external-services/grpc/proto   -I ./proto   ./proto/sanitizer.proto"
   },
   "keywords": [],
   "author": "",
