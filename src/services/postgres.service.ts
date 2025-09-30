@@ -1,8 +1,8 @@
 import { QueryResult } from 'pg';
 import { db } from '../repos/db.repo';
-import { IDBStore } from '../interfaces/db-store.interface';
-import { Vector } from '../types';
-import { IVectorStore } from '../interfaces/vector-store.interface';
+import { IDBStore } from '../common/interfaces/db-store.interface';
+import { Vector } from '../common/types';
+import { IVectorStore } from '../common/interfaces/vector-store.interface';
 
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;

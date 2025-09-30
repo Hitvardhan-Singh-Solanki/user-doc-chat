@@ -1,4 +1,4 @@
-import { Client, SSEData } from '../types';
+import { Client, SSEData } from '../common/types';
 import { redisPub, redisSub } from '../repos/redis.repo';
 import { logger } from '../config/logger';
 
