@@ -35,12 +35,15 @@ export function createPinoMetricsTransport(): Transform {
 
         // Log the error with details
         const logger = pino({ name: 'metrics-service' });
-        logger.error('Error in pino metrics transform:', {
-          error: error instanceof Error ? error.message : String(error),
-          errorType,
-          chunk: typeof chunk === 'object' ? '[object]' : String(chunk),
-          stack: error instanceof Error ? error.stack : undefined,
-        });
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            errorType,
+            chunk: typeof chunk === 'object' ? '[object]' : String(chunk),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          'Error in pino metrics transform:',
+        );
 
         // Skip pushing the problematic chunk and continue stream
         callback();
