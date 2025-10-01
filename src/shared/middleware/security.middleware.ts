@@ -198,8 +198,8 @@ function sanitizeObject(obj: Record<string, unknown>): void {
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
           .replace(/javascript:/gi, '')
           .replace(/on\w+\s*=/gi, '');
-      } else if (typeof obj[key] === 'object') {
-        sanitizeObject(obj[key]);
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        sanitizeObject(obj[key] as Record<string, unknown>);
       }
     }
   }
