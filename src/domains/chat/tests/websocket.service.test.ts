@@ -40,42 +40,38 @@ vi.mock('../services/enrichment.service', () => ({
   EnrichmentService: vi.fn(),
 }));
 
+// Mock socket.io Server
+const mockIo = {
+  use: vi.fn((middleware) => {
+    mockIo._authMiddleware = middleware;
+    return mockIo;
+  }),
+  on: vi.fn(),
+  to: vi.fn().mockReturnValue({ emit: vi.fn() }),
+  _authMiddleware: null as any,
+};
+
+vi.mock('socket.io', () => ({
+  Server: vi.fn().mockImplementation(() => mockIo),
+}));
+
 describe('WebsocketService', () => {
   let app: any;
   let ws: WebsocketService;
-  let mockIo: any;
 
   beforeEach(() => {
     app = { use: vi.fn() };
     vi.clearAllMocks();
-    
+
     // Reset singleton instance before each test
     (WebsocketService as any).instance = null;
-    
-    // Setup io mock before creating the service
-    let storedMiddleware: any;
-    mockIo = {
-      use: vi.fn((middleware) => {
-        // Store the middleware for later use
-        storedMiddleware = middleware;
-        mockIo._authMiddleware = middleware;
-        return mockIo;
-      }),
-      on: vi.fn(),
-      to: vi.fn().mockReturnValue({ emit: vi.fn() })
-    };
-    
-    // Mock the Server constructor
-    vi.doMock('socket.io', () => ({
-      Server: vi.fn().mockImplementation(() => mockIo)
-    }));
-    
+
+    // Reset the middleware storage
+    mockIo._authMiddleware = null;
+
+    // Create the service - this will call authVerification() which calls io.use()
     ws = WebsocketService.getInstance(app);
-    // Replace the io instance with our mock
-    (ws as any).io = mockIo;
-    // Store middleware reference
-    mockIo._authMiddleware = storedMiddleware;
-    
+
     // Setup Redis mock to return resolved values
     vi.mocked(redisChatHistory.rPush).mockResolvedValue(1);
     vi.mocked(redisChatHistory.lRange).mockResolvedValue([]);
@@ -91,10 +87,14 @@ describe('WebsocketService', () => {
   it('authVerification sets userId correctly', async () => {
     const socket: any = { handshake: { auth: { token: 'token' } } };
     const next = vi.fn();
-    
+
     // Get the stored middleware from our mock
     const middlewareFn = mockIo._authMiddleware;
-    
+
+    // Ensure middleware function exists
+    expect(middlewareFn).toBeDefined();
+    expect(typeof middlewareFn).toBe('function');
+
     // Call the middleware
     await middlewareFn(socket, next);
 
@@ -113,7 +113,7 @@ describe('WebsocketService', () => {
     (ws as any).llmService = {
       getEmbedding: vi.fn().mockResolvedValue([0.1, 0.2]),
     };
-    
+
     // Mock the Pinecone service to return no matches
     (ws as any).pineconeService = {
       query: vi.fn().mockResolvedValue({ matches: [] }),
