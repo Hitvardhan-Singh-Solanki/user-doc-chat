@@ -258,29 +258,108 @@ npm run coverage
 - [ ] **User Experience** - Document annotation, collaborative features
 - [ ] **Performance** - CDN integration, advanced caching
 
-### 📝 Future Features
+### 📝 Legal-Specific Roadmap
 
-- [ ] **Custom Models** - Fine-tuned models for specific legal domains
-- [ ] **Enterprise Features** - Multi-tenancy, advanced permissions
-- [ ] **Integration APIs** - Third-party integrations, webhooks
+#### 🔒 Legal-Grade Compliance Layer (Basic Implementation)
+- [x] **Basic Security Headers** - XSS protection, CSRF protection, content security policy
+- [x] **Input Sanitization** - XSS and injection attack prevention
+- [x] **File Security** - Secure file upload with validation and type checking
+- [x] **JWT Authentication** - Secure authentication with token validation
+- [ ] **Data Residency Controls** - Jurisdictional data storage (EU vs US vs APAC) for law firms bound by jurisdictional rules
+- [ ] **Field-Level Encryption** - Encrypt highly sensitive clauses and confidential information
+- [ ] **Key Management Service (KMS)** - Integration with HashiCorp Vault or AWS KMS for encryption key management separate from app stack
+- [x] **Basic Audit Logging** - Request/response logging with security monitoring
+
+#### 🧠 RAG Optimization for Legal Documents
+- [x] **Vector Search** - Pinecone-based semantic search for document retrieval
+- [x] **Document Processing** - PDF, DOCX, and TXT file processing with background jobs
+- [x] **Chat History Caching** - Redis-based chat history storage and retrieval
+- [ ] **Hybrid Search** - Combine BM25 + semantic embeddings (Pinecone hybrid search) for better legal document retrieval
+- [ ] **Legal Document Chunking** - Section-based and clause-aware chunking strategies optimized for legal documents
+- [ ] **Retrieval Caching** - Cache retrieval results in Redis for repeated queries in same legal session
+- [ ] **Legal Citation Integration** - Automatic extraction and linking of legal citations and case law references
+
+#### 🛡️ Security Hardening
+- [x] **Rate Limiting** - Basic rate limiting middleware (needs enhancement for production)
+- [x] **Security Logging** - Suspicious pattern detection and security event logging
+- [x] **CORS Protection** - Configurable CORS with security considerations
+- [x] **Request Size Limits** - Protection against large request attacks
+- [ ] **mTLS for gRPC** - Enforce mutual TLS for Node ↔ Python gRPC communication
+- [ ] **Advanced Rate Limiting** - Legal SaaS-specific rate limiting and abuse detection with Redis
+- [ ] **Dependency Security** - Regular vulnerability scans with Snyk/GitHub Dependabot
+- [ ] **Zero-Trust Architecture** - Implement zero-trust principles for legal document access
+
+#### 🚀 Production Readiness
+- [x] **Basic Monitoring** - Prometheus metrics and Grafana dashboards
+- [x] **Structured Logging** - Pino-based logging with request tracking
+- [x] **Health Checks** - Application health monitoring endpoints
+- [x] **Docker Deployment** - Containerized deployment with Docker Compose
+- [x] **Background Processing** - BullMQ job queue for asynchronous file processing
+- [ ] **OpenTelemetry Tracing** - Distributed tracing across Node, Python, Redis, and Postgres
+- [ ] **Circuit Breakers** - Fallback mechanisms when Pinecone or HuggingFace API is down
+- [ ] **Document Versioning** - Immutable record-keeping in S3 for legal compliance
+- [ ] **High Availability** - Multi-region deployment for legal firms with global operations
+
+#### 🏗️ Architecture Enhancements (Advanced Implementation)
+- [ ] **Redis-Based Rate Limiting** - Replace in-memory rate limiting with Redis for multi-instance scaling
+- [ ] **Advanced Caching Strategy** - Redis caching for expensive operations (embeddings, LLM responses)
+- [ ] **Load Balancing** - Horizontal scaling with proper load balancer configuration
+- [ ] **SLA Monitoring** - Business metrics and SLA tracking for legal document processing
+- [ ] **Proactive Alerting** - Alerting strategy for system health and business metrics
+- [ ] **Multi-Tenancy** - Support for multiple law firms with data isolation
+- [ ] **Advanced Error Recovery** - Graceful degradation and recovery mechanisms
+
+#### ⚖️ Legal-Specific UX Features
+- [x] **Real-time Chat** - WebSocket-based interactive document Q&A
+- [x] **File Upload & Processing** - Multi-format document upload with progress tracking
+- [x] **User Isolation** - Multi-user document access control
+- [ ] **Source Citations** - Responses with clause IDs, page numbers, and case law references
+- [ ] **Multi-Document Analysis** - Compare contracts across different clients and cases
+- [ ] **Audit-Ready Exports** - Download JSON/PDF logs of conversations for legal records
+- [ ] **Legal Template Integration** - Pre-built templates for common legal document types
+- [ ] **Client Matter Management** - Organize documents by client and matter for law firm workflows
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**This is proprietary software. Public contributions are not accepted.**
+
+### For Authorized Contributors Only
+
+If you are an authorized contributor with explicit written permission:
+
+1. **Contact the maintainer** before making any changes
+2. **Sign a contributor agreement** and confidentiality agreement
+3. **Obtain written approval** for your proposed changes
+4. **Follow internal development guidelines** and security protocols
+5. **Submit changes through approved channels** only
+
+### Public Forks and Pull Requests
+
+- **Public forks are not permitted** under the proprietary license
+- **Pull requests from public repositories will be rejected**
+- **Unauthorized copying or modification is prohibited**
+
+For licensing inquiries or collaboration opportunities, please contact the maintainer directly.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is **proprietary and confidential**. All rights reserved.
+
+**Copyright (c) 2025 Hitvardhan Singh Solanki**
+
+This software is proprietary and confidential. Unauthorized copying, modification, distribution, or use is prohibited without explicit written permission.
+
+See the [LICENSE.md](LICENSE.md) file for full terms and conditions.
 
 ## 🆘 Support
 
 - **Documentation**: Check the [docs](./docs/) directory for comprehensive guides
-- **Issues**: Report bugs and request features via GitHub Issues
-- **Security**: Report security issues privately to the maintainers
+- **Licensing Inquiries**: Contact the maintainer for licensing, permissions, or collaboration opportunities
+- **Authorized Users**: For technical support, contact through approved channels only
+- **Security**: Report security issues privately to the maintainer (do not use public GitHub Issues)
+- **Legal Questions**: Consult the [LICENSE.md](LICENSE.md) file for full terms and conditions
+
+**Note**: This is proprietary software. Support is limited to authorized users and licensees only.
 
 ---
 
