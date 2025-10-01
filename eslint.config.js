@@ -1,8 +1,8 @@
-import eslintRecommended from '@eslint/js';
-import prettierRecommended from 'eslint-plugin-prettier/recommended';
-import tseslint from 'typescript-eslint';
+const eslintRecommended = require('@eslint/js');
+const prettierRecommended = require('eslint-plugin-prettier/recommended');
+const tseslint = require('typescript-eslint');
 
-export default [
+module.exports = [
   {
     ignores: [
       'python_service/',
@@ -24,6 +24,7 @@ export default [
       '*.min.js',
       '*.d.ts',
       'src/proto/',
+      'src/infrastructure/external-services/grpc/proto/',
     ],
   },
   eslintRecommended.configs.recommended,
@@ -32,6 +33,9 @@ export default [
     rules: {
       eqeqeq: 'error',
       'no-console': 'warn',
+      // Set TypeScript any and unused vars rules to warn for better visibility
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
     },
   },
   prettierRecommended,

@@ -3,13 +3,18 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     volumes:
       - .:/app
       - /app/node_modules
+      # Mount TLS certificates for gRPC sanitizer service
+      - ./certs:/app/certs:ro
     ports:
-      - "3000:3000"
+      - '3000:3000'
     env_file:
-      - .env
+      - .env.dev
     depends_on:
       - db
       - redis
@@ -22,10 +27,12 @@ services:
       dockerfile: docker/Dockerfile.python
     volumes:
       - ./python_service:/app
+      # Mount TLS certificates for gRPC server
+      - ./certs:/app/certs:ro
     ports:
-      - "50051:50051"
+      - '50051:50051'
     env_file:
-      - .env
+      - .env.dev
     depends_on:
       - db
       - redis
@@ -37,14 +44,14 @@ services:
     container_name: db
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.dev
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./docker/init-db.d:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,11 +59,11 @@ services:
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli ping"]
+      test: ['CMD', 'redis-cli ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -65,12 +72,12 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     env_file:
-      - .env
+      - .env.dev
 
 volumes:
   db_data:

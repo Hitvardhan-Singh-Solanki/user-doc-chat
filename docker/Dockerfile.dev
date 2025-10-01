@@ -1,10 +1,22 @@
 FROM node:22
 
+# Accept build arguments for UID/GID with defaults
+ARG UID=1000
+ARG GID=1000
+
 WORKDIR /app
+
+# Create certificates directory for TLS
+RUN mkdir -p /app/certs
 
 COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+# Create non-root user for security with dynamic UID/GID
+RUN groupadd -g $GID appuser && useradd -u $UID -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
 
 CMD ["npm", "run", "dev"]
