@@ -10,12 +10,25 @@ import { join } from 'path';
  * This test verifies the complete flow from Node.js client to Python gRPC server
  */
 describe('gRPC Sanitizer Service E2E', () => {
+  // Skip all tests if Python is not available locally and not in CI
+  if (global.testUtils.skipIfNoPython()) {
+    it.skip('Python not available locally - skipping all gRPC tests', () => {
+      console.log('Skipping gRPC tests - Python not available locally');
+    });
+    return;
+  }
   let pythonService: ChildProcess | null = null;
   let grpcClient: any = null;
   const GRPC_HOST = 'localhost:50051';
   const REQUEST_TIMEOUT_MS = 10000;
 
   beforeAll(async () => {
+    // Skip if Python is not available locally and not in CI
+    if (global.testUtils.skipIfNoPython()) {
+      console.log('Skipping gRPC tests - Python not available locally');
+      return;
+    }
+
     // Start the Python gRPC service for testing
     await startPythonService();
 

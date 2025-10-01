@@ -8,6 +8,15 @@ import { sanitizeFileGrpcBuffer } from '../../domains/files/services/sanitizatio
  * This test verifies the actual service integration used by the application
  */
 describe('Sanitizer Client Service E2E', () => {
+  // Skip all tests if Python is not available locally and not in CI
+  if (global.testUtils.skipIfNoPython()) {
+    it.skip('Python not available locally - skipping all sanitizer client tests', () => {
+      console.log(
+        'Skipping sanitizer client tests - Python not available locally',
+      );
+    });
+    return;
+  }
   let pythonService: ChildProcess | null = null;
 
   beforeAll(async () => {

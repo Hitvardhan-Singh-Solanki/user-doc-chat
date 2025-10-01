@@ -35,9 +35,12 @@ def sanitize_text(file_bytes: bytes) -> str:
         # If UTF-8 fails, try with error handling
         text_content = file_bytes.decode('utf-8', errors='replace')
     
-    # Basic sanitization - remove any potential harmful content
-    # For now, just return the content as markdown
-    return f"```\n{text_content}\n```"
+    # Sanitize markdown-sensitive characters to prevent code fence breakout
+    # Escape triple backticks that could break out of the markdown code fence
+    sanitized_content = text_content.replace('```', '\\`\\`\\`')
+    
+    # Return the content wrapped in markdown code fences
+    return f"```\n{sanitized_content}\n```"
 
 def sanitize_file(file_data: bytes, file_type: str) -> str:
     """

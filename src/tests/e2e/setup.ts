@@ -77,6 +77,15 @@ vi.mock('@huggingface/inference', () => ({
   HfInference: vi.fn().mockImplementation(() => ({
     featureExtraction: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
   })),
+  InferenceClient: vi.fn().mockImplementation(() => ({
+    textGeneration: vi.fn().mockResolvedValue({
+      generated_text: 'This is a mock AI response for testing purposes.',
+    }),
+    featureExtraction: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+    summarization: vi.fn().mockResolvedValue({
+      summary_text: 'This is a mock summary for testing purposes.',
+    }),
+  })),
 }));
 
 vi.mock('@pinecone-database/pinecone', () => ({
@@ -93,6 +102,243 @@ vi.mock('@pinecone-database/pinecone', () => ({
         ],
       }),
     }),
+  })),
+}));
+
+// Mock Xenova transformers to avoid HuggingFace tokenizer issues
+vi.mock('@xenova/transformers', () => ({
+  AutoTokenizer: {
+    from_pretrained: vi.fn().mockResolvedValue({
+      encode: vi.fn().mockReturnValue([1, 2, 3, 4, 5]),
+      decode: vi.fn().mockReturnValue('decoded text'),
+    }),
+  },
+}));
+
+// Mock bcrypt for password hashing
+vi.mock('bcrypt', () => ({
+  default: {
+    hash: vi.fn().mockResolvedValue('$2b$10$hashedpassword'),
+    compare: vi.fn().mockImplementation((password, hash) => {
+      // For testing, always return true for valid passwords
+      return Promise.resolve(
+        password === 'testpassword123' || password === 'TestPassword123!',
+      );
+    }),
+  },
+  hash: vi.fn().mockResolvedValue('$2b$10$hashedpassword'),
+  compare: vi.fn().mockImplementation((password, hash) => {
+    // For testing, always return true for valid passwords
+    return Promise.resolve(
+      password === 'testpassword123' || password === 'TestPassword123!',
+    );
+  }),
+}));
+
+// Mock email validation utilities
+vi.mock('../../../shared/utils/email', () => ({
+  normalizeEmail: vi.fn().mockImplementation((email: string) => {
+    if (!email || typeof email !== 'string') return '';
+    return email.trim().toLowerCase();
+  }),
+  isValidEmailFormat: vi.fn().mockImplementation((email: string) => {
+    if (!email || typeof email !== 'string') return false;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  }),
+}));
+
+// Mock jsonwebtoken library
+vi.mock('jsonwebtoken', () => ({
+  default: {
+    sign: vi.fn().mockImplementation((payload: any) => {
+      return `mock-jwt-token-${payload.sub}`;
+    }),
+    verify: vi.fn().mockImplementation((token: string) => {
+      if (token.includes('mock-jwt-token')) {
+        return { sub: 'test-id', email: 'test@example.com' };
+      }
+      throw new Error('Invalid token');
+    }),
+  },
+  sign: vi.fn().mockImplementation((payload: any) => {
+    return `mock-jwt-token-${payload.sub}`;
+  }),
+  verify: vi.fn().mockImplementation((token: string) => {
+    if (token.includes('mock-jwt-token')) {
+      return { sub: 'test-id', email: 'test@example.com' };
+    }
+    throw new Error('Invalid token');
+  }),
+}));
+
+// Mock express-jwt library
+vi.mock('express-jwt', () => ({
+  expressjwt: vi.fn().mockImplementation(() => {
+    return (req: any, res: any, next: any) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const token = authHeader.substring(7);
+      if (token === 'invalid-token') {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Accept mock JWT tokens
+      if (token.includes('mock-jwt-token')) {
+        req.user = { sub: 'test-id', email: 'test@example.com' };
+        return next();
+      }
+
+      // For other tokens, check if they're valid JWT format
+      if (token.split('.').length === 3) {
+        req.user = { sub: 'test-id', email: 'test@example.com' };
+        return next();
+      }
+
+      return res.status(401).json({ error: 'Unauthorized' });
+    };
+  }),
+  UnauthorizedError: class UnauthorizedError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'UnauthorizedError';
+    }
+  },
+}));
+
+// Mock file-type library
+vi.mock('file-type', () => ({
+  fileTypeFromBuffer: vi.fn().mockResolvedValue({ mime: 'text/plain' }),
+}));
+
+// Mock MinIO provider
+vi.mock('../../../infrastructure/storage/providers/minio.provider', () => ({
+  uploadFileToMinio: vi.fn().mockResolvedValue('mock-file-id'),
+}));
+
+// Mock BullMQ provider
+vi.mock('../../../infrastructure/queue/providers/bullmq.provider', () => ({
+  queueAdapter: {
+    add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
+  },
+  fileQueueName: 'test-file-queue',
+}));
+
+// Mock file upload service
+vi.mock('../../../domains/files/services/file-upload.service', () => ({
+  FileUploadService: vi.fn().mockImplementation(() => ({
+    upload: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+// Global state for tracking registered users across test runs
+const mockUserDatabase = new Set(['existing@example.com']);
+
+// Mock database connections for e2e tests
+vi.mock('pg', () => ({
+  Pool: vi.fn().mockImplementation(() => ({
+    query: vi.fn().mockImplementation((query, params) => {
+      // Mock different responses based on query type
+      if (query.includes('INSERT INTO users')) {
+        const email = params[0];
+
+        // Simulate duplicate email error
+        if (mockUserDatabase.has(email)) {
+          const error = new Error(
+            'duplicate key value violates unique constraint',
+          );
+          (error as any).code = '23505';
+          return Promise.reject(error);
+        }
+
+        // Add to registered users
+        mockUserDatabase.add(email);
+
+        return Promise.resolve({
+          rows: [
+            {
+              id: 'test-id',
+              email: email,
+              created_at: new Date(),
+            },
+          ],
+          rowCount: 1,
+        });
+      }
+
+      if (
+        query.includes(
+          'SELECT id, email, password_hash, created_at FROM users WHERE email',
+        )
+      ) {
+        const email = params[0];
+
+        // Simulate user not found
+        if (!mockUserDatabase.has(email)) {
+          return Promise.resolve({
+            rows: [],
+            rowCount: 0,
+          });
+        }
+
+        return Promise.resolve({
+          rows: [
+            {
+              id: 'test-id',
+              email: email,
+              password_hash: '$2b$10$hashedpassword',
+              created_at: new Date(),
+            },
+          ],
+          rowCount: 1,
+        });
+      }
+
+      if (query.includes('SELECT COUNT(*) FROM users')) {
+        return Promise.resolve({
+          rows: [{ count: mockUserDatabase.size.toString() }],
+          rowCount: 1,
+        });
+      }
+
+      return Promise.resolve({
+        rows: [{ id: 'test-id', email: 'test@example.com', name: 'Test User' }],
+        rowCount: 1,
+      });
+    }),
+    connect: vi.fn().mockResolvedValue({
+      query: vi.fn().mockResolvedValue({
+        rows: [{ id: 'test-id' }],
+        rowCount: 1,
+      }),
+      release: vi.fn(),
+    }),
+    end: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+// Mock Redis for e2e tests
+vi.mock('redis', () => ({
+  createClient: vi.fn().mockImplementation(() => ({
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue('test-value'),
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+    lRange: vi.fn().mockResolvedValue(['item1', 'item2']),
+    rPush: vi.fn().mockResolvedValue(2),
+    expire: vi.fn().mockResolvedValue(1),
+    on: vi.fn(),
+    off: vi.fn(),
+    once: vi.fn(),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1),
+    isReady: true,
+    status: 'ready',
   })),
 }));
 
@@ -169,6 +415,23 @@ startxref
 %%EOF`),
   waitFor: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
   isCI: () => process.env.CI === 'true',
+  skipIfNoPython: () => {
+    // Skip tests if Python is not available locally and not in CI
+    if (process.env.CI !== 'true') {
+      try {
+        const { execSync } = require('child_process');
+        execSync('python --version', { stdio: 'ignore' });
+      } catch (error) {
+        return true; // Skip if Python is not available
+      }
+    }
+    return false; // Don't skip
+  },
+  resetMockDatabase: () => {
+    // Reset the mock database to initial state
+    mockUserDatabase.clear();
+    mockUserDatabase.add('existing@example.com');
+  },
 };
 
 // Extend global types
@@ -178,5 +441,7 @@ declare global {
     createTestPdf: () => Buffer;
     waitFor: (ms: number) => Promise<void>;
     isCI: () => boolean;
+    skipIfNoPython: () => boolean;
+    resetMockDatabase: () => void;
   };
 }

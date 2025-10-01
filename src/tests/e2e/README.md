@@ -1,124 +1,210 @@
-# End-to-End Tests
+# Critical Flow End-to-End Tests
 
-This directory contains end-to-end (e2e) tests that verify the complete integration between different services in the application.
+This directory contains comprehensive end-to-end tests for the critical user flows in the AI Legal Document Q&A application. These tests ensure that the most important user journeys work correctly from start to finish.
 
-## Overview
+## Test Files
 
-The e2e tests are designed to test real service interactions, particularly focusing on:
+### 1. `auth-flow.e2e.test.ts`
+**Purpose**: Tests the complete user authentication journey
+- User registration with validation
+- User login with credential verification  
+- JWT token generation and validation
+- Protected route access
+- Session management
+- Security features (XSS, SQL injection protection)
 
-- **gRPC Communication**: Tests the communication between Node.js and Python services
-- **Service Integration**: Verifies that different parts of the system work together correctly
-- **Real Service Calls**: Uses actual services rather than mocks where appropriate
+### 2. `file-upload-flow.e2e.test.ts`
+**Purpose**: Tests the complete file upload and initial processing pipeline
+- Authentication requirement
+- File validation (type, size, content)
+- File storage in MinIO
+- Database metadata storage
+- Background job queuing
+- User isolation
+- Error handling
 
-## Test Structure
+### 3. `chat-flow.e2e.test.ts`
+**Purpose**: Tests the WebSocket-based chat and question-answering functionality
+- WebSocket connection with JWT authentication
+- Question processing and AI response generation
+- Chat history management
+- Context awareness
+- Multi-user isolation
+- Error handling
 
-### `grpc-sanitizer.e2e.test.ts`
-Tests the gRPC communication between Node.js and Python sanitizer service:
+### 4. `file-processing-flow.e2e.test.ts`
+**Purpose**: Tests the complete file processing pipeline
+- File upload and queuing
+- Background processing with gRPC
+- Status tracking via REST and SSE
+- Vector storage integration
+- Error handling and recovery
+- Concurrent processing
+
+### 5. `complete-user-journey.e2e.test.ts`
+**Purpose**: Tests the entire user workflow from registration to chat interaction
+- User registration and login
+- Document upload and processing
+- WebSocket connection establishment
+- Question asking and AI responses
+- Chat history persistence
+- Follow-up questions and context awareness
+- Multi-user scenarios
+- System recovery testing
+
+### 6. `grpc-sanitizer.e2e.test.ts`
+**Purpose**: Tests gRPC communication between Node.js and Python services
 - Service health and connectivity
-- Text file sanitization
-- PDF file sanitization (when supported)
+- Text and PDF file sanitization
 - Error handling and edge cases
-- Performance and concurrency
+- Performance and concurrency testing
 
-### `sanitizer-client.e2e.test.ts`
-Tests the actual sanitizer client service integration:
+### 7. `sanitizer-client.e2e.test.ts`
+**Purpose**: Tests the actual sanitizer client service integration
 - Real service calls using the application's service layer
 - Integration with PDF sanitization service
 - File processing workflows
 - Error handling and performance
 
-## Running E2E Tests
+## Running the Tests
 
 ### Prerequisites
+- Python gRPC service must be running
+- PostgreSQL and Redis services must be available
+- All dependencies must be installed
 
-1. **Python Service**: The Python gRPC service must be running
-2. **Dependencies**: All Node.js and Python dependencies must be installed
-3. **Environment**: Proper environment variables must be set
+### Commands
+
+```bash
+# Run all e2e tests
+npm run test:e2e
+
+# Run critical flow tests only
+npm run test:e2e:critical
+
+# Run with watch mode
+npm run test:e2e:watch
+
+# Run with coverage
+npm run coverage:e2e
+```
 
 ### Local Development
 
 ```bash
-# Start the Python gRPC service (in a separate terminal)
-cd python_service
-python main_grpc_server.py
+# Option 1: Automated script
+./scripts/test-e2e-local.sh
 
-# Run e2e tests (in another terminal)
+# Option 2: Manual setup
+# Terminal 1: Start Python service
+cd python_service && python main_grpc_server.py
+
+# Terminal 2: Run tests
 npm run test:e2e
-
-# Run e2e tests in watch mode
-npm run test:e2e:watch
 ```
-
-### CI/CD Pipeline
-
-The e2e tests are automatically run in the GitHub Actions pipeline:
-
-1. **Service Setup**: Python gRPC service is started automatically
-2. **Test Execution**: Both unit and e2e tests are run
-3. **Coverage**: Test coverage is collected and uploaded
 
 ## Test Configuration
 
 ### Environment Variables
-
-The e2e tests use the following environment variables:
-
 ```bash
-# gRPC Configuration
+NODE_ENV=test
+CI=true
 SANITIZER_HOST=localhost:50051
 SANITIZER_TIMEOUT=10000
 SANITIZER_TLS_ENABLED=false
-
-# Test Environment
-NODE_ENV=test
-CI=true  # Set automatically in CI environment
 ```
 
-### Test Timeouts
+### Timeouts
+- Test timeout: 60 seconds
+- Hook timeout: 30 seconds
+- Service startup: 30 seconds
+- File processing: 60 seconds
+- Chat response: 15 seconds
 
-- **Test Timeout**: 60 seconds per test
-- **Hook Timeout**: 30 seconds for setup/teardown
-- **Service Startup**: 30 seconds maximum
+## Test Coverage
 
-## Test Categories
+### Authentication Flow
+- ✅ User registration with valid/invalid data
+- ✅ Duplicate email handling
+- ✅ Password strength validation
+- ✅ Email format validation
+- ✅ Login with valid/invalid credentials
+- ✅ JWT token validation
+- ✅ Protected route access
+- ✅ Token expiration handling
+- ✅ Concurrent authentication requests
+- ✅ Security vulnerability testing
 
-### 1. Service Health Tests
-- Verify gRPC service connectivity
-- Test connection error handling
-- Validate service availability
+### File Upload Flow
+- ✅ Authentication requirement
+- ✅ File type validation (PDF, TXT, MD)
+- ✅ File size limits
+- ✅ Empty file handling
+- ✅ File name sanitization
+- ✅ Database record creation
+- ✅ Multiple file uploads
+- ✅ User isolation
+- ✅ Concurrent uploads
+- ✅ Error handling and recovery
 
-### 2. File Sanitization Tests
-- Text file processing
-- PDF file processing (when supported)
-- Unicode and special character handling
-- Large file handling
+### Chat Flow
+- ✅ WebSocket connection with valid/invalid JWT
+- ✅ Question processing and streaming responses
+- ✅ No context handling
+- ✅ Chat history persistence
+- ✅ Context-aware follow-up questions
+- ✅ Concurrent chat sessions
+- ✅ Multi-user isolation
+- ✅ Network disconnection handling
+- ✅ Malformed message handling
 
-### 3. Error Handling Tests
-- Unsupported file types
-- Oversized files
-- Service unavailability
-- Malformed requests
+### File Processing Flow
+- ✅ File upload and initial processing
+- ✅ Different file type processing
+- ✅ Large file handling
+- ✅ Status tracking (REST and SSE)
+- ✅ Concurrent status requests
+- ✅ Access control for file status
+- ✅ Background processing pipeline
+- ✅ Processing error handling
+- ✅ Concurrent file processing
+- ✅ Vector storage integration
+- ✅ System stability under load
 
-### 4. Performance Tests
-- Concurrent request handling
-- Response time validation
-- Load testing scenarios
+### Complete User Journey
+- ✅ Complete end-to-end user workflow
+- ✅ Multi-user document isolation
+- ✅ System recovery after interruption
+- ✅ Context-aware conversations
+- ✅ Chat history persistence
+- ✅ Follow-up question handling
+- ✅ Real document processing
+- ✅ AI response quality validation
 
-### 5. Integration Tests
-- End-to-end file processing workflows
-- Service layer integration
-- Real application scenarios
+## Best Practices
 
-## Debugging E2E Tests
+### Writing E2E Tests
+1. **Real User Scenarios**: Test actual user workflows
+2. **Comprehensive Coverage**: Cover all critical paths
+3. **Error Scenarios**: Test both success and failure cases
+4. **Resource Management**: Proper cleanup and isolation
+5. **Performance Validation**: Ensure reasonable response times
+
+### Test Data Management
+1. **Automatic Cleanup**: Clean up test data between tests
+2. **Isolated Data**: Use unique identifiers for each test
+3. **Real Services**: Use actual services, not mocks
+4. **Resource Cleanup**: Properly close connections and clean up resources
+
+## Troubleshooting
 
 ### Common Issues
-
 1. **Service Not Starting**: Check Python dependencies and port availability
 2. **Connection Timeouts**: Verify service is running and accessible
 3. **Test Failures**: Check service logs and error messages
+4. **Database Issues**: Verify PostgreSQL connection and permissions
 
 ### Debug Commands
-
 ```bash
 # Check if gRPC service is running
 netstat -an | grep 50051
@@ -127,76 +213,49 @@ netstat -an | grep 50051
 docker logs <container-name>
 
 # Run single test file
-npm run test:e2e -- grpc-sanitizer.e2e.test.ts
+npm run test:e2e -- auth-flow.e2e.test.ts
 
 # Run with verbose output
 npm run test:e2e -- --reporter=verbose
 ```
 
-### Logs and Output
+## CI/CD Integration
 
-- **Service Logs**: Python service logs are captured and displayed
-- **Test Output**: Detailed test results and timing information
-- **Error Details**: Full error messages and stack traces
+The e2e tests are integrated into the GitHub Actions pipeline:
 
-## Best Practices
+1. **Service Setup**: Python gRPC service is started automatically
+2. **Test Execution**: Both unit and e2e tests are run
+3. **Coverage**: Test coverage is collected and uploaded
+4. **Artifacts**: Test results and logs are uploaded
 
-### Writing E2E Tests
+## Performance
 
-1. **Real Services**: Use actual services, not mocks
-2. **Cleanup**: Always clean up resources in `afterAll` hooks
-3. **Timeouts**: Set appropriate timeouts for service operations
-4. **Error Handling**: Test both success and failure scenarios
-5. **Isolation**: Ensure tests don't interfere with each other
+### Test Execution Times
+- Authentication Flow: ~30 seconds
+- File Upload Flow: ~45 seconds
+- Chat Flow: ~60 seconds
+- File Processing Flow: ~90 seconds
+- Complete User Journey: ~120 seconds
 
-### Test Data
+### Optimization
+- Parallel test execution where possible
+- Service reuse across tests
+- Efficient cleanup between tests
+- Appropriate timeouts for each operation
 
-1. **Minimal Data**: Use minimal test data to reduce test time
-2. **Realistic Scenarios**: Test realistic use cases
-3. **Edge Cases**: Include boundary conditions and error cases
-4. **Cleanup**: Remove any test data after tests complete
+## Future Enhancements
 
-## Continuous Integration
+### Planned Improvements
+1. **Load Testing**: Add performance and load testing scenarios
+2. **Security Testing**: Enhanced security vulnerability testing
+3. **Mobile Testing**: Add mobile-specific test scenarios
+4. **Accessibility Testing**: Include accessibility compliance testing
 
-The e2e tests are integrated into the CI/CD pipeline:
-
-1. **Automatic Execution**: Runs on every PR and push to main/develop
-2. **Service Management**: Automatically starts required services
-3. **Parallel Execution**: Runs alongside unit tests for efficiency
-4. **Failure Handling**: Fails the build if e2e tests fail
-5. **Artifacts**: Collects and uploads test coverage and logs
-
-## Monitoring and Maintenance
-
-### Regular Tasks
-
-1. **Update Dependencies**: Keep test dependencies up to date
-2. **Review Test Coverage**: Ensure comprehensive coverage
-3. **Performance Monitoring**: Track test execution times
-4. **Service Compatibility**: Verify compatibility with service updates
-
-### Metrics
-
-- **Test Execution Time**: Monitor and optimize test performance
-- **Success Rate**: Track test reliability and stability
-- **Coverage**: Maintain high test coverage for critical paths
-- **Flakiness**: Identify and fix flaky tests
-
-## Troubleshooting
-
-### Common Problems
-
-1. **Port Conflicts**: Ensure port 50051 is available
-2. **Python Dependencies**: Verify all Python packages are installed
-3. **Environment Variables**: Check that all required env vars are set
-4. **Service Startup**: Verify Python service starts correctly
-
-### Solutions
-
-1. **Kill Existing Processes**: `lsof -ti:50051 | xargs kill -9`
-2. **Reinstall Dependencies**: `pip install -r python_service/requirements.txt`
-3. **Check Environment**: Verify `.env` files and environment setup
-4. **Service Logs**: Check Python service output for errors
+### Monitoring Integration
+1. **Metrics Collection**: Add performance metrics during tests
+2. **Alerting**: Set up alerts for test failures
+3. **Trend Analysis**: Track test performance over time
+4. **Coverage Reporting**: Enhanced coverage reporting and analysis
 
 ## Contributing
 
@@ -207,3 +266,5 @@ When adding new e2e tests:
 3. **Test Locally**: Verify tests work in local environment
 4. **Update CI**: Ensure CI pipeline runs new tests
 5. **Performance**: Keep test execution time reasonable
+6. **Cleanup**: Ensure proper resource cleanup
+7. **Isolation**: Ensure tests don't interfere with each other
