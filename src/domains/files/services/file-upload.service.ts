@@ -1,7 +1,10 @@
 import { fileTypeFromBuffer } from 'file-type';
 import { uploadFileToMinio } from '../../../infrastructure/storage/providers/minio.provider';
 import { FileJob, MulterFile, UserFileRecord } from '../../../shared/types';
-import { fileQueue } from '../../../infrastructure/database/repositories/bullmq.repo';
+import {
+  queueAdapter,
+  fileQueueName,
+} from '../../../infrastructure/queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
@@ -19,6 +22,50 @@ export class FileUploadService {
 
   constructor(dbStore: IDBStore) {
     this.db = dbStore;
+  }
+
+  /**
+   * Verifies that a user has access to a specific file
+   * @param userId The user ID to check
+   * @param fileId The file ID to verify access for
+   * @returns Promise<boolean> True if user has access, false otherwise
+   */
+  public async verifyFileAccess(
+    userId: string,
+    fileId: string,
+  ): Promise<boolean> {
+    const log = this.log.child({ userId, fileId });
+    log.info('Verifying file access permissions');
+
+    try {
+      const result = await this.db.query<{ owner_id: string }>(
+        'SELECT owner_id FROM user_files WHERE id = $1',
+        [fileId],
+      );
+
+      if (result.rows.length === 0) {
+        log.warn('File not found');
+        return false;
+      }
+
+      const fileOwnerId = result.rows[0].owner_id;
+      const hasAccess = fileOwnerId === userId;
+
+      log.info(
+        { hasAccess, fileOwnerId },
+        'File access verification completed',
+      );
+      return hasAccess;
+    } catch (error) {
+      log.error(
+        { err: (error as Error).message, stack: (error as Error).stack },
+        'Error occurred during file access verification',
+      );
+      throw createHttpError({
+        status: 500,
+        message: 'Failed to verify file access',
+      });
+    }
   }
 
   public async upload(file: MulterFile, userId: string) {
@@ -50,7 +97,10 @@ export class FileUploadService {
         // eslint-disable-next-line no-control-regex, no-useless-escape
         .replace(/[\/\\\u0000-\u001F]/g, '')
         .slice(0, 200);
-      const key = `${uuid()}-${safeName}`;
+
+      // Percent-encode reserved characters for MinIO object key
+      const encodedName = encodeURIComponent(safeName);
+      const key = `${uuid()}-${encodedName}`;
       log.info({ key }, 'Uploading file to MinIO');
       await uploadFileToMinio(key, file.buffer!);
       log.info('File successfully uploaded to MinIO');
@@ -72,17 +122,36 @@ export class FileUploadService {
         'Adding job to BullMQ queue',
       );
       try {
-        await fileQueue.add('process-file', job);
+        await queueAdapter.enqueue(fileQueueName, 'process-file', job);
       } catch (e) {
+        const queueError = e as Error;
         log.error(
-          { fileId: fileRecord.id, err: (e as Error).message },
+          { fileId: fileRecord.id, err: queueError.message },
           'Failed to add job to queue. Updating database status.',
         );
-        await this.db.query(
-          `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
-          ['failed', (e as Error).message, fileRecord.id],
-        );
-        throw e;
+
+        try {
+          await this.db.query(
+            `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
+            ['failed', queueError.message, fileRecord.id],
+          );
+        } catch (dbError) {
+          const dbErr = dbError as Error;
+          log.error(
+            {
+              fileId: fileRecord.id,
+              queueError: queueError.message,
+              dbError: dbErr.message,
+              queueErrorStack: queueError.stack,
+              dbErrorStack: dbErr.stack,
+            },
+            'Failed to update database status after queue failure. Both queue and database operations failed.',
+          );
+          // Attach DB error as metadata to the original queue error
+          (queueError as any).dbError = dbErr;
+        }
+
+        throw queueError;
       }
       log.info(
         { fileId: fileRecord.id },

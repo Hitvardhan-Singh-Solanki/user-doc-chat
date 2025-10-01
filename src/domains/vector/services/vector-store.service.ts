@@ -1,7 +1,11 @@
 import { Vector, VectorStoreType } from '../../../shared/types';
 import { LLMService } from '../../../domains/chat/services/llm.service';
 import { PineconeVectorStore } from './pinecone.service';
-import { IVectorStore } from '../../../shared/interfaces/vector-store.interface';
+import {
+  IVectorStore,
+  VectorQueryResult,
+  QueryMatch,
+} from '../../../shared/interfaces/vector-store.interface';
 import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
 
 export class VectorStoreService {
@@ -28,15 +32,18 @@ export class VectorStoreService {
     userId: string,
     fileId: string,
     topK: number = Number(process.env.PINECONE_TOP_K) || 5,
-  ) {
+  ): Promise<VectorQueryResult> {
     return await this.vectorStore.queryVector(embedding, userId, fileId, topK);
   }
 
-  async getContextWithSummarization(results: {
-    matches: any[];
-  }): Promise<string> {
-    const { highRelevance, lowRelevance } =
-      this.splitChunksByRelevance(results);
+  async getContextWithSummarization(
+    results: VectorQueryResult,
+    topK: number = Number(process.env.PINECONE_TOP_K) || 5,
+  ): Promise<string> {
+    const { highRelevance, lowRelevance } = this.splitChunksByRelevance(
+      results,
+      topK,
+    );
     const summarizedLow = await this.summarizeLowRelevanceChunks(lowRelevance);
 
     const contextChunks = [...highRelevance, summarizedLow].filter(Boolean);
@@ -53,10 +60,9 @@ export class VectorStoreService {
     return context.trim();
   }
 
-  private splitChunksByRelevance(results: { matches: any[] }) {
+  private splitChunksByRelevance(results: VectorQueryResult, topK: number) {
     const highRelevance: string[] = [];
     const lowRelevance: string[] = [];
-    const topK = Number(process.env.PINECONE_TOP_K) || 5;
 
     results.matches.forEach((match, idx) => {
       const text = Array.isArray(match.metadata?.text)

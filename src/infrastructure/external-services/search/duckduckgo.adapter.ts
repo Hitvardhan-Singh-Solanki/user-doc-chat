@@ -7,7 +7,7 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
     maxResults: number = 5,
     signal?: AbortSignal,
   ): Promise<SearchResult[]> {
-    const url = `https:/api.duckduckgo.com/?q=${encodeURIComponent(
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(
       query,
     )}&format=json&no_html=1&skip_disambig=1`;
 

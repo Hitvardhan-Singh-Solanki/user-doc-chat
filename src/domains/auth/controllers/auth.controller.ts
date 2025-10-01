@@ -38,12 +38,9 @@ export class AuthController {
       }
 
       const user = await this.authService.signUp(email, password);
-      const token = signJwt({ userId: user.id, email: user.email });
+      const token = signJwt({ sub: user.id, email: user.email });
 
-      log.info(
-        { userId: user.id, email: user.email },
-        'User signed up successfully',
-      );
+      log.info({ userId: user.id }, 'User signed up successfully');
       return res.status(201).json({ token });
     } catch (err: unknown) {
       if ((err as any)?.message === 'Email already in use') {
@@ -85,7 +82,7 @@ export class AuthController {
       }
 
       const user = await this.authService.login(email, password);
-      const token = signJwt({ userId: user.id, email: user.email });
+      const token = signJwt({ sub: user.id, email: user.email });
 
       log.info({ userId: user.id }, 'User logged in successfully');
       return res.status(200).json({ token });

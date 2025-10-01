@@ -9,6 +9,6 @@ export class SearchService {
   }
 
   async search(query: string, maxResults: number = 5): Promise<SearchResult[]> {
-    return await this.adapter.search(query, maxResults);
+    return this.adapter.search(query, maxResults);
   }
 }

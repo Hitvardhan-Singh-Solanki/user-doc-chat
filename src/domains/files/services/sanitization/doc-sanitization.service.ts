@@ -1,9 +1,6 @@
 import { ISanitizeFile } from '../../../../shared/interfaces/sanitize-file.interface';
 import * as mammoth from 'mammoth';
 import TurndownService from 'turndown';
-import * as path from 'path';
-import * as fs from 'fs';
-import { v4 as uuid } from 'uuid';
 
 export class DocSanitizationService implements ISanitizeFile {
   private turndown = new TurndownService();
@@ -14,7 +11,8 @@ export class DocSanitizationService implements ISanitizeFile {
       {
         convertImage: mammoth.images.imgElement(async (element) => {
           const base64 = await element.read('base64');
-          return { src: `data:image/png;base64,${base64}` };
+          const contentType = element.contentType || 'image/png';
+          return { src: `data:${contentType};base64,${base64}` };
         }),
       },
     );

@@ -3,12 +3,12 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "user-doc-chat"
+  - job_name: 'user-doc-chat'
     static_configs:
-      - targets: ["host.docker.internal:3000"]
-    metrics_path: "/metrics"
-    scheme: "http"
+      - targets: ['host.docker.internal:3000']
+    metrics_path: '/metrics'
+    scheme: 'http'
 
-  - job_name: "prometheus"
+  - job_name: 'prometheus'
     static_configs:
-      - targets: ["localhost:9090"]
+      - targets: ['localhost:9090']

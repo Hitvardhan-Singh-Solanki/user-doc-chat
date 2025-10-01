@@ -25,12 +25,25 @@ export class WebsocketService {
   private logger = logger;
 
   private constructor(app: Application) {
+    // Runtime validation for production environment
+    if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+      this.logger.fatal(
+        'FRONTEND_URL environment variable is required in production but is not set',
+      );
+      throw new Error(
+        'FRONTEND_URL environment variable is required in production. Please set it to your frontend application URL.',
+      );
+    }
+
     this.server = http.createServer(app);
     this.db = PostgresService.getInstance();
 
     this.io = new Server(this.server, {
       cors: {
-        origin: '*', //TODO: replace with frontend URL in prod
+        origin:
+          process.env.NODE_ENV === 'production'
+            ? process.env.FRONTEND_URL
+            : '*',
         methods: ['GET', 'POST'],
       },
     });
@@ -61,11 +74,28 @@ export class WebsocketService {
         this.logger.warn('Invalid token provided in WebSocket handshake');
         return next(new Error('Invalid token'));
       }
-      const userId =
-        (decoded as any).sub ?? (decoded as any).id ?? (decoded as any).userId;
+      // RFC-7519 compliant: prioritize 'sub' claim
+      let userId = (decoded as any).sub;
+
+      // Migration fallback for legacy tokens (deprecated)
       if (!userId) {
-        this.logger.warn('Invalid token: missing subject/id');
-        return next(new Error('Invalid token: missing subject/id'));
+        const legacyId = (decoded as any).id ?? (decoded as any).userId;
+        if (legacyId) {
+          this.logger.warn(
+            {
+              legacyClaim: (decoded as any).id ? 'id' : 'userId',
+              tokenIssuedAt: (decoded as any).iat,
+              tokenExpiresAt: (decoded as any).exp,
+            },
+            'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
+          );
+          userId = legacyId;
+        }
+      }
+
+      if (!userId) {
+        this.logger.warn('Invalid token: missing subject claim');
+        return next(new Error('Invalid token: missing subject claim'));
       }
       (socket as any).userId = String(userId);
       next();
@@ -107,8 +137,11 @@ export class WebsocketService {
             { err },
             'An error occurred during question processing',
           );
-          if (err instanceof Error)
-            socket.emit('error', { message: 'something went wrong' });
+          const errorMessage =
+            err instanceof Error
+              ? err.message
+              : String(err) || 'something went wrong';
+          socket.emit('error', { message: errorMessage });
         }
       },
     );
@@ -119,6 +152,15 @@ export class WebsocketService {
     userId: string,
     fileId: string,
   ) {
+    // Input validation - check before any async operations
+    if (!question || typeof question !== 'string' || question.trim() === '') {
+      throw new Error('Question cannot be empty');
+    }
+
+    if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+      throw new Error('File ID is required');
+    }
+
     try {
       const chatId = await this.getOrCreateChat(userId, fileId);
       await this.appendChatHistory(userId, fileId, `User: ${question}`);
@@ -126,10 +168,12 @@ export class WebsocketService {
 
       const qEmbedding = await this.llmService.getEmbedding(question);
 
+      const topK = Number(process.env.PINECONE_TOP_K) || 5;
       const results = await this.pineconeService.query(
         qEmbedding,
         userId,
         fileId,
+        topK,
       );
 
       if (!results.matches.length) {
@@ -143,8 +187,10 @@ export class WebsocketService {
         return;
       }
 
-      const context =
-        await this.pineconeService.getContextWithSummarization(results);
+      const context = await this.pineconeService.getContextWithSummarization(
+        results,
+        topK,
+      );
 
       const chatHistory = await this.getChatHistory(userId, fileId);
 
@@ -212,20 +258,17 @@ export class WebsocketService {
     userId: string,
     fileId?: string,
   ): Promise<string> {
+    // Use atomic upsert to prevent TOCTOU race conditions
+    // This single statement will either return an existing chat ID or create a new one
     const result = await this.db.query<{ id: string }>(
-      'SELECT id FROM chats WHERE user_id=$1 AND file_id=$2 ORDER BY created_at DESC LIMIT 1',
+      `INSERT INTO chats(user_id, file_id) 
+       VALUES($1, $2) 
+       ON CONFLICT (user_id, file_id) 
+       DO UPDATE SET updated_at = now() 
+       RETURNING id`,
       [userId, fileId ?? null],
     );
-
-    if (result.rowCount! > 0) {
-      return result.rows[0].id;
-    }
-
-    const insert = await this.db.query<{ id: string }>(
-      'INSERT INTO chats(user_id, file_id) VALUES($1, $2) RETURNING id',
-      [userId, fileId ?? null],
-    );
-    return insert.rows[0]!.id;
+    return result.rows[0]!.id;
   }
 
   private async appendChatMessage(

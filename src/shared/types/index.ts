@@ -1,3 +1,5 @@
+import { Response } from 'express';
+
 export interface FileJob {
   key: string;
   userId: string;
@@ -27,12 +29,19 @@ export interface MulterFile {
 }
 
 export interface JwtPayload {
-  id: string;
+  sub: string; // RFC-7519 compliant subject claim
   email: string;
   role?: string;
+  // Legacy claims for migration support (deprecated)
+  id?: string;
+  userId?: string;
 }
 
-export type Client = { res: any };
+export type Client = {
+  res: Response;
+  queue?: string[];
+  hasDrainHandler?: boolean;
+};
 
 export type SSEData = {
   fileId: string;

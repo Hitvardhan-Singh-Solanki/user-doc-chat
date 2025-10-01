@@ -1,17 +1,13 @@
-import { QueueEvents, Job } from 'bullmq';
 import { sseEmitter } from '../../../infrastructure/monitoring/notification.service';
 import {
-  connectionOptions,
-  fileQueue,
+  queueAdapter,
   fileQueueName,
-} from '../../../infrastructure/database/repositories/bullmq.repo';
+} from '../../../infrastructure/queue/providers/bullmq.provider';
 import { logger } from '../../../config/logger.config';
 
 const eventLogger = logger.child({ component: 'QueueEvents' });
 
-const fileEvents = new QueueEvents(fileQueueName, {
-  connection: connectionOptions,
-});
+const fileEvents = queueAdapter.getQueueEvents(fileQueueName);
 
 fileEvents.on('completed', async ({ jobId, returnvalue }) => {
   eventLogger.info({ jobId }, 'Job completed. Sending notification...');
@@ -33,11 +29,24 @@ fileEvents.on('completed', async ({ jobId, returnvalue }) => {
       { jobId, userId, fileId },
       'Job completed successfully. Notifying client.',
     );
-    sseEmitter.send(userId, 'file-processed', {
-      fileId,
-      status: 'processed',
-      error: null,
-    });
+    try {
+      const success = await sseEmitter.send(userId, 'file-processed', {
+        fileId,
+        status: 'processed',
+        error: null,
+      });
+      if (!success) {
+        eventLogger.warn(
+          { jobId, userId, fileId },
+          'Message delivered locally only due to Redis publish failure.',
+        );
+      }
+    } catch (err) {
+      eventLogger.error(
+        { jobId, userId, fileId, err: (err as Error).message },
+        'Failed to send file-processed notification.',
+      );
+    }
   } catch (err) {
     eventLogger.error(
       { jobId, err: (err as Error).message, stack: (err as Error).stack },
@@ -52,7 +61,7 @@ fileEvents.on('failed', async ({ jobId, failedReason }) => {
     'Job failed. Attempting to notify client...',
   );
   try {
-    const job = await fileQueue.getJob(jobId);
+    const job = await queueAdapter.getJobStatus(fileQueueName, jobId);
     if (!job) {
       eventLogger.warn({ jobId }, 'Job not found in failed handler');
       return;
@@ -72,11 +81,24 @@ fileEvents.on('failed', async ({ jobId, failedReason }) => {
       { jobId, userId, fileId },
       'Notifying client of job failure.',
     );
-    sseEmitter.send(userId, 'file-failed', {
-      fileId,
-      status: 'failed',
-      error: failedReason || 'Unknown error',
-    });
+    try {
+      const success = await sseEmitter.send(userId, 'file-failed', {
+        fileId,
+        status: 'failed',
+        error: failedReason || 'Unknown error',
+      });
+      if (!success) {
+        eventLogger.warn(
+          { jobId, userId, fileId },
+          'Message delivered locally only due to Redis publish failure.',
+        );
+      }
+    } catch (err) {
+      eventLogger.error(
+        { jobId, userId, fileId, err: (err as Error).message },
+        'Failed to send file-failed notification.',
+      );
+    }
   } catch (err) {
     eventLogger.error(
       { jobId, err: (err as Error).message, stack: (err as Error).stack },
@@ -88,23 +110,46 @@ fileEvents.on('failed', async ({ jobId, failedReason }) => {
 fileEvents.on('progress', async ({ jobId, data }) => {
   eventLogger.debug({ jobId, progress: data }, 'Received job progress update.');
   try {
-    const job = await fileQueue.getJob(jobId);
+    const job = await queueAdapter.getJobStatus(fileQueueName, jobId);
     if (!job) {
       eventLogger.warn({ jobId }, 'Job not found for progress update.');
       return;
     }
-    const { userId, fileId } = job.data as { userId: string; fileId: string };
+    const { userId, fileId } = (job.data || {}) as {
+      userId?: string;
+      fileId?: string;
+    };
+    if (!userId || !fileId) {
+      eventLogger.warn(
+        { jobId, jobData: job.data },
+        'Missing userId or fileId in progress job data. Skipping notification.',
+      );
+      return;
+    }
 
     eventLogger.debug(
       { jobId, userId, fileId, progress: data },
       'Notifying client of job progress.',
     );
-    sseEmitter.send(userId, 'file-progress', {
-      fileId,
-      status: 'processing',
-      progress: data || 0,
-      error: null,
-    });
+    try {
+      const success = await sseEmitter.send(userId, 'file-progress', {
+        fileId,
+        status: 'processing',
+        progress: data || 0,
+        error: null,
+      });
+      if (!success) {
+        eventLogger.warn(
+          { jobId, userId, fileId },
+          'Message delivered locally only due to Redis publish failure.',
+        );
+      }
+    } catch (err) {
+      eventLogger.error(
+        { jobId, userId, fileId, err: (err as Error).message },
+        'Failed to send file-progress notification.',
+      );
+    }
   } catch (err) {
     eventLogger.error(
       { jobId, err: (err as Error).message, stack: (err as Error).stack },

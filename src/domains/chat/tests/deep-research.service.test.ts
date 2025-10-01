@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DeepResearchService } from '../services/deep-research.service';
-import { LLMService } from '../services/llm.service';
 import { PromptService } from '../services/prompt.service';
 import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('../services/prompt.service');
-vi.mock('../../../infrastructure/external-services/ai/custom-tokenizer.adapter');
+vi.mock(
+  '../../../infrastructure/external-services/ai/custom-tokenizer.adapter',
+);
 
 describe('DeepResearchService', () => {
   let deepResearchService: DeepResearchService;
@@ -24,7 +25,7 @@ describe('DeepResearchService', () => {
         }
         return chunks;
       }),
-      generateLowSummary: vi.fn(async (chunks: string[], options: any) => {
+      generateLowSummary: vi.fn(async (chunks: string[], _options: unknown) => {
         return chunks.map((chunk: string) => `Summary of: ${chunk}`).join(' ');
       }),
     };
@@ -32,7 +33,6 @@ describe('DeepResearchService', () => {
     // Create mock prompt service instance
     mockPromptService = {
       sanitizeText: vi.fn(),
-      createSummarizationPrompt: vi.fn(),
     };
 
     // Mock the PromptService constructor
@@ -40,11 +40,9 @@ describe('DeepResearchService', () => {
     MockedPromptService.mockImplementation(() => mockPromptService);
 
     // Mock SimpleTokenizerAdapter
-    vi.mocked(SimpleTokenizerAdapter).mockImplementation(() => ({} as any));
+    vi.mocked(SimpleTokenizerAdapter).mockImplementation(() => ({}) as any);
 
-    deepResearchService = new DeepResearchService(mockLLMService);
-
-    // Reset mocks
+    // Reset mocks before creating service instance to preserve constructor call counts
     vi.clearAllMocks();
   });
 
@@ -64,7 +62,7 @@ describe('DeepResearchService', () => {
         'This is a long legal document with many clauses and provisions.';
       const sanitizedText =
         'This is a long legal document with many clauses and provisions.';
-      const prompt = 'Extract all legal clauses from the following text...';
+      const _prompt = 'Extract all legal clauses from the following text...';
       const expectedSummary =
         'Summary: The document contains legal clauses about provisions.';
       const chunks = [sanitizedText];
@@ -72,7 +70,8 @@ describe('DeepResearchService', () => {
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(mockPromptService.sanitizeText).toHaveBeenCalledWith(inputText);
       expect(mockLLMService.generateLowSummary).toHaveBeenCalledWith(chunks, {
@@ -84,13 +83,14 @@ describe('DeepResearchService', () => {
     it('should handle whitespace-only text', async () => {
       const inputText = '   \\n\\t   ';
       const sanitizedText = '';
-      const prompt = 'Extract all legal clauses from the following text...';
+      const _prompt = 'Extract all legal clauses from the following text...';
       const expectedSummary = '';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(mockPromptService.sanitizeText).toHaveBeenCalledWith(inputText);
       expect(result).toBe(expectedSummary);
@@ -101,13 +101,14 @@ describe('DeepResearchService', () => {
         'Text with special characters: "smart quotes" and \'apostrophes\'';
       const sanitizedText =
         'Text with special characters: "smart quotes" and \'apostrophes\'';
-      const prompt = 'Extract all legal clauses from the following text...';
+      const _prompt = 'Extract all legal clauses from the following text...';
       const expectedSummary = 'Sanitized summary of the text.';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(mockPromptService.sanitizeText).toHaveBeenCalledWith(inputText);
       expect(result).toBe(expectedSummary);
@@ -116,13 +117,14 @@ describe('DeepResearchService', () => {
     it('should handle very long text', async () => {
       const inputText = 'A'.repeat(10000);
       const sanitizedText = 'A'.repeat(10000);
-      const prompt = 'Extract all legal clauses from the following text...';
+      const _prompt = 'Extract all legal clauses from the following text...';
       const expectedSummary = 'Summary of very long text.';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(mockPromptService.sanitizeText).toHaveBeenCalledWith(inputText);
       expect(result).toBe(expectedSummary);
@@ -131,13 +133,14 @@ describe('DeepResearchService', () => {
     it('should handle LLM service errors', async () => {
       const inputText = 'Some legal text';
       const sanitizedText = 'Some legal text';
-      const prompt = 'Extract all legal clauses from the following text...';
+      const _prompt = 'Extract all legal clauses from the following text...';
       const llmError = new Error('LLM service unavailable');
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockRejectedValue(llmError);
 
-      await expect(deepResearchService.summarize(inputText)).rejects.toThrow(
+      const service = new DeepResearchService(mockLLMService);
+      await expect(service.summarize(inputText)).rejects.toThrow(
         'LLM service unavailable',
       );
 
@@ -156,7 +159,8 @@ describe('DeepResearchService', () => {
         throw sanitizationError;
       });
 
-      await expect(deepResearchService.summarize(inputText)).rejects.toThrow(
+      const service = new DeepResearchService(mockLLMService);
+      await expect(service.summarize(inputText)).rejects.toThrow(
         'Sanitization failed',
       );
 
@@ -173,7 +177,8 @@ describe('DeepResearchService', () => {
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      await service.summarize(inputText);
 
       expect(mockLLMService.generateLowSummary).toHaveBeenCalledWith(
         [sanitizedText],
@@ -190,7 +195,8 @@ describe('DeepResearchService', () => {
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockResolvedValue(llmResult);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(result).toBe(llmResult);
     });
@@ -214,7 +220,8 @@ describe('DeepResearchService', () => {
 
       mockLLMService.generateLowSummary.mockResolvedValue(expectedSummary);
 
-      const result = await deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const result = await service.summarize(inputText);
 
       expect(result).toBe(expectedSummary);
     });
@@ -242,7 +249,8 @@ describe('DeepResearchService', () => {
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
       mockLLMService.generateLowSummary.mockReturnValue(summaryPromise);
 
-      const resultPromise = deepResearchService.summarize(inputText);
+      const service = new DeepResearchService(mockLLMService);
+      const resultPromise = service.summarize(inputText);
 
       // Resolve the LLM promise after a delay
       setTimeout(() => {

@@ -7,12 +7,12 @@ import {
   expect,
   vi,
 } from 'vitest';
-import { v4 as uuid } from 'uuid';
+// import { v4 as uuid } from 'uuid'; // Unused import
 import { EnrichmentService } from '../services/enrichment.service';
 
 // This helper function is not used in the final version of the test file
 // as fetch is not mocked directly, but it's good practice to keep it.
-function makeFetchResponse({
+function _makeFetchResponse({
   ok = true,
   status = 200,
   statusText = 'OK',
@@ -75,7 +75,7 @@ describe('EnrichmentService', () => {
 
     // Mock FetchHTML service
     mockFetchHTML = {
-      fetchHTML: vi.fn(async (results: any[], options?: any) => {
+      fetchHTML: vi.fn(async (results: unknown[], _options?: unknown) => {
         const paragraph = 'Legal text content '.repeat(20);
         return results.map(() => paragraph);
       }),
@@ -90,7 +90,7 @@ describe('EnrichmentService', () => {
 
     // Default search adapter that returns nothing (tests override)
     mockSearchAdapter = {
-      search: vi.fn(async (q: string, maxResults?: number) => []),
+      search: vi.fn(async (_q: string, _maxResults?: number) => []),
     };
 
     // Correctly instantiate the service with all required mocks
@@ -129,7 +129,7 @@ describe('EnrichmentService', () => {
       {
         title: 'Title A',
         snippet: 'Snippet A',
-        url: 'https:/example.com/pageA',
+        url: 'https://example.com/pageA',
       },
     ]);
 
@@ -146,7 +146,7 @@ describe('EnrichmentService', () => {
 
     // Verify metadata of upserted vectors
     const upsertArgs = mockVector.upsertVectors.mock.calls[0][0][0].metadata;
-    expect(upsertArgs.source).toBe('https:/example.com/pageA');
+    expect(upsertArgs.source).toBe('https://example.com/pageA');
     expect(upsertArgs.title).toBe('Title A');
     expect(upsertArgs.snippet).toBe('Snippet A');
     expect(upsertArgs.deepSummary).toContain('Mock summary of:');
@@ -157,7 +157,7 @@ describe('EnrichmentService', () => {
       {
         title: 'Local',
         snippet: 'Local snippet',
-        url: 'http:/localhost/internal',
+        url: 'http://localhost/internal',
       },
     ]);
 
@@ -173,6 +173,7 @@ describe('EnrichmentService', () => {
     expect(mockDeepResearch.summarize).not.toHaveBeenCalled();
     expect(mockLLM.getEmbedding).not.toHaveBeenCalled();
     expect(mockVector.upsertVectors).not.toHaveBeenCalled();
+    // searchAndEmbed returns the original search result entry even when fetching/embedding is skipped, so results.length is expected to remain 1
     expect(results.length).toBe(1);
   });
 
@@ -181,7 +182,7 @@ describe('EnrichmentService', () => {
       {
         title: 'Short',
         snippet: 'Short snippet',
-        url: 'https:/example.com/short',
+        url: 'https://example.com/short',
       },
     ]);
 

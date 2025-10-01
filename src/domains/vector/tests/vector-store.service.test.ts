@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VectorStoreService } from '../services/vector-store.service';
+import {
+  VectorQueryResult,
+  QueryMatch,
+} from '../../../shared/interfaces/vector-store.interface';
 
 describe('VectorStoreService', () => {
   let mockLLM: any;
@@ -25,9 +29,11 @@ describe('VectorStoreService', () => {
       upsertVectors: vi.fn(async (vectors: any[]) => ({
         upsertedCount: vectors.length, // match IVectorStore interface
       })),
-      queryVector: vi.fn(async () => [
-        { score: 0.9, metadata: { text: 'match1' } },
-      ]),
+      queryVector: vi.fn(
+        async (): Promise<VectorQueryResult> => ({
+          matches: [{ id: '1', score: 0.9, metadata: { text: 'match1' } }],
+        }),
+      ),
     };
 
     // Subclass VectorStoreService to inject mockVectorStore
@@ -61,22 +67,23 @@ describe('VectorStoreService', () => {
       fileId,
       topK,
     );
-    expect(res).toEqual([{ score: 0.9, metadata: { text: 'match1' } }]);
+    expect(res).toEqual({
+      matches: [{ id: '1', score: 0.9, metadata: { text: 'match1' } }],
+    });
   });
 
   it('getContextWithSummarization returns concatenated high relevance and summarized low relevance chunks', async () => {
-    const results = {
+    const results: VectorQueryResult = {
       matches: [
-        { metadata: { text: 'high1' } },
-        { metadata: { text: 'high2' } },
-        { metadata: { text: 'low1' } },
-        { metadata: { text: 'low2' } },
+        { id: '1', score: 0.9, metadata: { text: 'high1' } },
+        { id: '2', score: 0.8, metadata: { text: 'high2' } },
+        { id: '3', score: 0.7, metadata: { text: 'low1' } },
+        { id: '4', score: 0.6, metadata: { text: 'low2' } },
       ],
     };
 
-    // Set topK=2 so first two are high relevance
-    process.env.PINECONE_TOP_K = '2';
-    const context = await svc.getContextWithSummarization(results);
+    // Pass topK=2 so first two are high relevance
+    const context = await svc.getContextWithSummarization(results, 2);
 
     expect(context).toContain('high1');
     expect(context).toContain('high2');
@@ -85,17 +92,30 @@ describe('VectorStoreService', () => {
   });
 
   it('getContextWithSummarization respects maxContextTokens', async () => {
-    const results = {
+    const results: VectorQueryResult = {
       matches: Array.from({ length: 10 }, (_, i) => ({
+        id: `id-${i}`,
+        score: 0.9 - i * 0.1,
         metadata: { text: 'A'.repeat(500) },
       })),
     };
 
-    process.env.MAX_CONTEXT_TOKENS = '50'; // small to trigger token limit
-    const context = await svc.getContextWithSummarization(results);
+    // Save original value and restore after test
+    const originalMaxContextTokens = process.env.MAX_CONTEXT_TOKENS;
+    try {
+      process.env.MAX_CONTEXT_TOKENS = '50'; // small to trigger token limit
+      const context = await svc.getContextWithSummarization(results, 5);
 
-    // Token limit should truncate some chunks
-    expect(context.length).toBeLessThan(5000);
+      // Token limit should truncate some chunks
+      expect(context.length).toBeLessThan(5000);
+    } finally {
+      // Restore original value
+      if (originalMaxContextTokens === undefined) {
+        delete process.env.MAX_CONTEXT_TOKENS;
+      } else {
+        process.env.MAX_CONTEXT_TOKENS = originalMaxContextTokens;
+      }
+    }
   });
 
   it('summarizeLowRelevanceChunks returns empty string when no low relevance', async () => {
@@ -105,14 +125,16 @@ describe('VectorStoreService', () => {
   });
 
   it('splitChunksByRelevance separates high and low relevance correctly', () => {
-    process.env.PINECONE_TOP_K = '3'; // ensure topK matches test
-    //  accessing private method for testing
+    // accessing private method for testing
     const { highRelevance, lowRelevance } = (svc as any).splitChunksByRelevance(
       {
         matches: Array.from({ length: 3 }, (_, i) => ({
+          id: `id-${i}`,
+          score: 0.9 - i * 0.1,
           metadata: { text: `text${i}` },
         })),
       },
+      3, // topK parameter
     );
 
     expect(highRelevance.length).toBe(3);

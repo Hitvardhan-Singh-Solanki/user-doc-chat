@@ -3,9 +3,10 @@ import { FileUploadService } from '../services/file-upload.service';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import { MulterFile, UserFileRecord } from '../../../shared/types';
 import * as minioService from '../../../infrastructure/storage/providers/minio.provider';
-import * as bullmqRepo from '../../../infrastructure/database/repositories/bullmq.repo';
+import { queueAdapter } from '../../../infrastructure/queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
+import { mockFile, mockFileUploadData } from '../../../tests/fixtures';
 
 // Mock external dependencies
 vi.mock('file-type', () => ({
@@ -16,10 +17,11 @@ vi.mock('../../../infrastructure/storage/providers/minio.provider', () => ({
   uploadFileToMinio: vi.fn(),
 }));
 
-vi.mock('../../../infrastructure/database/repositories/bullmq.repo', () => ({
-  fileQueue: {
-    add: vi.fn(),
+vi.mock('../../../infrastructure/queue/providers/bullmq.provider', () => ({
+  queueAdapter: {
+    enqueue: vi.fn(),
   },
+  fileQueueName: 'file-processing',
 }));
 
 vi.mock('uuid', () => ({
@@ -31,7 +33,7 @@ describe('FileUploadService', () => {
   let mockDb: IDBStore;
   let mockFileTypeFromBuffer: any;
   let mockUploadFileToMinio: any;
-  let mockFileQueue: any;
+  let mockQueueAdapter: any;
 
   beforeEach(() => {
     // Setup mocks
@@ -42,7 +44,7 @@ describe('FileUploadService', () => {
 
     mockFileTypeFromBuffer = vi.mocked(fileTypeFromBuffer);
     mockUploadFileToMinio = vi.mocked(minioService.uploadFileToMinio);
-    mockFileQueue = vi.mocked(bullmqRepo.fileQueue);
+    mockQueueAdapter = vi.mocked(queueAdapter);
 
     fileUploadService = new FileUploadService(mockDb);
 
@@ -86,7 +88,7 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
@@ -99,11 +101,15 @@ describe('FileUploadService', () => {
         expect.stringContaining('INSERT INTO user_files'),
         ['document.pdf', 2048, userId, 'uploaded'],
       );
-      expect(mockFileQueue.add).toHaveBeenCalledWith('process-file', {
-        key: 'mock-uuid-1234-document.pdf',
-        userId,
-        fileId: 'file123',
-      });
+      expect(mockQueueAdapter.enqueue).toHaveBeenCalledWith(
+        'file-processing',
+        'process-file',
+        {
+          key: 'mock-uuid-1234-document.pdf',
+          userId,
+          fileId: 'file123',
+        },
+      );
       expect(result).toEqual(mockFileRecord);
     });
 
@@ -125,7 +131,7 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
@@ -156,7 +162,7 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
@@ -225,7 +231,7 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
@@ -270,7 +276,7 @@ describe('FileUploadService', () => {
         'File upload failed',
       );
 
-      expect(mockFileQueue.add).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
     });
 
     it('should update file status to failed when queue job fails', async () => {
@@ -295,7 +301,7 @@ describe('FileUploadService', () => {
           rows: [mockFileRecord],
         })
         .mockResolvedValueOnce({ rows: [] }); // For the update query
-      mockFileQueue.add.mockRejectedValue(queueError);
+      mockQueueAdapter.enqueue.mockRejectedValue(queueError);
 
       await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
         'File upload failed',
@@ -349,7 +355,7 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
@@ -382,12 +388,12 @@ describe('FileUploadService', () => {
       mockDb.query = vi.fn().mockResolvedValue({
         rows: [mockFileRecord],
       });
-      mockFileQueue.add.mockResolvedValue(undefined);
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
       const result = await fileUploadService.upload(mockFile, userId);
 
       expect(mockUploadFileToMinio).toHaveBeenCalledWith(
-        'mock-uuid-1234-test file (1) @#$.pdf',
+        'mock-uuid-1234-test%20file%20(1)%20%40%23%24.pdf',
         mockFile.buffer,
       );
       expect(result).toEqual(mockFileRecord);
@@ -420,7 +426,7 @@ describe('FileUploadService', () => {
         mockDb.query = vi.fn().mockResolvedValue({
           rows: [mockFileRecord],
         });
-        mockFileQueue.add.mockResolvedValue(undefined);
+        mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
         const result = await fileUploadService.upload(mockFile, userId);
 

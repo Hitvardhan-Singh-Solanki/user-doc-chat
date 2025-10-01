@@ -1,11 +1,11 @@
-version: "3.9"
+version: '3.9'
 
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: ["npm", "run", "start"]
+      context: .
+      dockerfile: docker/Dockerfile
+    command: ['npm', 'run', 'start']
     depends_on:
       db:
         condition: service_healthy
@@ -13,40 +13,58 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      python_apis:
+        condition: service_started
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
-      - .:/app
+      # Mount TLS certificates for gRPC sanitizer service
+      - ./certs:/app/certs:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
     env_file:
-      - .env
+      - .env.prod
+
+  python_apis:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python
+    volumes:
+      # Mount TLS certificates for gRPC server
+      - ./certs:/app/certs:ro
+    ports:
+      - '50051:50051'
+    env_file:
+      - .env.prod
+    depends_on:
+      - db
+      - redis
 
   db:
     image: postgres:16
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ai_chat"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ai_chat']
       interval: 10s
       timeout: 5s
       retries: 5
     env_file:
-      - .env
-  
+      - .env.prod
+
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,23 +73,23 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     env_file:
-      - .env
+      - .env.prod
 
   ollama:
     build:
       context: .
       dockerfile: Dockerfile.ollama
     ports:
-      - "11434:11434"
+      - '11434:11434'
     volumes:
       - ollama_models:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags || exit 1"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags || exit 1']
       interval: 30s
       timeout: 10s
       retries: 5
