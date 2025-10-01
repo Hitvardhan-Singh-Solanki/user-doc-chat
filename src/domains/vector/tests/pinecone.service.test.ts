@@ -15,6 +15,9 @@ describe('PineconeVectorStore', () => {
   let mockPinecone: any;
 
   beforeEach(async () => {
+    // Mock timers to prevent real delays in retry logic
+    vi.useFakeTimers();
+
     // Reset environment variables
     process.env.PINECONE_INDEX_NAME = 'test-index';
 
@@ -38,6 +41,7 @@ describe('PineconeVectorStore', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   describe('constructor', () => {
@@ -114,7 +118,12 @@ describe('PineconeVectorStore', () => {
         .mockRejectedValueOnce(new Error('Timeout'))
         .mockResolvedValueOnce({});
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       expect(mockIndex.upsert).toHaveBeenCalledTimes(3);
       expect(result.upsertedCount).toBe(1);
@@ -129,7 +138,12 @@ describe('PineconeVectorStore', () => {
 
       mockIndex.upsert.mockRejectedValue(new Error('Persistent error'));
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       expect(mockIndex.upsert).toHaveBeenCalledTimes(3); // 3 retry attempts
       expect(result.upsertedCount).toBe(0);
@@ -152,7 +166,12 @@ describe('PineconeVectorStore', () => {
         .mockResolvedValueOnce({}) // First batch (100 vectors)
         .mockRejectedValue(new Error('Batch 2 failed')); // Second batch (50 vectors)
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       expect(result.upsertedCount).toBe(100);
       expect(result.failedBatches).toHaveLength(1);
@@ -388,7 +407,12 @@ describe('PineconeVectorStore', () => {
 
       mockIndex.upsert.mockRejectedValue(new Error('ETIMEDOUT'));
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       expect(result.upsertedCount).toBe(0);
       expect(result.failedBatches[0].error).toBe('ETIMEDOUT');
@@ -401,7 +425,12 @@ describe('PineconeVectorStore', () => {
 
       mockIndex.upsert.mockRejectedValue(new Error('Rate limit exceeded'));
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       expect(result.upsertedCount).toBe(0);
       expect(result.failedBatches[0].error).toBe('Rate limit exceeded');
@@ -424,7 +453,12 @@ describe('PineconeVectorStore', () => {
         .mockRejectedValue(new Error('Batch 2 failed')) // Second batch attempt 3
         .mockResolvedValueOnce({}); // Third batch (50 vectors)
 
-      const result = await pineconeVectorStore.upsertVectors(vectors);
+      const resultPromise = pineconeVectorStore.upsertVectors(vectors);
+
+      // Fast-forward through all timers
+      await vi.runAllTimersAsync();
+
+      const result = await resultPromise;
 
       // The mock behavior is not working as expected, so let's test the actual behavior
       // The test shows that the second batch is actually succeeding, so we have 200 total
