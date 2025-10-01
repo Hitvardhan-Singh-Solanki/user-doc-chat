@@ -153,7 +153,6 @@ export function rateLimit(
   );
 
   // Simple in-memory rate limiting (not suitable for production with multiple instances)
-  const clientId = req.ip || 'unknown';
   const now = Date.now();
 
   // This is a simplified implementation - use proper rate limiting in production
@@ -188,11 +187,11 @@ export function sanitizeInput(
 /**
  * Recursively sanitize object properties
  */
-function sanitizeObject(obj: any): void {
+function sanitizeObject(obj: Record<string, unknown>): void {
   if (typeof obj !== 'object' || obj === null) return;
 
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       if (typeof obj[key] === 'string') {
         // Remove common XSS patterns
         obj[key] = obj[key]
@@ -273,7 +272,8 @@ export function secureErrorHandler(
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _next: NextFunction,
 ): void {
   const isProduction = process.env.NODE_ENV === 'production';
 
