@@ -1,6 +1,0 @@
-# Project Standards
-- Language: Typescript, Python, NodeJS
-- Framework: Express with typescript and Python
-- Current Issues: Mixed logic in /src, no domain separation.
-- Goals: Modular by feature (e.g., /auth, /tasks), separation of concerns (controllers/services), error handling, logging, tests per module.
-- Best Practices: CamelCase naming, scalable config, use pino logger for logging.

@@ -58,9 +58,7 @@ export class FetchHTMLService implements IHTMLFetch {
 
     this.log.info('All HTML fetch tasks completed.');
 
-    if (res) return res;
-
-    return [];
+    return res;
   }
 
   private async fetchExtract(
@@ -188,8 +186,13 @@ export class FetchHTMLService implements IHTMLFetch {
       const isPrivate =
         host === 'localhost' ||
         host.endsWith('.local') ||
-        /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
-        host === '::1';
+        /^0\.|^127\.|^10\.|^169\.254\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(
+          host,
+        ) ||
+        host.startsWith('fe80:') ||
+        /^(fc|fd)/.test(host) ||
+        host === '::1' ||
+        this.isIPv4MappedIPv6(host);
       if (isPrivate) {
         this.log.warn({ host }, "URL's hostname is a private address.");
         return false;
@@ -238,9 +241,37 @@ export class FetchHTMLService implements IHTMLFetch {
       }
       const loc = res.headers.get('location');
       if (loc) {
-        const nextUrl = new URL(loc, url).toString();
-        log.debug({ nextUrl }, 'Redirecting to new URL.');
-        return await this.fetchPageText(nextUrl, timeoutMs, redirectCount + 1);
+        try {
+          const nextUrl = new URL(loc, url).toString();
+          log.debug({ nextUrl }, 'Redirecting to new URL.');
+
+          // Validate the redirected URL for SSRF protection
+          if (!this.validateUrlForSSRF(nextUrl)) {
+            log.error({ nextUrl }, 'Redirected URL failed SSRF validation.');
+            return null;
+          }
+
+          // Check if the redirected hostname is a public address
+          if (!(await this.isPublicAddress(new URL(nextUrl).hostname))) {
+            log.error(
+              { nextUrl, hostname: new URL(nextUrl).hostname },
+              "Redirected URL's hostname is not a public address.",
+            );
+            return null;
+          }
+
+          return await this.fetchPageText(
+            nextUrl,
+            timeoutMs,
+            redirectCount + 1,
+          );
+        } catch (err) {
+          log.error(
+            { loc, err: (err as Error).message },
+            'Failed to parse redirect location into valid URL.',
+          );
+          return null;
+        }
       }
       log.warn('Redirect status but no location header.');
       return null;
@@ -280,6 +311,7 @@ export class FetchHTMLService implements IHTMLFetch {
   private async fetchAndDecodeBody(res: Response): Promise<string | null> {
     const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000);
     let html: string;
+
     if (res.body) {
       const reader = res.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -299,9 +331,9 @@ export class FetchHTMLService implements IHTMLFetch {
           chunks.push(value);
         }
       }
-      html = new TextDecoder().decode(Buffer.concat(chunks as any));
+      html = new TextDecoder().decode(Buffer.concat(chunks));
     } else {
-      html = await res.text();
+      throw new Error(`Response body is not available for URL: ${res.url}`);
     }
     return html;
   }
@@ -333,13 +365,38 @@ export class FetchHTMLService implements IHTMLFetch {
   private isPrivateAddress(address: string): boolean {
     if (net.isIP(address) === 4) {
       return (
+        /^0\./.test(address) ||
         /^10\./.test(address) ||
         /^127\./.test(address) ||
+        /^169\.254\./.test(address) ||
         /^192\.168\./.test(address) ||
         /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
       );
     }
+
     const a = address.toLowerCase();
-    return a === '::1' || a.startsWith('fe80:') || /^fc|fd/.test(a.slice(0, 2));
+
+    // Handle IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+    if (this.isIPv4MappedIPv6(a)) {
+      const mappedIPv4 = this.extractMappedIPv4(a);
+      if (mappedIPv4) {
+        return this.isPrivateAddress(mappedIPv4);
+      }
+    }
+
+    return a === '::1' || a.startsWith('fe80:') || /^(fc|fd)/.test(a);
+  }
+
+  private isIPv4MappedIPv6(address: string): boolean {
+    // Check for IPv4-mapped IPv6 addresses like ::ffff:192.168.1.1
+    return /^::ffff:/.test(address) || /^0:0:0:0:0:ffff:/.test(address);
+  }
+
+  private extractMappedIPv4(address: string): string | null {
+    // Extract IPv4 address from IPv4-mapped IPv6 format
+    const match =
+      address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/) ||
+      address.match(/^0:0:0:0:0:ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    return match ? match[1] : null;
   }
 }

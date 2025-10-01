@@ -9,6 +9,7 @@ import { SimpleTokenizerAdapter } from '../../../infrastructure/external-service
 import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
 import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
 import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
+import { parsePositiveInt } from '../../../shared/utils';
 import { logger } from '../../../config/logger.config'; // Assuming you have a configured logger
 
 export class EnrichmentService implements IEnrichmentService {
@@ -124,7 +125,25 @@ export class EnrichmentService implements IEnrichmentService {
         continue;
       }
 
-      const deepSummary = await this.deepResearch.summarize(text);
+      let deepSummary: string | null = null;
+      try {
+        deepSummary = await this.deepResearch.summarize(text);
+        log.debug(
+          { url: results[i].url, summaryLength: deepSummary?.length },
+          'Deep summary generated successfully.',
+        );
+      } catch (err) {
+        log.warn(
+          {
+            err,
+            stack: (err as Error).stack,
+            url: results[i].url,
+            textLength: text.length,
+          },
+          'Failed to generate deep summary. Continuing without deep summary.',
+        );
+        deepSummary = null;
+      }
       const sanitized = this.promptService.sanitizeText(text);
       const chunks = this.chunkText(
         sanitized,
@@ -204,8 +223,8 @@ export class EnrichmentService implements IEnrichmentService {
       maxPagesToFetch: 5,
       fetchConcurrency: 3,
       minContentLength: 200,
-      chunkSize: Number(process.env.CHUNK_SIZE) || 800,
-      chunkOverlap: Number(process.env.CHUNK_OVERLAP) || 100,
+      chunkSize: parsePositiveInt(process.env.CHUNK_SIZE, 800),
+      chunkOverlap: parsePositiveInt(process.env.CHUNK_OVERLAP, 100),
     };
   }
 

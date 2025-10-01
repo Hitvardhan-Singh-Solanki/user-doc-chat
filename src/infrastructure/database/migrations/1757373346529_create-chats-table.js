@@ -12,6 +12,7 @@ export const up = (pgm) => {
     },
     user_id: { type: 'uuid', notNull: true },
     file_id: { type: 'uuid' },
+    message: { type: 'text', notNull: true },
     created_at: {
       type: 'timestamptz',
       notNull: true,
@@ -25,7 +26,7 @@ export const up = (pgm) => {
   });
 
   pgm.createFunction(
-    'set_updated_at',
+    'set_chats_updated_at',
     [],
     { returns: 'trigger', language: 'plpgsql' },
     'BEGIN NEW.updated_at = now(); RETURN NEW; END;',
@@ -34,7 +35,7 @@ export const up = (pgm) => {
     when: 'BEFORE',
     operation: 'UPDATE',
     level: 'ROW',
-    function: 'set_updated_at',
+    function: 'set_chats_updated_at',
   });
 
   pgm.addConstraint('chats', 'fk_chats_user', {
@@ -68,5 +69,5 @@ export const down = (pgm) => {
   pgm.dropIndex('chats', 'idx_chats_user_file_created_at');
   pgm.dropTrigger('chats', 'chats_set_updated_at');
   pgm.dropTable('chats');
-  pgm.dropFunction('set_updated_at', []);
+  pgm.dropFunction('set_chats_updated_at', []);
 };

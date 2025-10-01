@@ -2,23 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SearchService } from './search.service';
 import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
 import { SearchResult } from '../../../shared/types';
+import { mockSearchResults } from '../../../tests/fixtures';
 
 describe('SearchService', () => {
   let searchService: SearchService;
   let mockAdapter: ISearchAdapter;
-
-  const mockResults: SearchResult[] = [
-    {
-      title: 'Test Result 1',
-      snippet: 'This is the first test result snippet',
-      url: 'https:/example.com/result1',
-    },
-    {
-      title: 'Test Result 2',
-      snippet: 'This is the second test result snippet',
-      url: 'https:/example.com/result2',
-    },
-  ];
 
   beforeEach(() => {
     // Create mock adapter
@@ -44,23 +32,23 @@ describe('SearchService', () => {
   describe('search', () => {
     it('should search with default maxResults (5)', async () => {
       const query = 'test query';
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should search with custom maxResults', async () => {
       const query = 'test query';
       const maxResults = 10;
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query, maxResults);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, maxResults);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle empty query', async () => {
@@ -97,7 +85,7 @@ describe('SearchService', () => {
     it('should handle maxResults of 1', async () => {
       const query = 'test query';
       const maxResults = 1;
-      const singleResult = [mockResults[0]];
+      const singleResult = [mockSearchResults[0]];
       mockAdapter.search = vi.fn().mockResolvedValue(singleResult);
 
       const result = await searchService.search(query, maxResults);
@@ -109,12 +97,12 @@ describe('SearchService', () => {
     it('should handle large maxResults', async () => {
       const query = 'test query';
       const maxResults = 100;
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query, maxResults);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, maxResults);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle negative maxResults', async () => {
@@ -142,32 +130,32 @@ describe('SearchService', () => {
 
     it('should handle special characters in query', async () => {
       const query = 'test query with special chars: @#$%^&*()';
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle very long query', async () => {
       const query = 'a'.repeat(1000);
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle unicode characters in query', async () => {
       const query = 'test query with unicode: 中文 🚀 éñ';
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle whitespace-only query', async () => {
@@ -182,12 +170,12 @@ describe('SearchService', () => {
 
     it('should handle query with only numbers', async () => {
       const query = '12345';
-      mockAdapter.search = vi.fn().mockResolvedValue(mockResults);
+      mockAdapter.search = vi.fn().mockResolvedValue(mockSearchResults);
 
       const result = await searchService.search(query);
 
       expect(mockAdapter.search).toHaveBeenCalledWith(query, 5);
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
 
     it('should handle results with missing optional fields', async () => {
@@ -195,7 +183,7 @@ describe('SearchService', () => {
         {
           title: 'Result with minimal fields',
           snippet: 'Minimal snippet',
-          url: 'https:/example.com/minimal',
+          url: 'https://example.com/minimal',
         },
       ];
       const query = 'test query';
@@ -212,7 +200,7 @@ describe('SearchService', () => {
         {
           title: 'Extended Result',
           snippet: 'Extended snippet',
-          url: 'https:/example.com/extended',
+          url: 'https://example.com/extended',
           extra_field: 'extra value',
           timestamp: new Date(),
         },
@@ -251,11 +239,11 @@ describe('SearchService', () => {
 
       // Resolve the search after a delay
       setTimeout(() => {
-        resolveSearch!(mockResults);
+        resolveSearch!(mockSearchResults);
       }, 10);
 
       const result = await resultPromise;
-      expect(result).toEqual(mockResults);
+      expect(result).toEqual(mockSearchResults);
     });
   });
 
@@ -297,8 +285,8 @@ describe('SearchService', () => {
     it('should work correctly with multiple sequential searches', async () => {
       const query1 = 'first query';
       const query2 = 'second query';
-      const results1 = [mockResults[0]];
-      const results2 = [mockResults[1]];
+      const results1 = [mockSearchResults[0]];
+      const results2 = [mockSearchResults[1]];
 
       mockAdapter.search = vi
         .fn()
@@ -318,8 +306,8 @@ describe('SearchService', () => {
     it('should work correctly with concurrent searches', async () => {
       const query1 = 'concurrent query 1';
       const query2 = 'concurrent query 2';
-      const results1 = [mockResults[0]];
-      const results2 = [mockResults[1]];
+      const results1 = [mockSearchResults[0]];
+      const results2 = [mockSearchResults[1]];
 
       mockAdapter.search = vi.fn().mockImplementation(async (query) => {
         // Simulate different delays

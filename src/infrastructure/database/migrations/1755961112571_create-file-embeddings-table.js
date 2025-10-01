@@ -23,7 +23,7 @@ export const up = (pgm) => {
       onDelete: 'CASCADE',
     },
     chunk_index: { type: 'int', notNull: true },
-    pinecone_id: { type: 'text', notNull: true },
+    pinecone_id: { type: 'text', notNull: true, unique: true },
     vector_dimensions: { type: 'int', notNull: true },
     created_at: {
       type: 'timestamp',
@@ -33,6 +33,9 @@ export const up = (pgm) => {
   });
 
   pgm.createIndex('file_embeddings', 'file_id');
+  pgm.createIndex('file_embeddings', ['file_id', 'chunk_index'], {
+    unique: true,
+  });
 };
 
 /**

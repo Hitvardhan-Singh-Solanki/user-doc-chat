@@ -84,7 +84,7 @@ describe('WebsocketService', () => {
     expect(ws).toBe(instance2);
   });
 
-  it('authVerification sets userId correctly', async () => {
+  it('authVerification sets userId correctly with RFC-7519 sub claim', async () => {
     const socket: any = { handshake: { auth: { token: 'token' } } };
     const next = vi.fn();
 
@@ -100,6 +100,73 @@ describe('WebsocketService', () => {
 
     expect(next).toHaveBeenCalled();
     expect(socket.userId).toBe('user-123');
+  });
+
+  it('authVerification falls back to legacy userId claim with warning', async () => {
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({
+      userId: 'legacy-user-123',
+      email: 'test@example.com',
+      iat: 1234567890,
+      exp: 1234567890 + 3600,
+    });
+
+    const socket: any = { handshake: { auth: { token: 'legacy-token' } } };
+    const next = vi.fn();
+
+    // Get the stored middleware from our mock
+    const middlewareFn = mockIo._authMiddleware;
+
+    // Call the middleware
+    await middlewareFn(socket, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(socket.userId).toBe('legacy-user-123');
+  });
+
+  it('authVerification falls back to legacy id claim with warning', async () => {
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({
+      id: 'legacy-id-123',
+      email: 'test@example.com',
+      iat: 1234567890,
+      exp: 1234567890 + 3600,
+    });
+
+    const socket: any = { handshake: { auth: { token: 'legacy-token' } } };
+    const next = vi.fn();
+
+    // Get the stored middleware from our mock
+    const middlewareFn = mockIo._authMiddleware;
+
+    // Call the middleware
+    await middlewareFn(socket, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(socket.userId).toBe('legacy-id-123');
+  });
+
+  it('authVerification rejects token with no user identifier', async () => {
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({
+      email: 'test@example.com',
+      iat: 1234567890,
+      exp: 1234567890 + 3600,
+    });
+
+    const socket: any = { handshake: { auth: { token: 'invalid-token' } } };
+    const next = vi.fn();
+
+    // Get the stored middleware from our mock
+    const middlewareFn = mockIo._authMiddleware;
+
+    // Call the middleware
+    await middlewareFn(socket, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(next.mock.calls[0][0].message).toBe(
+      'Invalid token: missing subject claim',
+    );
   });
 
   it('processQuestion with no Pinecone matches', async () => {
@@ -142,11 +209,8 @@ describe('WebsocketService', () => {
   it('processQuestion with Pinecone matches streams LLM', async () => {
     const dbMock = (ws as any).db;
 
-    // Mock getOrCreateChat: first query returns rowCount=0, second query simulates INSERT returning chat ID
-    dbMock.query = vi
-      .fn()
-      .mockResolvedValueOnce({ rowCount: 0, rows: [] }) /// no existing chat
-      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'chat-1' }] }); // insert new chat
+    // Mock getOrCreateChat: simulate INSERT returning chat ID
+    dbMock.query = vi.fn().mockResolvedValue({ rows: [{ id: 'chat-1' }] }); // insert new chat
 
     const emitMock = vi.fn();
     vi.spyOn(ws.io, 'to').mockReturnValue({ emit: emitMock } as any);
@@ -197,8 +261,7 @@ describe('WebsocketService', () => {
 
   it('getOrCreateChat creates new chat if none exists', async () => {
     const db = (ws as any).db;
-    db.query.mockResolvedValueOnce({ rowCount: 0, rows: [] }); // no existing
-    db.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'chat-1' }] }); // insert
+    db.query.mockResolvedValue({ rows: [{ id: 'chat-1' }] }); // insert/upsert returns chat ID
     const chatId = await (ws as any).getOrCreateChat('user-123', 'file-1');
     expect(chatId).toBe('chat-1');
   });

@@ -1,0 +1,221 @@
+# Production Docker Compose Configuration
+# This file demonstrates how to use secrets management in production
+# DO NOT commit actual secrets to version control!
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Application configuration
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=info
+      
+      # Database configuration - SECURE: Load from secret store
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=require
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      
+      # Redis configuration - SECURE: Load from secret store
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # JWT configuration - CRITICAL: Use secrets manager!
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=3600
+      
+      # External API keys - SECURE: Store in secrets manager
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SERP_API_KEY=${SERP_API_KEY}
+      - BING_SEARCH_API_KEY=${BING_SEARCH_API_KEY}
+      - BING_SEARCH_ENDPOINT=https://api.bing.microsoft.com/v7.0/search
+      
+      # Vector database configuration - SECURE: Store in secrets manager
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      
+      # Storage configuration - SECURE: Store in secrets manager
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_USE_SSL=false
+      - S3_BUCKET=${S3_BUCKET}
+      
+      # Security configuration
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      
+      # Monitoring
+      - PROMETHEUS_PORT=9090
+      - GRAFANA_PORT=3001
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    restart: unless-stopped
+    networks:
+      - app-network
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.d:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - app-network
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:6-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - app-network
+    # Health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+    networks:
+      - app-network
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-network:
+    driver: bridge
+
+# =============================================================================
+# SECRETS MANAGEMENT INSTRUCTIONS
+# =============================================================================
+# 
+# This Docker Compose file uses environment variables for secrets.
+# For production deployment, follow these steps:
+#
+# 1. Generate JWT Secret:
+#    JWT_SECRET=$(openssl rand -base64 32)
+#
+# 2. Create a .env file with all required secrets:
+#    cp env.production.template .env.production
+#    # Edit .env.production with actual values
+#
+# 3. Deploy with environment file:
+#    docker-compose -f docker-compose.production.yml --env-file .env.production up -d
+#
+# 4. Alternative: Use Docker secrets (recommended for production):
+#    # Create secrets
+#    echo "your-jwt-secret" | docker secret create jwt_secret -
+#    echo "your-db-password" | docker secret create db_password -
+#    
+#    # Update docker-compose.yml to use secrets:
+#    secrets:
+#      - jwt_secret
+#      - db_password
+#    environment:
+#      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+#
+# 5. For Kubernetes deployment, use Kubernetes secrets:
+#    kubectl create secret generic app-secrets \
+#      --from-literal=jwt-secret="your-jwt-secret" \
+#      --from-literal=db-password="your-db-password"
+#
+# 6. For cloud deployment, use cloud secrets managers:
+#    - AWS Secrets Manager
+#    - Azure Key Vault
+#    - Google Secret Manager
+#    - HashiCorp Vault
+#
+# NEVER commit actual secrets to version control!

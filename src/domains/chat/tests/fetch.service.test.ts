@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
-import { Readability } from '@mozilla/readability';
 import { FetchHTMLService } from '../services/fetch.service';
 import { SearchResult } from '../../../shared/types';
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
 
 // Mock external dependencies
 // A simpler p-limit mock that runs tasks immediately
 vi.mock('p-limit', () => ({
-  default: vi.fn((concurrency) => {
-    return (fn: () => Promise<any>) => fn();
+  default: vi.fn((_concurrency) => {
+    return (fn: () => Promise<unknown>) => fn();
   }),
 }));
 
 vi.mock('net', () => ({
   default: {
-    isIP: (ip: string) => (ip.includes(':') ? 6 : ip.includes('.') ? 4 : 0),
+    isIP: (ip: string) => (ip.includes('.') ? 4 : ip.includes(':') ? 6 : 0),
   },
 }));
 
@@ -30,7 +30,7 @@ vi.mock('dns/promises', () => ({
 
 // A more robust mock for jsdom and readability
 vi.mock('jsdom', () => ({
-  JSDOM: vi.fn((html: string, options: any) => ({
+  JSDOM: vi.fn((html: string, _options: unknown) => ({
     window: {
       document: {
         title: 'Mock Document Title',
@@ -44,7 +44,7 @@ vi.mock('jsdom', () => ({
 }));
 
 vi.mock('@mozilla/readability', () => ({
-  Readability: vi.fn((dom) => ({
+  Readability: vi.fn((_dom) => ({
     parse: () => {
       // Direct return for successful parsing in the test.
       return {
@@ -167,12 +167,12 @@ describe('FetchHTMLService', () => {
   describe('fetchHTML', () => {
     it('should fetch a limited number of pages based on options', async () => {
       const results: SearchResult[] = [
-        { url: 'https:/example.com/1', title: 'A', snippet: '...' },
-        { url: 'https:/example.com/2', title: 'B', snippet: '...' },
-        { url: 'https:/example.com/3', title: 'C', snippet: '...' },
-        { url: 'https:/example.com/4', title: 'D', snippet: '...' },
-        { url: 'https:/example.com/5', title: 'E', snippet: '...' },
-        { url: 'https:/example.com/6', title: 'F', snippet: '...' },
+        { url: 'https://example.com/1', title: 'A', snippet: '...' },
+        { url: 'https://example.com/2', title: 'B', snippet: '...' },
+        { url: 'https://example.com/3', title: 'C', snippet: '...' },
+        { url: 'https://example.com/4', title: 'D', snippet: '...' },
+        { url: 'https://example.com/5', title: 'E', snippet: '...' },
+        { url: 'https://example.com/6', title: 'F', snippet: '...' },
       ];
       const options = { maxPagesToFetch: 3 };
 
@@ -188,8 +188,8 @@ describe('FetchHTMLService', () => {
 
     it('should handle errors from fetchExtract gracefully', async () => {
       const results: SearchResult[] = [
-        { url: 'https:/example.com/ok', title: 'OK', snippet: '...' },
-        { url: 'https:/example.com/fail', title: 'FAIL', snippet: '...' },
+        { url: 'https://example.com/ok', title: 'OK', snippet: '...' },
+        { url: 'https://example.com/fail', title: 'FAIL', snippet: '...' },
       ];
       const options = {};
 
@@ -206,7 +206,7 @@ describe('FetchHTMLService', () => {
 
     it('should use default options when not provided', async () => {
       const results: SearchResult[] = [
-        { url: 'https:/example.com/1', title: 'A', snippet: '...' },
+        { url: 'https://example.com/1', title: 'A', snippet: '...' },
       ];
       const fetchExtractSpy = vi.spyOn(svc as any, 'fetchExtract');
       fetchExtractSpy.mockResolvedValue('mock content');
@@ -251,7 +251,7 @@ describe('FetchHTMLService', () => {
       (svc as any).fetchPageText.mockResolvedValue(longText);
 
       const result = await (svc as any).fetchExtract(
-        { url: 'https:/example.com', snippet: 'short' },
+        { url: 'https://example.com', snippet: 'short' },
         opts,
       );
       expect(result).toBe(longText);
@@ -263,7 +263,7 @@ describe('FetchHTMLService', () => {
       (svc as any).fetchPageText.mockResolvedValue(shortText);
 
       const result = await (svc as any).fetchExtract(
-        { url: 'https:/example.com', snippet: longSnippet },
+        { url: 'https://example.com', snippet: longSnippet },
         { ...opts, minContentLength: 400 },
       );
       expect(result).toBe(longSnippet);
@@ -275,7 +275,7 @@ describe('FetchHTMLService', () => {
       (svc as any).fetchPageText.mockResolvedValue(shortText);
 
       const result = await (svc as any).fetchExtract(
-        { url: 'https:/example.com', snippet: shortSnippet },
+        { url: 'https://example.com', snippet: shortSnippet },
         opts,
       );
       expect(result).toBe('');
@@ -291,18 +291,18 @@ describe('FetchHTMLService', () => {
 
     it('should return null for non-http/https protocols', async () => {
       (svc as any).validateUrlForSSRF.mockReturnValue(false);
-      const result = await (svc as any).fetchPageText('ftp:/example.com');
+      const result = await (svc as any).fetchPageText('ftp://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should return null for localhost and private IP addresses', async () => {
       const urls = [
-        'http:/localhost',
-        'http:/127.0.0.1',
-        'http:/10.0.0.1',
-        'http:/192.168.1.1',
-        'http:/172.16.0.1',
+        'http://localhost',
+        'http://127.0.0.1',
+        'http://10.0.0.1',
+        'http://192.168.1.1',
+        'http://172.16.0.1',
       ];
       (svc as any).validateUrlForSSRF.mockReturnValue(false);
       for (const url of urls) {
@@ -314,14 +314,14 @@ describe('FetchHTMLService', () => {
 
     it('should return null if dns lookup resolves to a private IP', async () => {
       (svc as any).isPublicAddress.mockResolvedValue(false);
-      const result = await (svc as any).fetchPageText('http:/example.com');
+      const result = await (svc as any).fetchPageText('http://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should return null on network error', async () => {
       global.fetch = vi.fn(() => Promise.reject(new Error('Network failed')));
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -329,15 +329,15 @@ describe('FetchHTMLService', () => {
       global.fetch = vi.fn(() =>
         Promise.resolve(makeFetchResponse({ ok: false, status: 404 })),
       );
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
     it('should return null on redirect (3xx status)', async () => {
       global.fetch = vi.fn(() =>
-        Promise.resolve(makeFetchResponse({ status: 301, ok: true })),
+        Promise.resolve(makeFetchResponse({ status: 301, ok: false })),
       );
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -349,7 +349,7 @@ describe('FetchHTMLService', () => {
           }),
         ),
       );
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -361,7 +361,7 @@ describe('FetchHTMLService', () => {
           }),
         ),
       );
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -376,7 +376,7 @@ describe('FetchHTMLService', () => {
         ),
       );
 
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -396,7 +396,7 @@ describe('FetchHTMLService', () => {
         }) as Promise<Response>;
       });
 
-      const promise = (svc as any).fetchPageText('https:/example.com', 100);
+      const promise = (svc as any).fetchPageText('https://example.com', 100);
       await vi.advanceTimersByTimeAsync(100);
 
       // Assert that the function returns null after the timeout, as expected by the logic in the main file
@@ -424,14 +424,14 @@ describe('FetchHTMLService', () => {
         ),
       );
 
-      const result = await (svc as any).fetchPageText('https:/example.com');
+      const result = await (svc as any).fetchPageText('https://example.com');
       expect(result).toBe(expectedText);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https:/example.com',
+        'https://example.com',
         expect.any(Object),
       );
       expect(vi.mocked(JSDOM)).toHaveBeenCalledWith(mockHtml, {
-        url: 'https:/example.com',
+        url: 'https://example.com',
       });
       expect(vi.mocked(Readability)).toHaveBeenCalled();
     });

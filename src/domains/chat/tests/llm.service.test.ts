@@ -8,22 +8,10 @@ import {
   vi,
 } from 'vitest';
 import { PromptService } from '../services/prompt.service';
-
-const HF = {
-  featureExtraction: async (..._args: any[]) => [],
-  chatCompletionStream: async (..._args: any[]) => {
-    return {
-      [Symbol.asyncIterator]() {
-        return {
-          next: async () => ({ done: true, value: undefined }),
-        };
-      },
-    };
-  },
-};
+// import { createHuggingFaceMock } from '../../../tests/mocks';
 
 // helper to create async iterables from arrays
-function asyncIterableFromArray(items: any[]) {
+function asyncIterableFromArray(items: unknown[]) {
   return {
     [Symbol.asyncIterator]() {
       let i = 0;
@@ -39,12 +27,29 @@ function asyncIterableFromArray(items: any[]) {
 }
 
 // --- Hoisted mocks (safe because PROMPT & HF exist above) ---
+const HF = {
+  featureExtraction: vi.fn(async (..._args: unknown[]) => []),
+  chatCompletionStream: vi.fn((..._args: unknown[]) => {
+    return {
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => ({ done: true, value: undefined }),
+        };
+      },
+    };
+  }),
+  chatCompletion: vi.fn(async (..._args: unknown[]) => ({
+    choices: [{ message: { content: 'Hello world.' } }],
+  })),
+};
+
 vi.mock('@huggingface/inference', () => {
   return {
     InferenceClient: function (_token: string) {
       return {
         featureExtraction: HF.featureExtraction,
         chatCompletionStream: HF.chatCompletionStream,
+        chatCompletion: HF.chatCompletion,
       };
     },
   };
@@ -57,6 +62,32 @@ vi.mock('@xenova/transformers', () => {
       from_pretrained: vi.fn().mockResolvedValue({
         encode: (text: string) => text.split(' ').map((_, i) => i + 1), // Mock tokenization
       }),
+    },
+  };
+});
+
+// Mock XenovaTokenizerAdapter to initialize immediately in tests
+vi.mock('../../../infrastructure/external-services/ai/xenova.adapter', () => {
+  return {
+    XenovaTokenizerAdapter: class MockXenovaTokenizerAdapter {
+      constructor(private modelName: string) {}
+
+      async init() {
+        // Mock initialization that resolves immediately
+        return Promise.resolve();
+      }
+
+      encode(text: string): number[] {
+        return text.split(' ').map((_, i) => i + 1);
+      }
+
+      decode(tokens: number[]): string {
+        return tokens.map((t) => `token${t}`).join(' ');
+      }
+
+      countTokens(text: string): number {
+        return this.encode(text).length;
+      }
     },
   };
 });
@@ -76,6 +107,7 @@ describe('LLMService (unit)', () => {
     // reset controller implementations to fresh spies per test
     HF.featureExtraction = vi.fn();
     HF.chatCompletionStream = vi.fn();
+    HF.chatCompletion = vi.fn();
 
     // mock global fetch; tests change its implementation as needed
     (globalThis as any).fetch = vi.fn();
@@ -112,7 +144,7 @@ describe('LLMService (unit)', () => {
   });
 
   it('embeddingPython calls fetch and returns embedding on success (and uses sanitizeText)', async () => {
-    process.env.PYTHON_LLM_URL = 'http:/example.local/embed';
+    process.env.PYTHON_LLM_URL = 'http://example.local/embed';
     const sanitizeSpy = vi.spyOn(PromptService.prototype, 'sanitizeText');
     const svc = new LLMService();
     const fakeEmbedding = [0.1, 0.2, 0.3];
@@ -137,7 +169,7 @@ describe('LLMService (unit)', () => {
   });
 
   it('embeddingPython throws when fetch returns non-ok', async () => {
-    process.env.PYTHON_LLM_URL = 'http:/example.local/embed';
+    process.env.PYTHON_LLM_URL = 'http://example.local/embed';
     const svc = new LLMService();
 
     (globalThis as any).fetch.mockResolvedValue({
@@ -183,7 +215,7 @@ describe('LLMService (unit)', () => {
       { choices: [{ delta: { content: 'Hello ' } }] },
       { choices: [{ delta: { content: 'world.' } }] },
     ];
-    (HF.chatCompletionStream as any).mockResolvedValue(
+    (HF.chatCompletionStream as any).mockReturnValue(
       asyncIterableFromArray(chunks),
     );
 
@@ -198,9 +230,9 @@ describe('LLMService (unit)', () => {
     }
 
     expect(got.join('')).toBe('Hello world.');
-    // LLMService calls enrichIfUnknown after first stream; it may no-op (return null)
+    // LLMService calls enrichIfUnknown before streaming to check if enrichment is needed
     expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(1);
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledWith('Q1', 'Hello world.');
+    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledWith('Q1', '');
     expect(HF.chatCompletionStream).toHaveBeenCalled();
   });
 
@@ -216,7 +248,7 @@ describe('LLMService (unit)', () => {
 
     // Make chatCompletionStream return different iterables per call
     let calls = 0;
-    (HF.chatCompletionStream as any).mockImplementation(async () => {
+    (HF.chatCompletionStream as any).mockImplementation(() => {
       calls++;
       if (calls === 1) return asyncIterableFromArray(initial);
       return asyncIterableFromArray(enriched);
@@ -254,7 +286,7 @@ describe('LLMService (unit)', () => {
     const svc = new LLMService();
 
     const initial = [{ choices: [{ delta: { content: "I don't know" } }] }];
-    (HF.chatCompletionStream as any).mockResolvedValue(
+    (HF.chatCompletionStream as any).mockReturnValue(
       asyncIterableFromArray(initial),
     );
 
@@ -275,10 +307,10 @@ describe('LLMService (unit)', () => {
     expect(throwingEnr.enrichIfUnknown).toHaveBeenCalled();
   });
 
-  it('buildPrompt and buildLowPrompt call underlying prompt utilities', () => {
+  it('buildPrompt and buildLowPrompt call underlying prompt utilities', async () => {
     const svc = new LLMService();
-    const p = svc.buildPrompt('ctx', 'q', []);
-    const lp = svc.buildLowPrompt(['a', 'b']);
+    const p = await svc.buildPrompt('ctx', 'q', []);
+    const lp = await svc.buildLowPrompt(['a', 'b']);
     expect(typeof p).toBe('string');
     expect(typeof lp).toBe('string');
   });

@@ -7,7 +7,10 @@ import { downloadFile } from '../../../infrastructure/storage/providers/minio.pr
 import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
 import { FileJob, Vector } from '../../../shared/types';
 import { sanitizeFile } from '../../../shared/utils/sanitize-file';
-import { connectionOptions, fileQueueName } from '../../../infrastructure/database/repositories/bullmq.repo';
+import {
+  connectionOptions,
+  fileQueueName,
+} from '../../../infrastructure/queue/providers/bullmq.provider';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import { LLMService } from '../../../domains/chat/services/llm.service';
 import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
@@ -51,6 +54,26 @@ export class FileWorkerService {
       logger.error({ err: err.message }, 'Worker error'),
     );
     logger.info('File processing worker started.');
+  }
+
+  /** Stop the BullMQ worker gracefully */
+  public async stopWorker(): Promise<void> {
+    if (!this.worker) {
+      logger.info('Worker is not running, nothing to stop');
+      return;
+    }
+
+    logger.info('Stopping file processing worker...');
+
+    try {
+      // Close the worker gracefully
+      await this.worker.close();
+      this.worker = undefined;
+      logger.info('File processing worker stopped successfully');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping worker');
+      throw error;
+    }
   }
 
   /** Main job processor */

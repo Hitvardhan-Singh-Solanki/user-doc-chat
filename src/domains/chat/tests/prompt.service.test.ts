@@ -22,7 +22,7 @@ vi.mock('../config/logger', () => ({
 }));
 
 // Mock environment variable
-const originalEnv = process.env;
+const originalEnv = { ...process.env };
 beforeEach(() => {
   process.env.HUGGINGFACE_CHAT_MODEL = 'mock-model';
 });
@@ -277,6 +277,270 @@ describe('PromptService', () => {
     });
   });
 
+  describe('truncation strategies', () => {
+    it('should handle truncate-history strategy correctly', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt too long
+          .mockReturnValueOnce(1000) // History tokens
+          .mockReturnValue(800), // Final prompt
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const input = {
+        question: 'Q',
+        context: 'Context',
+        chatHistory: ['Old message 1', 'Old message 2', 'Recent message'],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-history',
+        truncateBuffer: 100,
+      };
+
+      const result = service.mainPrompt(input, config);
+      expect(result).toBeTruthy();
+      expect(mockTokenizer.countTokens).toHaveBeenCalled();
+    });
+
+    it('should handle truncate-context strategy with priority content', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt too long
+          .mockReturnValueOnce(1000) // Context tokens
+          .mockReturnValue(800), // Final prompt
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const input = {
+        question: 'Q',
+        context:
+          'Section 1.1: Important legal clause. Section 1.2: Another clause.',
+        chatHistory: [],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+        truncateBuffer: 100,
+      };
+
+      const result = service.mainPrompt(input, config);
+      expect(result).toBeTruthy();
+    });
+
+    it('should throw error when final prompt still exceeds maxLength after truncation', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt too long
+          .mockReturnValueOnce(1000) // Context tokens
+          .mockReturnValue(1500), // Final prompt still too long
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const input = {
+        question: 'Q',
+        context: 'Very long context that cannot be truncated enough',
+        chatHistory: [],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+      };
+
+      expect(() => service.mainPrompt(input, config)).toThrow(
+        'Prompt still exceeds maxLength after truncation',
+      );
+    });
+  });
+
+  describe('createSummarizationPrompt edge cases', () => {
+    it('should handle truncation in summarization prompt', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(5000) // Initial prompt too long
+          .mockReturnValueOnce(4000) // Text tokens
+          .mockReturnValueOnce(2000) // Original text tokens
+          .mockReturnValueOnce(1000) // Truncated text tokens
+          .mockReturnValue(3000), // Final prompt
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const text = 'Very long legal text '.repeat(1000);
+      const result = service.createSummarizationPrompt({ text });
+
+      expect(result).toBeTruthy();
+      expect(mockTokenizer.countTokens).toHaveBeenCalled();
+    });
+
+    it('should throw error when summarization prompt still exceeds maxLength after truncation', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(5000) // Initial prompt too long
+          .mockReturnValueOnce(4000) // Text tokens
+          .mockReturnValueOnce(2000) // Original text tokens
+          .mockReturnValueOnce(1000) // Truncated text tokens
+          .mockReturnValue(5000), // Final prompt still too long
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const text = 'Very long legal text '.repeat(1000);
+      const config: PromptConfig = { maxLength: 3000 };
+
+      expect(() => service.createSummarizationPrompt({ text }, config)).toThrow(
+        'Summarization prompt still exceeds maxLength after truncation',
+      );
+    });
+  });
+
+  describe('lowPrompt truncation', () => {
+    it('should handle truncation in lowPrompt', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt too long
+          .mockReturnValueOnce(1000) // Content tokens
+          .mockReturnValue(800), // Final prompt
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const input = ['Very long content '.repeat(100)];
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+      };
+
+      const result = service.lowPrompt(input, config);
+      expect(result).toBeTruthy();
+    });
+
+    it('should throw error when lowPrompt still exceeds maxLength after truncation', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt too long
+          .mockReturnValueOnce(1000) // Content tokens
+          .mockReturnValue(1500), // Final prompt still too long
+      };
+
+      (service as any).tokenizer = mockTokenizer;
+
+      const input = ['Very long content '.repeat(100)];
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+      };
+
+      expect(() => service.lowPrompt(input, config)).toThrow(
+        'Low prompt still exceeds maxLength after truncation',
+      );
+    });
+  });
+
+  describe('tokenizer integration', () => {
+    it('should use tokenizer for all token counting operations', () => {
+      const mockTokenizer = {
+        countTokens: vi.fn().mockReturnValue(100),
+      };
+
+      const serviceWithMock = new PromptService(mockTokenizer as any);
+
+      const input = {
+        question: 'Test question',
+        context: 'Test context',
+        chatHistory: [],
+      };
+
+      serviceWithMock.mainPrompt(input);
+
+      // Verify tokenizer was called multiple times
+      expect(mockTokenizer.countTokens).toHaveBeenCalled();
+      expect(mockTokenizer.countTokens.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it('should handle tokenizer errors gracefully', () => {
+      const mockTokenizer = {
+        countTokens: vi.fn().mockImplementation(() => {
+          throw new Error('Tokenizer error');
+        }),
+      };
+
+      const serviceWithMock = new PromptService(mockTokenizer as any);
+
+      const input = {
+        question: 'Test question',
+        context: 'Test context',
+        chatHistory: [],
+      };
+
+      expect(() => serviceWithMock.mainPrompt(input)).toThrow(
+        'Tokenizer error',
+      );
+    });
+  });
+
+  describe('configuration validation', () => {
+    it('should validate all required config fields', () => {
+      const input = {
+        question: 'Test',
+        context: 'Test',
+        chatHistory: [],
+      };
+
+      // Test with valid config
+      expect(() =>
+        service.mainPrompt(input, {
+          language: 'english',
+          jurisdiction: 'INDIA',
+        }),
+      ).not.toThrow();
+
+      // Test with invalid language
+      expect(() => service.mainPrompt(input, { language: 'spanish' })).toThrow(
+        'Only English language is supported',
+      );
+
+      // Test with invalid jurisdiction
+      expect(() => service.mainPrompt(input, { jurisdiction: 'US' })).toThrow(
+        'Only Indian jurisdiction is supported',
+      );
+    });
+
+    it('should merge default config with provided config correctly', () => {
+      const input = {
+        question: 'Test',
+        context: 'Test',
+        chatHistory: [],
+      };
+
+      const customConfig: PromptConfig = {
+        version: '2.0.0',
+        tone: 'casual',
+        temperature: 0.7,
+        maxLength: 5000,
+      };
+
+      const result = service.mainPrompt(input, customConfig);
+
+      expect(result).toContain('Version: 2.0.0');
+      expect(result).toContain('casual tone');
+      expect(result).toContain('Temperature: 0.7');
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle very long questions', () => {
       const input = {
@@ -299,7 +563,7 @@ describe('PromptService', () => {
       expect(result).toContain('§ 420');
     });
 
-    it('should work without tokenizer (fallback mode)', async () => {
+    it('should throw error when tokenizer is null', async () => {
       // Simulate tokenizer initialization failure
       (service as any).tokenizer = null;
 
@@ -307,6 +571,30 @@ describe('PromptService', () => {
         question: 'Test question',
         context: 'Test context',
         chatHistory: [],
+      };
+
+      expect(() => service.mainPrompt(input)).toThrow(
+        'Cannot read properties of null',
+      );
+    });
+
+    it('should handle empty and whitespace-only inputs', () => {
+      const input = {
+        question: '   ',
+        context: '',
+        chatHistory: ['   ', ''],
+      };
+
+      const result = service.mainPrompt(input);
+      expect(result).toBeTruthy();
+      expect(result).toContain('=== USER QUESTION ===');
+    });
+
+    it('should handle very large chat history', () => {
+      const input = {
+        question: 'Test',
+        context: 'Context',
+        chatHistory: Array(1000).fill('Previous conversation message'),
       };
 
       expect(() => service.mainPrompt(input)).not.toThrow();

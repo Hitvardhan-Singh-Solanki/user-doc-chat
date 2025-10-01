@@ -7,7 +7,10 @@ export const requestLogger = (
   res: Response,
   next: NextFunction,
 ) => {
-  const correlationId = req.headers['x-request-id'] || uuidv4();
+  const requestIdHeader = req.headers['x-request-id'];
+  const correlationId = Array.isArray(requestIdHeader)
+    ? requestIdHeader[0]
+    : requestIdHeader || uuidv4();
 
   req.log = logger.child({
     correlationId,

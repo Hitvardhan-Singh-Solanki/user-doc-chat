@@ -19,12 +19,24 @@ export class SerpApiAdapter implements ISearchAdapter {
       hl: 'en',
       gl: 'us',
     });
-    const res = await fetch(`https:/serpapi.com/search.json?${params}`, {
+    const res = await fetch(`https://serpapi.com/search.json?${params}`, {
       signal: (AbortSignal as any).timeout
         ? (AbortSignal as any).timeout(8000)
         : undefined,
       headers: { Accept: 'application/json' },
     });
+
+    if (!res.ok) {
+      let errorBody: string;
+      try {
+        errorBody = await res.text();
+      } catch {
+        errorBody = 'Unable to read response body';
+      }
+      throw new Error(
+        `SERP API request failed: ${res.status} ${res.statusText} - ${errorBody}`,
+      );
+    }
 
     const data = await res.json();
     const items = (data.organic_results || []).map((r: any) => ({

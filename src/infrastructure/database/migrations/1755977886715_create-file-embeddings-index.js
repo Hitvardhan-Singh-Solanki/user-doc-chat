@@ -25,5 +25,6 @@ export const up = (pgm) => {
  * @returns {Promise<void> | void}
  */
 export const down = (pgm) => {
-  pgm.dropIndex('file_embeddings');
+  pgm.dropIndex('file_embeddings', 'file_embeddings_file_chunk_uidx');
+  pgm.dropIndex('file_embeddings', 'file_embeddings_pinecone_id_uidx');
 };

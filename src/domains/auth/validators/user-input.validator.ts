@@ -1,4 +1,4 @@
-import z from 'zod';
+import { z } from 'zod';
 
 export const UserInputSchema = z.object({
   question: z.string().min(1, 'Question cannot be empty').max(2000),

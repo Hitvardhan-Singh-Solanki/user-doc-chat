@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthService } from '../services/auth.service';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import * as hashUtils from '../../../shared/utils/hash';
+import { mockUser } from '../../../tests/fixtures';
 
 // Mock the hash utilities
 vi.mock('../../../shared/utils/hash', () => ({
@@ -36,11 +37,6 @@ describe('AuthService', () => {
       const email = 'test@example.com';
       const password = 'password123';
       const hashedPassword = 'hashedPassword123';
-      const mockUser = {
-        id: 'user1',
-        email: 'test@example.com',
-        created_at: new Date(),
-      };
 
       mockHashPassword.mockResolvedValue(hashedPassword);
       mockDb.query = vi.fn().mockResolvedValue({
@@ -140,7 +136,7 @@ describe('AuthService', () => {
 
       expect(mockDb.query).toHaveBeenCalledWith(
         'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
-        [email],
+        ['test@example.com'],
       );
       expect(mockComparePassword).toHaveBeenCalledWith(
         password,
@@ -221,6 +217,29 @@ describe('AuthService', () => {
 
       await expect(authService.login(email, password)).rejects.toThrow(
         'Password comparison failed',
+      );
+    });
+
+    it('should normalize email to lowercase and trim', async () => {
+      const email = '  TEST@EXAMPLE.COM  ';
+      const password = 'password123';
+      const mockUser = {
+        id: 'user1',
+        email: 'test@example.com',
+        password_hash: 'hashedPassword123',
+        created_at: new Date(),
+      };
+
+      mockDb.query = vi.fn().mockResolvedValue({
+        rows: [mockUser],
+      });
+      mockComparePassword.mockResolvedValue(true);
+
+      await authService.login(email, password);
+
+      expect(mockDb.query).toHaveBeenCalledWith(
+        'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
+        ['test@example.com'],
       );
     });
   });

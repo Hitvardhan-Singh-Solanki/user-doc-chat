@@ -10,8 +10,30 @@ export class BingSearchAdapter implements ISearchAdapter {
   }
 
   async search(query: string, maxResults = 5): Promise<SearchResult[]> {
-    const url = `https:/api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      query,
+    // Validate query parameter
+    if (typeof query !== 'string') {
+      throw new Error('Query must be a string');
+    }
+
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      throw new Error('Query cannot be empty or contain only whitespace');
+    }
+
+    // Validate maxResults parameter
+    if (typeof maxResults !== 'number' || !Number.isInteger(maxResults)) {
+      throw new Error('maxResults must be an integer');
+    }
+
+    // Ensure maxResults is within allowed range
+    if (maxResults < 1 || maxResults > 50) {
+      throw new Error(
+        `maxResults must be between 1 and 50, got: ${maxResults}`,
+      );
+    }
+
+    const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
+      trimmedQuery,
     )}&count=${maxResults}`;
     const res = await fetch(url, {
       headers: { 'Ocp-Apim-Subscription-Key': this.apiKey },
