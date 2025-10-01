@@ -177,8 +177,49 @@ The project includes comprehensive testing:
 
 - **Unit Tests**: Individual service and utility testing
 - **Integration Tests**: API endpoint and service interaction testing
-- **E2E Tests**: Full user workflow testing
+- **E2E Tests**: Full user workflow testing with real gRPC services
 - **Mock Services**: External service mocking for reliable testing
+
+### Test Types
+
+#### Unit Tests
+```bash
+# Run unit tests
+npm test
+
+# Run with coverage
+npm run coverage
+
+# Watch mode
+npm run test:watch
+```
+
+#### End-to-End Tests
+E2E tests verify the complete integration between Node.js and Python gRPC services:
+
+```bash
+# Run e2e tests (requires Python service running)
+npm run test:e2e
+
+# Run e2e tests in watch mode
+npm run test:e2e:watch
+
+# Run all tests (unit + e2e)
+npm run test:all
+
+# Local e2e testing with automatic service setup
+./scripts/test-e2e-local.sh
+```
+
+#### gRPC Service Testing
+The e2e tests specifically verify:
+- ✅ gRPC communication between Node.js and Python services
+- ✅ File sanitization workflows (text and PDF)
+- ✅ Error handling and edge cases
+- ✅ Performance and concurrency
+- ✅ Service health and connectivity
+
+> 📖 **See [E2E Test Documentation](./src/tests/e2e/README.md) for detailed testing information**
 
 ```bash
 # Run all tests

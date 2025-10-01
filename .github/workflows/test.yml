@@ -81,7 +81,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           NODE_ENV: test
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb
@@ -97,6 +97,26 @@ jobs:
           PINECONE_INDEX_NAME: test-index
           DATABASE_URL: some-test-url
         run: npm test
+
+      - name: Run e2e tests
+        env:
+          NODE_ENV: test
+          CI: true
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-jwt-key-for-development-only
+          SANITIZER_HOST: 127.0.0.1:50051
+          SANITIZER_TIMEOUT: 10000
+          SANITIZER_TLS_ENABLED: false
+          # Toy tokens for testing (replace with real secrets in production)
+          HUGGINGFACE_HUB_TOKEN: some-fake-token-for-testing-only
+          PINECONE_API_KEY: some-fake-key-for-testing-only
+          HUGGINGFACE_CHAT_MODEL: some-fake-model-for-testing-only
+          HUGGINGFACE_SUMMARY_MODEL: some-fake-model-for-testing-only
+          HUGGINGFACE_EMBEDDING_MODEL: some-fake-model-for-testing-only
+          PINECONE_INDEX_NAME: test-index
+          DATABASE_URL: some-test-url
+        run: npm run test:e2e
 
       - name: Upload test coverage
         uses: actions/upload-artifact@v4

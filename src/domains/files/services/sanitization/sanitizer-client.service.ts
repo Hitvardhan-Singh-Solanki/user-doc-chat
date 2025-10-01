@@ -109,6 +109,20 @@ export async function sanitizeFileGrpc(
     );
   }
 
+  return sanitizeFileGrpcBuffer(fileData, fileType);
+}
+
+/**
+ * Sends file data directly to the gRPC service for sanitization.
+ * @param fileData - The file data as a Buffer.
+ * @param fileType - The MIME type of the file.
+ */
+export async function sanitizeFileGrpcBuffer(
+  fileData: Buffer,
+  fileType: string,
+): Promise<string> {
+  const client = await getSanitizerClient();
+
   const request = new SanitizeRequest();
   request.document_type = fileType;
   request.document_data = fileData;
