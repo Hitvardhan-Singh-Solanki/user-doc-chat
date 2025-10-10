@@ -23,15 +23,12 @@ const envSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
   REDIS_USERNAME: z.string().optional(),
   REDIS_TLS: z
-    .preprocess(
-      (val) => {
-        if (typeof val === 'string') {
-          return val.toLowerCase() === 'true';
-        }
-        return val;
-      },
-      z.coerce.boolean()
-    )
+    .preprocess((val) => {
+      if (typeof val === 'string') {
+        return val.toLowerCase() === 'true';
+      }
+      return val;
+    }, z.coerce.boolean())
     .default(false),
   REDIS_DB: z.coerce.number().default(0),
 

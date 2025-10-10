@@ -4,11 +4,11 @@ import { config } from '@config';
 
 /**
  * Builds Redis connection URL from configuration.
- * 
+ *
  * Priority:
  * 1. Use REDIS_URL if provided (full connection string)
  * 2. Build URL from individual components with proper encoding
- * 
+ *
  * Features:
  * - Supports TLS (rediss://) when REDIS_TLS is true
  * - Properly encodes credentials (username:password)
@@ -30,9 +30,13 @@ function buildRedisUrl(): string {
   // Handle credentials
   let auth = '';
   if (config.REDIS_USERNAME || config.REDIS_PASSWORD) {
-    const username = config.REDIS_USERNAME ? encodeURIComponent(config.REDIS_USERNAME) : '';
-    const password = config.REDIS_PASSWORD ? encodeURIComponent(config.REDIS_PASSWORD) : '';
-    
+    const username = config.REDIS_USERNAME
+      ? encodeURIComponent(config.REDIS_USERNAME)
+      : '';
+    const password = config.REDIS_PASSWORD
+      ? encodeURIComponent(config.REDIS_PASSWORD)
+      : '';
+
     if (username && password) {
       auth = `${username}:${password}@`;
     } else if (password) {
@@ -49,21 +53,21 @@ function buildRedisUrl(): string {
   }
 
   const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
-  
+
   const url = `${scheme}://${auth}${host}:${port}${queryString}`;
-  
+
   logger.info(
-    { 
-      scheme, 
-      host, 
-      port, 
-      hasAuth: !!auth, 
+    {
+      scheme,
+      host,
+      port,
+      hasAuth: !!auth,
       hasQuery: queryParams.length > 0,
-      db: config.REDIS_DB 
-    }, 
-    'Built Redis URL from configuration components'
+      db: config.REDIS_DB,
+    },
+    'Built Redis URL from configuration components',
   );
-  
+
   return url;
 }
 
