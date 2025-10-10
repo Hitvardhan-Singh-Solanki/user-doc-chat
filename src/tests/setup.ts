@@ -72,7 +72,9 @@ vi.mock('../service/pinecone', () => ({
 vi.mock('@config/secrets.config', () => ({
   secretsManager: {
     initialize: vi.fn(),
-    getJwtSecret: vi.fn().mockReturnValue('7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk='),
+    getJwtSecret: vi
+      .fn()
+      .mockReturnValue('7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk='),
     getHuggingfaceToken: vi.fn().mockReturnValue('test-huggingface-token'),
     getPineconeApiKey: vi.fn().mockReturnValue('test-pinecone-api-key'),
     getMinioAccessKey: vi.fn().mockReturnValue('test-minio-access-key'),
