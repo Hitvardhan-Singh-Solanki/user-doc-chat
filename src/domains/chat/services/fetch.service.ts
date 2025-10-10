@@ -94,10 +94,10 @@ export class FetchHTMLService implements IHTMLFetch {
 
   private async fetchPageText(
     url: string,
-    timeoutMs = 10000,
+    timeoutMs = config.CRAWLER_TIMEOUT_MS,
     redirectCount = 0,
   ): Promise<string | null> {
-    const MAX_REDIRECTS = 5;
+    const MAX_REDIRECTS = config.CRAWLER_MAX_REDIRECTS;
     const log = this.log.child({ url, redirectCount });
 
     try {

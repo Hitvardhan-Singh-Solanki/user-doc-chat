@@ -107,7 +107,7 @@ export function corsSecurity(
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else if (process.env.NODE_ENV === 'development') {
+  } else if (config.NODE_ENV === 'development') {
     if (
       origin?.startsWith('http://localhost') ||
       origin?.startsWith('http://127.0.0.1')

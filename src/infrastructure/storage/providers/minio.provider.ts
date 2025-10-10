@@ -1,7 +1,9 @@
 import { Readable } from 'stream';
 import { minioClient } from '../../database/repositories/minio.repo';
 
-const bucket = 'user-files';
+import { config } from '../../../config/app.config';
+
+const bucket = config.MINIO_DEFAULT_BUCKET;
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
   try {
