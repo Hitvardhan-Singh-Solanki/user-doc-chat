@@ -4,6 +4,136 @@ import { rateLimiterService } from '@cache/rate-limiter.service';
 import { config } from '@config';
 
 /**
+ * Token bucket rate limiter for in-memory fallback
+ * Implements leaky bucket algorithm with configurable capacity and refill rate
+ */
+class TokenBucketLimiter {
+  private buckets: Map<string, { tokens: number; lastRefill: number }> =
+    new Map();
+  private readonly capacity: number;
+  private readonly refillRate: number; // tokens per second
+  private readonly windowMs: number;
+  private readonly maxBuckets: number;
+
+  constructor(
+    capacity: number,
+    refillRate: number,
+    windowMs: number,
+    maxBuckets: number = 10000,
+  ) {
+    this.capacity = capacity;
+    this.refillRate = refillRate;
+    this.windowMs = windowMs;
+    this.maxBuckets = maxBuckets;
+  }
+
+  /**
+   * Attempts to consume tokens from the bucket
+   * @param key - Unique identifier for the bucket
+   * @param tokens - Number of tokens to consume (default: 1)
+   * @returns Object with success status and remaining tokens
+   */
+  consume(
+    key: string,
+    tokens: number = 1,
+  ): { success: boolean; remaining: number; resetTime: number } {
+    const now = Date.now();
+    const bucket = this.buckets.get(key);
+
+    if (!bucket) {
+      // Create new bucket
+      this.buckets.set(key, {
+        tokens: this.capacity - tokens,
+        lastRefill: now,
+      });
+      return {
+        success: true,
+        remaining: this.capacity - tokens,
+        resetTime: now + this.windowMs,
+      };
+    }
+
+    // Calculate tokens to add based on time elapsed
+    const timeElapsed = (now - bucket.lastRefill) / 1000; // seconds
+    const tokensToAdd = Math.floor(timeElapsed * this.refillRate);
+    const newTokens = Math.min(
+      this.capacity,
+      bucket.tokens + tokensToAdd,
+    );
+
+    if (newTokens >= tokens) {
+      // Sufficient tokens available
+      bucket.tokens = newTokens - tokens;
+      bucket.lastRefill = now;
+      return {
+        success: true,
+        remaining: bucket.tokens,
+        resetTime: now + this.windowMs,
+      };
+    } else {
+      // Insufficient tokens
+      return {
+        success: false,
+        remaining: newTokens,
+        resetTime: bucket.lastRefill + this.windowMs,
+      };
+    }
+  }
+
+  /**
+   * Gets current bucket status without consuming tokens
+   */
+  getStatus(key: string): { remaining: number; resetTime: number } {
+    const now = Date.now();
+    const bucket = this.buckets.get(key);
+
+    if (!bucket) {
+      return {
+        remaining: this.capacity,
+        resetTime: now + this.windowMs,
+      };
+    }
+
+    const timeElapsed = (now - bucket.lastRefill) / 1000;
+    const tokensToAdd = Math.floor(timeElapsed * this.refillRate);
+    const currentTokens = Math.min(
+      this.capacity,
+      bucket.tokens + tokensToAdd,
+    );
+
+    return {
+      remaining: currentTokens,
+      resetTime: bucket.lastRefill + this.windowMs,
+    };
+  }
+
+  /**
+   * Clean up expired buckets and enforce size limits
+   */
+  cleanup(): void {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+
+    for (const [key, bucket] of this.buckets.entries()) {
+      if (now - bucket.lastRefill > this.windowMs * 2) {
+        expiredKeys.push(key);
+      }
+    }
+
+    // Remove expired entries
+    expiredKeys.forEach((key) => this.buckets.delete(key));
+
+    // Enforce size limit by removing oldest entries
+    if (this.buckets.size > this.maxBuckets) {
+      const entries = Array.from(this.buckets.entries());
+      entries.sort((a, b) => a[1].lastRefill - b[1].lastRefill);
+      const toRemove = entries.slice(0, this.buckets.size - this.maxBuckets);
+      toRemove.forEach(([key]) => this.buckets.delete(key));
+    }
+  }
+}
+
+/**
  * In-memory fallback rate limiter for file uploads
  * Provides basic protection when Redis is unavailable
  */
@@ -43,13 +173,65 @@ class InMemoryFileUploadLimiter {
   }
 }
 
-// Global in-memory fallback limiter
+/**
+ * Metrics and alerting for Redis failures
+ */
+class RedisFailureMetrics {
+  private failureCount = 0;
+  private lastAlertTime = 0;
+  private readonly alertCooldownMs = 5 * 60 * 1000; // 5 minutes
+
+  recordFailure(): void {
+    this.failureCount++;
+    const now = Date.now();
+
+    // Alert if enough time has passed since last alert
+    if (now - this.lastAlertTime > this.alertCooldownMs) {
+      logger.error(
+        {
+          failureCount: this.failureCount,
+          timestamp: new Date().toISOString(),
+        },
+        'HIGH SEVERITY: Redis rate limiter failures detected - using in-memory fallback',
+      );
+      this.lastAlertTime = now;
+    }
+  }
+
+  getFailureCount(): number {
+    return this.failureCount;
+  }
+
+  reset(): void {
+    this.failureCount = 0;
+    this.lastAlertTime = 0;
+  }
+}
+
+// Global in-memory fallback limiters
 const inMemoryFileUploadLimiter = new InMemoryFileUploadLimiter();
+const inMemoryGeneralLimiter = new TokenBucketLimiter(
+  100, // capacity: 100 requests
+  1, // refill rate: 1 token per second
+  15 * 60 * 1000, // window: 15 minutes
+  10000, // max buckets: 10k IPs
+);
+const inMemoryAuthLimiter = new TokenBucketLimiter(
+  5, // capacity: 5 requests
+  0.1, // refill rate: 0.1 tokens per second (1 every 10 seconds)
+  15 * 60 * 1000, // window: 15 minutes
+  10000, // max buckets: 10k IPs
+);
+
+// Global metrics tracker
+const redisFailureMetrics = new RedisFailureMetrics();
 
 // Clean up expired entries every 5 minutes
 setInterval(
   () => {
     inMemoryFileUploadLimiter.cleanup();
+    inMemoryGeneralLimiter.cleanup();
+    inMemoryAuthLimiter.cleanup();
   },
   5 * 60 * 1000,
 );
@@ -316,10 +498,60 @@ export function rateLimit(
           error: error.message,
           errorName: error.name,
         },
-        'Rate limiter service error, bypassing rate limit',
+        'Rate limiter service error, using in-memory fallback',
       );
 
-      // Fail-open strategy: allow access when rate limiter is unavailable
+      // Record failure for metrics and alerting
+      redisFailureMetrics.recordFailure();
+
+      // Use in-memory fallback with token bucket algorithm
+      const fallbackResult = inMemoryGeneralLimiter.consume(key);
+
+      if (!fallbackResult.success) {
+        // Rate limit exceeded in fallback
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            remaining: fallbackResult.remaining,
+            resetTime: fallbackResult.resetTime,
+          },
+          'Rate limit exceeded (in-memory fallback)',
+        );
+
+        res.setHeader('X-RateLimit-Limit', '100');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(fallbackResult.resetTime).toISOString(),
+        );
+
+        res.status(429).json({
+          error: 'Too many requests (fallback protection)',
+          retryAfter: Math.ceil((fallbackResult.resetTime - Date.now()) / 1000),
+        });
+        return;
+      }
+
+      // Allow the request with fallback headers
+      logger.info(
+        {
+          ip: req.ip,
+          remaining: fallbackResult.remaining,
+        },
+        'Request allowed via in-memory fallback rate limiter',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '100');
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        fallbackResult.remaining.toString(),
+      );
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(fallbackResult.resetTime).toISOString(),
+      );
+
       next();
     });
 }
@@ -394,10 +626,62 @@ export function authRateLimit(
           error: error.message,
           errorName: error.name,
         },
-        'Auth rate limiter service error, bypassing rate limit',
+        'Auth rate limiter service error, using in-memory fallback',
       );
 
-      // Fail-open strategy: allow access when rate limiter is unavailable
+      // Record failure for metrics and alerting
+      redisFailureMetrics.recordFailure();
+
+      // Use in-memory fallback with token bucket algorithm
+      const fallbackResult = inMemoryAuthLimiter.consume(key);
+
+      if (!fallbackResult.success) {
+        // Rate limit exceeded in fallback
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+            remaining: fallbackResult.remaining,
+            resetTime: fallbackResult.resetTime,
+          },
+          'Auth rate limit exceeded (in-memory fallback)',
+        );
+
+        res.setHeader('X-RateLimit-Limit', '5');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(fallbackResult.resetTime).toISOString(),
+        );
+
+        res.status(429).json({
+          error: 'Too many authentication attempts (fallback protection)',
+          retryAfter: Math.ceil((fallbackResult.resetTime - Date.now()) / 1000),
+        });
+        return;
+      }
+
+      // Allow the request with fallback headers
+      logger.info(
+        {
+          ip: req.ip,
+          endpoint: req.path,
+          remaining: fallbackResult.remaining,
+        },
+        'Auth request allowed via in-memory fallback rate limiter',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '5');
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        fallbackResult.remaining.toString(),
+      );
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(fallbackResult.resetTime).toISOString(),
+      );
+
       next();
     });
 }
