@@ -56,10 +56,7 @@ class TokenBucketLimiter {
     // Calculate tokens to add based on time elapsed
     const timeElapsed = (now - bucket.lastRefill) / 1000; // seconds
     const tokensToAdd = Math.floor(timeElapsed * this.refillRate);
-    const newTokens = Math.min(
-      this.capacity,
-      bucket.tokens + tokensToAdd,
-    );
+    const newTokens = Math.min(this.capacity, bucket.tokens + tokensToAdd);
 
     if (newTokens >= tokens) {
       // Sufficient tokens available
@@ -96,10 +93,7 @@ class TokenBucketLimiter {
 
     const timeElapsed = (now - bucket.lastRefill) / 1000;
     const tokensToAdd = Math.floor(timeElapsed * this.refillRate);
-    const currentTokens = Math.min(
-      this.capacity,
-      bucket.tokens + tokensToAdd,
-    );
+    const currentTokens = Math.min(this.capacity, bucket.tokens + tokensToAdd);
 
     return {
       remaining: currentTokens,

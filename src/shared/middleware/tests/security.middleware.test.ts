@@ -326,15 +326,15 @@ describe('Security Middleware', () => {
           setHeader: vi.fn(),
           status: vi.fn().mockReturnThis(),
           json: vi.fn(),
-        } as Response;
+        } as unknown as Response;
 
         fileUploadRateLimit(mockReq, mockRes, mockNext);
         await new Promise((resolve) => setTimeout(resolve, 10));
 
         // Check if this request was blocked
         if (
-          mockRes.status.mock.calls.length > 0 &&
-          mockRes.status.mock.calls[0][0] === 429
+          (mockRes.status as any).mock.calls.length > 0 &&
+          (mockRes.status as any).mock.calls[0][0] === 429
         ) {
           blockedRequest = true;
           expect(mockRes.json).toHaveBeenCalledWith({
