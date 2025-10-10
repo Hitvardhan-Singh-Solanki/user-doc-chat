@@ -29,9 +29,7 @@ export async function downloadFile(key: string): Promise<Buffer> {
   const chunks: Buffer[] = [];
 
   return new Promise((resolve, reject) => {
-    // let _total = 0;
     stream.on('data', (chunk: Buffer) => {
-      // _total += chunk.length;
       chunks.push(chunk);
     });
     stream.once('end', () => resolve(Buffer.concat(chunks)));
