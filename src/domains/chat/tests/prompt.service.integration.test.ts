@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PromptService } from '../services/prompt.service';
 import { ITokenizer } from '@interfaces/tokenizer.interface';
-import { UserInputSchema } from '@auth/validators/user-input.validator';
-import { LowContentSchema } from '@files/validators/file-input.validator';
+// import { UserInputSchema } from '@auth/validators/user-input.validator';
+// import { LowContentSchema } from '@files/validators/file-input.validator';
 import { MAX_INPUT_SIZE } from '@config/prompt.config';
 
 // Mock tokenizer with realistic behavior

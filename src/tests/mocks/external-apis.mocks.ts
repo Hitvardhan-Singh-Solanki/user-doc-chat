@@ -8,7 +8,7 @@ import type {
   HuggingFaceMock,
   PineconeMock,
   MockFactory,
-} from '@types/mock.types';
+} from '../../shared/types/mock.types';
 
 // HuggingFace Mock Factory
 export const createHuggingFaceMock = (): HuggingFaceMock => ({
@@ -132,8 +132,8 @@ export class ExternalAPIMockFactory<T> implements MockFactory<T> {
 
     // Apply mock functions
     for (const [key, mockFn] of Object.entries(this.mockFunctions)) {
-      if (mockFn) {
-        (result as any)[key] = mockFn();
+      if (mockFn && typeof mockFn === 'function') {
+        (result as Record<string, unknown>)[key] = mockFn();
       }
     }
 

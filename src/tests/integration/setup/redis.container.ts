@@ -4,10 +4,11 @@
  */
 
 import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis';
+import { logger } from '../../../config/logger.config';
 import type {
   RedisContainer as RedisContainerType,
   RedisContainerConfig,
-} from '@types/container.types';
+} from '../../../shared/types/container.types';
 
 export class RedisContainerManager {
   private container: StartedRedisContainer | null = null;
@@ -49,12 +50,13 @@ export class RedisContainerManager {
       // Simple health check - ping Redis
       const result = await this.executeCommand(['PING']);
       return result === 'PONG';
-    } catch {
+    } catch (error) {
+      logger.debug({ error }, 'Redis health check failed');
       return false;
     }
   }
 
-  async executeCommand(command: string[]): Promise<string> {
+  async executeCommand(_command: string[]): Promise<string> {
     if (!this.container) {
       throw new Error('Container not started');
     }
@@ -66,7 +68,8 @@ export class RedisContainerManager {
 
   getLogs(): string {
     if (!this.container) return '';
-    return this.container.getLogs();
+    // testcontainers doesn't provide getLogs method directly
+    return 'Container logs not available';
   }
 
   private createContainerInterface(): RedisContainerType {

@@ -9,22 +9,25 @@ config({ path: resolve(process.cwd(), 'env.test') });
 process.env.NODE_ENV = 'test';
 
 import { vi } from 'vitest';
+import { logger } from '../config/logger.config';
 import { initializeConfig } from '../config/app.config';
 
 // Initialize config explicitly for tests
 try {
   initializeConfig();
 } catch (error) {
-  console.warn('Failed to initialize config in test setup:', error);
+  logger.debug({ error }, 'Failed to initialize config in test setup');
 }
 
 // Initialize secrets for tests
-try {
-  const { secretsManager } = await import('../config/secrets.config');
-  secretsManager.initialize();
-} catch (error) {
-  console.warn('Failed to initialize secrets in test setup:', error);
-}
+(async () => {
+  try {
+    const { secretsManager } = await import('../config/secrets.config');
+    secretsManager.initialize();
+  } catch (error) {
+    logger.debug({ error }, 'Failed to initialize secrets in test setup');
+  }
+})();
 
 vi.mock('minio', () => {
   return {

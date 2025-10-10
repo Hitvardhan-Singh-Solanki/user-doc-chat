@@ -11,7 +11,7 @@ import {
   MockRequest,
   MockResponse,
   MockNextFunction,
-  RateLimitError,
+  // RateLimitError,
   RateLimitErrorImpl,
   RedisConnectionError,
   MockRateLimiterService,
@@ -44,9 +44,7 @@ const mockRateLimiterService = {
 const mockLogger = logger as unknown as TestLogger;
 
 // Mock the factory function to return our mock service
-vi.mocked(getRateLimiterService).mockResolvedValue(
-  mockRateLimiterService as any,
-);
+vi.mocked(getRateLimiterService).mockResolvedValue(mockRateLimiterService);
 
 describe('Security Middleware', () => {
   let mockReq: MockRequest;
@@ -76,9 +74,7 @@ describe('Security Middleware', () => {
     vi.clearAllMocks();
 
     // Reset the factory function mock
-    vi.mocked(getRateLimiterService).mockResolvedValue(
-      mockRateLimiterService as any,
-    );
+    vi.mocked(getRateLimiterService).mockResolvedValue(mockRateLimiterService);
   });
 
   describe('rateLimit', () => {

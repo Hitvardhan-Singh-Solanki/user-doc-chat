@@ -10,7 +10,7 @@ import type {
   MinioMock,
   BullMQMock,
   MockFactory,
-} from '@types/mock.types';
+} from '../../shared/types/mock.types';
 
 // Database Mock Factory
 export const createDatabaseMock = (): DatabaseMock => ({
@@ -104,8 +104,8 @@ export class MockFactoryBuilder<T> implements MockFactory<T> {
 
     // Apply mock functions
     for (const [key, mockFn] of Object.entries(this.mockFunctions)) {
-      if (mockFn) {
-        (result as any)[key] = mockFn();
+      if (mockFn && typeof mockFn === 'function') {
+        (result as Record<string, unknown>)[key] = mockFn();
       }
     }
 

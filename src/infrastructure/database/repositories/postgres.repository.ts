@@ -1,4 +1,5 @@
 import { QueryResult } from 'pg';
+import { logger } from '../../../config/logger.config';
 import { db } from './db.repo';
 import { IDBStore } from '@interfaces/db-store.interface';
 import { Vector } from '@shared/types';
@@ -112,8 +113,12 @@ export class PostgresService implements IDBStore, IVectorStore {
     } catch (e) {
       try {
         await client.query('ROLLBACK');
-      } catch {
-        // ignore rollback errors
+      } catch (rollbackError) {
+        // Log rollback errors but don't throw - we're already handling the original error
+        logger.debug(
+          { rollbackError },
+          'Transaction rollback failed during error handling',
+        );
       }
       throw e;
     } finally {
@@ -174,7 +179,7 @@ export class PostgresService implements IDBStore, IVectorStore {
           return { rows: result.rows as T[] };
         },
         withTransaction: async <R>(
-          txFn: (tx: IDBStore) => Promise<R>,
+          _txFn: (tx: IDBStore) => Promise<R>,
         ): Promise<R> => {
           // Nested transactions are not supported in this implementation
           throw new Error('Nested transactions are not supported');
@@ -189,9 +194,18 @@ export class PostgresService implements IDBStore, IVectorStore {
         await client.query('ROLLBACK');
       } catch (rollbackError) {
         // Log rollback error but don't mask the original error
-        // Using console.error here is intentional for critical transaction failures
-        // eslint-disable-next-line no-console
-        console.error('Transaction rollback failed:', rollbackError);
+        logger.error(
+          {
+            rollbackError:
+              rollbackError instanceof Error
+                ? rollbackError.message
+                : String(rollbackError),
+            originalError:
+              error instanceof Error ? error.message : String(error),
+            transactionContext: 'rollback_failed',
+          },
+          'Transaction rollback failed',
+        );
       }
       throw error;
     } finally {

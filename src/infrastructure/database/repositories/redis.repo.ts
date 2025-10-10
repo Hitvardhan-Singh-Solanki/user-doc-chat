@@ -111,7 +111,7 @@ function buildRedisConfig(): string | object {
 
   // Build query parameters
   const queryParams: string[] = [];
-  if (config.REDIS_DB != null && config.REDIS_DB !== 0) {
+  if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
     queryParams.push(`db=${config.REDIS_DB}`);
   }
 

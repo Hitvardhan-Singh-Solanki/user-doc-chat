@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { logger } from '../../../config/logger.config';
 import { PromptService } from '../services/prompt.service';
 import { ITokenizer } from '@interfaces/tokenizer.interface';
 import {
@@ -117,9 +118,9 @@ describe('PromptService Performance Tests', () => {
   describe('Memory Usage Patterns (Experimental)', () => {
     it('should not leak memory with repeated operations (requires --expose-gc)', async () => {
       // Skip if global.gc is not available
-      const gc = (global as any).gc;
+      const gc = (global as { gc?: () => void }).gc;
       if (typeof gc !== 'function') {
-        console.log(
+        logger.debug(
           'Skipping memory test: global.gc not available. Run with --expose-gc flag.',
         );
         return;
@@ -158,9 +159,9 @@ describe('PromptService Performance Tests', () => {
 
     it('should handle large text without excessive memory usage (requires --expose-gc)', async () => {
       // Skip if global.gc is not available
-      const gc = (global as any).gc;
+      const gc = (global as { gc?: () => void }).gc;
       if (typeof gc !== 'function') {
-        console.log(
+        logger.debug(
           'Skipping memory test: global.gc not available. Run with --expose-gc flag.',
         );
         return;

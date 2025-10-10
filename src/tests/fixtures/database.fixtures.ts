@@ -3,7 +3,7 @@
  * Provides sample database records for testing
  */
 
-import type { TestFixture } from '@types/mock.types';
+// import type { TestFixture } from '../../shared/types/mock.types';
 
 // User fixtures
 export const userFixtures = {

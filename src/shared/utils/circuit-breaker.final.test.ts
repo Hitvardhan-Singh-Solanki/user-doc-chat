@@ -6,7 +6,7 @@ describe('CircuitBreakerService Memory Management - Final Tests', () => {
   const mockFunction = vi.fn().mockResolvedValue('success');
 
   beforeEach(() => {
-    service = new CircuitBreakerService({
+    service = CircuitBreakerService.getInstance({
       maxBreakers: 2,
       ttlMs: 1000,
       cleanupIntervalMs: 500,

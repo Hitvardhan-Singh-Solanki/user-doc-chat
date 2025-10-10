@@ -4,13 +4,15 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { logger } from '../../config/logger.config';
 import { testContainerManager } from './setup/container-manager';
 import { postgresContainerManager } from './setup/postgres.container';
 import { memoryTracker } from '../utils/memory-tracker';
 import { resourceCleanup } from '../utils/cleanup';
+import type { DatabaseContainer } from '../../shared/types/container.types';
 
 describe('Database Integration Tests', () => {
-  let container: any;
+  let container: DatabaseContainer | null = null;
   let connectionString: string;
 
   beforeAll(async () => {
@@ -25,9 +27,9 @@ describe('Database Integration Tests', () => {
       container = await postgresContainerManager.start();
       connectionString = container.connectionString;
     } catch (error) {
-      console.warn(
-        'Container setup failed, skipping integration tests:',
-        error,
+      logger.debug(
+        { error },
+        'Container setup failed, skipping integration tests',
       );
       // Skip all tests in this suite
       return;
@@ -47,7 +49,7 @@ describe('Database Integration Tests', () => {
 
   it('should connect to PostgreSQL container', async () => {
     if (!container) {
-      console.log('Skipping test - containers not available');
+      logger.debug('Skipping test - containers not available');
       return;
     }
     expect(container).toBeDefined();
@@ -58,7 +60,7 @@ describe('Database Integration Tests', () => {
 
   it('should execute SQL queries', async () => {
     if (!container) {
-      console.log('Skipping test - containers not available');
+      logger.debug('Skipping test - containers not available');
       return;
     }
     // Create test table
@@ -87,7 +89,7 @@ describe('Database Integration Tests', () => {
 
   it('should handle transactions', async () => {
     if (!container) {
-      console.log('Skipping test - containers not available');
+      logger.debug('Skipping test - containers not available');
       return;
     }
     // This would test transaction rollback/commit scenarios

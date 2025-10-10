@@ -56,7 +56,8 @@ export function createCircuitBreaker<
     } else if (err && typeof err === 'object') {
       try {
         errorDescription = JSON.stringify(err);
-      } catch {
+      } catch (stringifyError) {
+        logger.debug({ stringifyError }, 'Failed to stringify error object');
         errorDescription = 'Unknown error';
       }
     } else {
@@ -109,6 +110,9 @@ export class CircuitBreakerService {
   ): CircuitBreakerService {
     if (!CircuitBreakerService.instance) {
       CircuitBreakerService.instance = new CircuitBreakerService(config);
+    } else if (config) {
+      // Update config if provided
+      CircuitBreakerService.instance.updateConfig(config);
     }
     return CircuitBreakerService.instance;
   }
@@ -125,7 +129,14 @@ export class CircuitBreakerService {
       );
     }
 
-    if (!existingFunction) {
+    // Always perform TTL cleanup first
+    this.performTTLCleanup();
+
+    if (existingFunction) {
+      // Breaker already exists, just update access metadata
+      this.updateAccessMetadata(name);
+    } else {
+      // Breaker doesn't exist, create new one
       // Evict if we're at or will exceed the limit
       if (this.breakers.size >= this.config.maxBreakers) {
         this.evictLeastRecentlyUsed();
@@ -138,8 +149,6 @@ export class CircuitBreakerService {
         lastAccessedAt: Date.now(),
         accessCount: 0,
       });
-    } else {
-      this.updateAccessMetadata(name);
     }
 
     return this.breakers.get(name) as CircuitBreaker<
@@ -288,12 +297,6 @@ export class CircuitBreakerService {
     if (metadata) {
       metadata.lastAccessedAt = Date.now();
       metadata.accessCount++;
-    }
-  }
-
-  private checkAndEvictIfNeeded() {
-    if (this.breakers.size >= this.config.maxBreakers) {
-      this.evictLeastRecentlyUsed();
     }
   }
 
