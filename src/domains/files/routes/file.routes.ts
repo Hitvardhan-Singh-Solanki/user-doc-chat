@@ -3,7 +3,7 @@ import multer from 'multer';
 import { requireAuth } from '../../../shared/middleware/auth.middleware';
 import { fileUploadRateLimit } from '../../../shared/middleware/security.middleware';
 import { FileController } from '../controllers/file.controller';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 const router = Router();
 const upload = multer({

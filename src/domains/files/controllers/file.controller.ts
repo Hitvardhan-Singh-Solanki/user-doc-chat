@@ -20,7 +20,13 @@ export class FileController {
    * @returns User ID string or undefined if not found
    */
   private extractUserId(req: Request): string | undefined {
-    const user = req.user as any;
+    const user = req.user as {
+      sub?: string;
+      id?: string;
+      userId?: string;
+      iat?: number;
+      exp?: number;
+    };
 
     // RFC-7519 compliant: prioritize 'sub' claim
     if (user?.sub) {

@@ -4,10 +4,9 @@ import { PineconeVectorStore } from './pinecone.service';
 import {
   IVectorStore,
   VectorQueryResult,
-  QueryMatch,
 } from '../../../shared/interfaces/vector-store.interface';
 import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;

@@ -7,8 +7,8 @@ export class SimpleTokenizerAdapter implements ITokenizer {
   private nextId = 0;
 
   encode(text: string): number[] {
-    const tokens = text.match(/\w+|[^\s\w]/g) || [];
-    return tokens.map((token) => {
+    // const tokens = text.match(/\w+|[^\s\w]/g) || [];
+    return (text.match(/\w+|[^\s\w]/g) || []).map((token) => {
       if (!this.vocabulary.has(token)) {
         this.vocabulary.set(token, this.nextId);
         this.reverseVocabulary.set(this.nextId, token);
@@ -18,7 +18,7 @@ export class SimpleTokenizerAdapter implements ITokenizer {
     });
   }
 
-  decode(tokens: number[]): string {
+  decode(/* tokens: number[] */): string {
     return '';
   }
 

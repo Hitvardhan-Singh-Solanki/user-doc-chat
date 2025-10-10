@@ -1,5 +1,5 @@
 import CircuitBreaker from 'opossum';
-import { logger } from '../../config/logger.config';
+import { logger } from '@config/logger.config';
 
 export interface CircuitBreakerOptions {
   timeout?: number;
@@ -73,17 +73,19 @@ export class CircuitBreakerService {
     return CircuitBreakerService.instance;
   }
 
-  getBreaker<T extends (...args: any[]) => Promise<any>>(
+  getBreaker<T extends (...args: unknown[]) => Promise<unknown>>(
     name: string,
     fn: T,
     options: CircuitBreakerOptions = {},
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ): CircuitBreaker<any, any> {
+  ): CircuitBreaker<Parameters<T>, ReturnType<T>> {
     if (!this.breakers.has(name)) {
       const breaker = createCircuitBreaker(fn, { ...options, name });
       this.breakers.set(name, breaker);
     }
-    return this.breakers.get(name) as CircuitBreaker<any, any>;
+    return this.breakers.get(name) as CircuitBreaker<
+      Parameters<T>,
+      ReturnType<T>
+    >;
   }
 
   /**
@@ -128,7 +130,7 @@ export class CircuitBreakerService {
    * Reset all breakers
    */
   resetAllBreakers() {
-    for (const [name, breaker] of this.breakers) {
+    for (const [, breaker] of this.breakers) {
       breaker.close();
     }
     logger.info('All circuit breakers reset');

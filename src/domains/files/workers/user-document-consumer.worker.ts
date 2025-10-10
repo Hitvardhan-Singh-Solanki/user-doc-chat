@@ -1,4 +1,4 @@
-import { logger } from '../../../config/logger.config';
+import { logger } from '@config/logger.config';
 import { DeepResearchService } from '../../../domains/chat/services/deep-research.service';
 import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
 import { FetchHTMLService } from '../../../domains/chat/services/fetch.service';

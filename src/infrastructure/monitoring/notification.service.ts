@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { Client, SSEData } from '../../shared/types';
 import { redisPub, redisSub } from '../database/repositories/redis.repo';
-import { logger } from '../../config/logger.config';
+import { logger } from '@config/logger.config';
 
 class SSEEmitter {
   private clients: Map<string, Client[]> = new Map();

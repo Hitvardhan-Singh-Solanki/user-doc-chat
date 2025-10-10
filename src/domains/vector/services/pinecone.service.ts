@@ -5,7 +5,7 @@ import {
 } from '../../../shared/interfaces/vector-store.interface';
 import { Vector } from '../../../shared/types';
 import { pinecone } from '../repos/pinecone.repo';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class PineconeVectorStore implements IVectorStore {
   private indexName: string;
@@ -27,7 +27,7 @@ export class PineconeVectorStore implements IVectorStore {
       const batch = vectors.slice(i, i + batchSize).map((v) => ({
         id: v.id,
         values: v.values,
-        metadata: v.metadata,
+        metadata: v.metadata as Record<string, string | number | boolean>,
       }));
 
       const batchIds = batch.map((v) => v.id);
@@ -81,12 +81,19 @@ export class PineconeVectorStore implements IVectorStore {
 
     // Transform Pinecone result to our standardized format
     const matches: QueryMatch[] =
-      result.matches?.map((match: any) => ({
-        id: match.id,
-        score: match.score,
-        metadata: match.metadata || {},
-        embedding: match.values ? Array.from(match.values) : undefined,
-      })) || [];
+      result.matches?.map(
+        (match: {
+          id: string;
+          score?: number;
+          metadata?: Record<string, unknown>;
+          values?: number[];
+        }) => ({
+          id: match.id,
+          score: match.score ?? 0,
+          metadata: match.metadata || {},
+          embedding: match.values ? Array.from(match.values) : undefined,
+        }),
+      ) || [];
 
     return { matches };
   }

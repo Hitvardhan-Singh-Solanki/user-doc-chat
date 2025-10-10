@@ -12,8 +12,8 @@ import {
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import { LLMService } from '../../../domains/chat/services/llm.service';
 import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
-import { logger } from '../../../config/logger.config';
-import { config } from '../../../config/app.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 import retry from 'async-retry';
 import { Logger } from 'pino';
 
@@ -231,7 +231,7 @@ export class FileWorkerService {
     text: string,
     id: string,
     embedding: number[],
-    extraMeta: Record<string, any> = {},
+    extraMeta: Record<string, unknown> = {},
   ): Vector {
     return {
       id: `${payload.fileId}-${id}`,

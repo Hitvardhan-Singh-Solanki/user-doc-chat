@@ -1,5 +1,5 @@
 import { Queue, QueueEvents } from 'bullmq';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export const fileQueueName = 'file-processing';
 export const legalDocumentsQueueName = 'legal-documents';

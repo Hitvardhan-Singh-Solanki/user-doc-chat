@@ -11,7 +11,9 @@ vi.mock('../repos/pinecone.repo', () => ({
 
 describe('PineconeVectorStore', () => {
   let pineconeVectorStore: PineconeVectorStore;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockIndex: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockPinecone: any;
 
   beforeEach(async () => {

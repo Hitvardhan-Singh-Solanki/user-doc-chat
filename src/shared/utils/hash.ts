@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
-import pino from 'pino';
-import { config } from '../../config/app.config';
+// import pino from 'pino';
+import { config } from '@config';
 
-const logger = pino({ name: 'hash-utils' });
+// const logger = pino({ name: 'hash-utils' });
 
 const SALT_ROUNDS = config.SALT_ROUNDS;
 

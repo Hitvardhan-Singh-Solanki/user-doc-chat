@@ -1,5 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { secretsManager } from '../../../config/secrets.config';
+import { secretsManager } from '@secrets';
 
 /**
  * Factory function to create a Pinecone client with proper validation

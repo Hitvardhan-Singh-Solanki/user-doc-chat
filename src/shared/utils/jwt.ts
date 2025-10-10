@@ -1,8 +1,8 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
-import { logger } from '../../config/logger.config';
-import { config } from '../../config/app.config';
-import { secretsManager } from '../../config/secrets.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Validates and returns JWT secret from environment variables
@@ -172,7 +172,7 @@ export function verifyJwt(
 
     // Security validation: check token age (prevent very old tokens)
     const maxAge = config.JWT_MAX_AGE;
-    const issuedAt = (decoded as any).iat;
+    const issuedAt = (decoded as { iat?: number }).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');
       return null;

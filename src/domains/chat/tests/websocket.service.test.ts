@@ -2,6 +2,38 @@ import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { WebsocketService } from '../services/websocket.service';
 import { redisChatHistory } from '../../../infrastructure/database/repositories/redis.repo';
 import { serviceFactory } from '../../../shared/factories/service.factory';
+import { IDBStore } from '../../../shared/interfaces/db-store.interface';
+import { VectorStoreService } from '../../vector/services/vector-store.service';
+import { LLMService } from '../services/llm.service';
+
+type WebsocketServiceWithPrivateMethods = {
+  db: IDBStore;
+  llmService: LLMService;
+  pineconeService: VectorStoreService;
+  processQuestion: (
+    question: string,
+    userId: string,
+    fileId: string,
+  ) => Promise<void>;
+  appendChatHistory: (
+    userId: string,
+    fileId: string,
+    message: string,
+  ) => Promise<void>;
+  getChatHistory: (userId: string, fileId: string) => Promise<string[]>;
+  trimChatHistory: (
+    userId: string,
+    fileId: string,
+    maxEntries?: number,
+  ) => Promise<void>;
+  getOrCreateChat: (userId: string, fileId?: string) => Promise<string>;
+  appendChatMessage: (
+    chatId: string,
+    sender: 'user' | 'ai',
+    message: string,
+  ) => Promise<void>;
+  _authMiddleware: unknown;
+};
 
 vi.mock('../../../infrastructure/database/repositories/redis.repo', () => ({
   redisChatHistory: {
@@ -49,7 +81,7 @@ const mockIo = {
   }),
   on: vi.fn(),
   to: vi.fn().mockReturnValue({ emit: vi.fn() }),
-  _authMiddleware: null as any,
+  _authMiddleware: null as unknown,
 };
 
 vi.mock('socket.io', () => ({
@@ -57,7 +89,7 @@ vi.mock('socket.io', () => ({
 }));
 
 describe('WebsocketService', () => {
-  let app: any;
+  let app: unknown;
   let ws: WebsocketService;
 
   beforeEach(() => {
@@ -65,13 +97,19 @@ describe('WebsocketService', () => {
     vi.clearAllMocks();
 
     // Reset singleton instance before each test
-    (WebsocketService as any).instance = null;
+    (
+      WebsocketService as unknown as { instance: WebsocketService | null }
+    ).instance = null;
 
     // Reset the middleware storage
-    mockIo._authMiddleware = null;
+    (mockIo as unknown as { _authMiddleware: unknown })._authMiddleware = null;
 
     // Create the service - this will call authVerification() which calls io.use()
-    ws = serviceFactory.getWebsocketService(app);
+    ws = serviceFactory.getWebsocketService(
+      app as unknown as Parameters<
+        typeof serviceFactory.getWebsocketService
+      >[0],
+    );
 
     // Setup Redis mock to return resolved values
     vi.mocked(redisChatHistory.rPush).mockResolvedValue(1);
@@ -81,18 +119,34 @@ describe('WebsocketService', () => {
   });
 
   it('should be a singleton', () => {
-    const instance2 = serviceFactory.getWebsocketService(app);
+    const instance2 = serviceFactory.getWebsocketService(
+      app as unknown as Parameters<
+        typeof serviceFactory.getWebsocketService
+      >[0],
+    );
     expect(ws).toBe(instance2);
   });
 
   it('authVerification sets userId correctly with RFC-7519 sub claim', async () => {
-    const socket: any = {
+    const socket: {
+      handshake: {
+        headers: { authorization?: string };
+        auth?: { token?: string };
+      };
+      join: ReturnType<typeof vi.fn>;
+      emit: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      userId?: string;
+    } = {
       handshake: {
         headers: { authorization: 'Bearer token' },
         auth: { token: 'token' },
       },
+      join: vi.fn(),
+      emit: vi.fn(),
+      on: vi.fn(),
     };
-    const next = vi.fn();
+    // const next = vi.fn();
 
     // The middleware is now defined inline in authVerification()
     // We need to test the actual WebSocket service behavior
@@ -119,26 +173,30 @@ describe('WebsocketService', () => {
   });
 
   it('processQuestion with no Pinecone matches', async () => {
-    const dbMock = (ws as any).db;
+    const dbMock = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
     dbMock.query = vi
       .fn()
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'chat-1' }] })
       .mockResolvedValue({ rowCount: 1, rows: [] }); // for appendChatMessage calls
 
     // Mock the LLM service to return embedding
-    (ws as any).llmService = {
+    (ws as unknown as WebsocketServiceWithPrivateMethods).llmService = {
       getEmbedding: vi.fn().mockResolvedValue([0.1, 0.2]),
-    };
+    } as unknown as LLMService;
 
     // Mock the Pinecone service to return no matches
-    (ws as any).pineconeService = {
+    (ws as unknown as WebsocketServiceWithPrivateMethods).pineconeService = {
       query: vi.fn().mockResolvedValue({ matches: [] }),
-    };
+    } as unknown as VectorStoreService;
 
     const emitMock = vi.fn();
     mockIo.to = vi.fn().mockReturnValue({ emit: emitMock });
 
-    await (ws as any).processQuestion('hi', 'user-123', 'file-1');
+    await (ws as unknown as WebsocketServiceWithPrivateMethods).processQuestion(
+      'hi',
+      'user-123',
+      'file-1',
+    );
 
     expect(redisChatHistory.rPush).toHaveBeenCalledWith(
       'chat:user-123:file-1',
@@ -156,23 +214,31 @@ describe('WebsocketService', () => {
   });
 
   it('processQuestion with Pinecone matches streams LLM', async () => {
-    const dbMock = (ws as any).db;
+    const dbMock = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
 
     // Mock getOrCreateChat: simulate INSERT returning chat ID
     dbMock.query = vi.fn().mockResolvedValue({ rows: [{ id: 'chat-1' }] }); // insert new chat
 
     const emitMock = vi.fn();
-    vi.spyOn(ws.io, 'to').mockReturnValue({ emit: emitMock } as any);
+    vi.spyOn(ws.io, 'to').mockReturnValue({
+      emit: emitMock,
+    } as unknown as ReturnType<typeof ws.io.to>);
 
     // Ensure Pinecone returns matches
-    (ws as any).pineconeService.query = vi
-      .fn()
-      .mockResolvedValue({ matches: [{}] });
-    (ws as any).pineconeService.getContextWithSummarization = vi
+    (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).pineconeService.query = vi.fn().mockResolvedValue({ matches: [{}] });
+    (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).pineconeService.getContextWithSummarization = vi
       .fn()
       .mockResolvedValue('ctx');
 
-    await (ws as any).processQuestion('hi', 'user-123', 'file-1');
+    await (ws as unknown as WebsocketServiceWithPrivateMethods).processQuestion(
+      'hi',
+      'user-123',
+      'file-1',
+    );
 
     // Now redisChatHistory should have been called for user message
     expect(redisChatHistory.rPush).toHaveBeenCalledWith(
@@ -189,7 +255,9 @@ describe('WebsocketService', () => {
   });
 
   it('appendChatHistory calls Redis correctly', async () => {
-    await (ws as any).appendChatHistory('u1', 'f1', 'msg');
+    await (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).appendChatHistory('u1', 'f1', 'msg');
     expect(redisChatHistory.rPush).toHaveBeenCalledWith('chat:u1:f1', 'msg');
     expect(redisChatHistory.expire).toHaveBeenCalledWith(
       'chat:u1:f1',
@@ -198,25 +266,37 @@ describe('WebsocketService', () => {
   });
 
   it('getChatHistory calls Redis correctly', async () => {
-    const history = await (ws as any).getChatHistory('u1', 'f1');
+    const history = await (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).getChatHistory('u1', 'f1');
     expect(history).toEqual([]);
   });
 
   it('trimChatHistory calls Redis correctly', async () => {
-    await (ws as any).trimChatHistory('u1', 'f1', 50);
+    await (ws as unknown as WebsocketServiceWithPrivateMethods).trimChatHistory(
+      'u1',
+      'f1',
+      50,
+    );
     expect(redisChatHistory.lTrim).toHaveBeenCalledWith('chat:u1:f1', -50, -1);
   });
 
   it('getOrCreateChat creates new chat if none exists', async () => {
-    const db = (ws as any).db;
-    db.query.mockResolvedValue({ rows: [{ id: 'chat-1' }] }); // insert/upsert returns chat ID
-    const chatId = await (ws as any).getOrCreateChat('user-123', 'file-1');
+    const db = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
+    (db.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+      rows: [{ id: 'chat-1' }],
+    }); // insert/upsert returns chat ID
+    const chatId = await (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).getOrCreateChat('user-123', 'file-1');
     expect(chatId).toBe('chat-1');
   });
 
   it('appendChatMessage calls DB correctly', async () => {
-    const db = (ws as any).db;
-    await (ws as any).appendChatMessage('chat-1', 'user', 'hi');
+    const db = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
+    await (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).appendChatMessage('chat-1', 'user', 'hi');
     expect(db.query).toHaveBeenCalledWith(
       'INSERT INTO chat_messages(chat_id, sender, message) VALUES($1, $2, $3)',
       ['chat-1', 'user', 'hi'],

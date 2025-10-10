@@ -1,5 +1,5 @@
 import { VectorStoreType } from '../types';
-import { config } from '../../config/app.config';
+import { config } from '@config';
 import pino from 'pino';
 
 const logger = pino({ name: 'vector-store-config' });

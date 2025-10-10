@@ -5,11 +5,11 @@ import { VectorStoreService } from '../../domains/vector/services/vector-store.s
 import { FetchHTMLService } from '../../domains/chat/services/fetch.service';
 import { DeepResearchService } from '../../domains/chat/services/deep-research.service';
 import { WebsocketService } from '../../domains/chat/services/websocket.service';
-import { config } from '../../config/app.config';
+// import { config } from '@config';
 
 export class ServiceFactory {
   private static instance: ServiceFactory;
-  private services: Map<string, any> = new Map();
+  private services: Map<string, unknown> = new Map();
 
   static getInstance(): ServiceFactory {
     if (!ServiceFactory.instance) {
@@ -22,7 +22,7 @@ export class ServiceFactory {
     if (!this.services.has(name)) {
       this.services.set(name, factory());
     }
-    return this.services.get(name);
+    return this.services.get(name) as T;
   }
 
   getDatabase() {

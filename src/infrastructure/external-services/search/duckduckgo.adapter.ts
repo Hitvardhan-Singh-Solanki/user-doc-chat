@@ -1,6 +1,6 @@
 import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
 import { SearchResult } from '../../../shared/types';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class DuckDuckGoAdapter implements ISearchAdapter {
   async search(

@@ -7,43 +7,33 @@ import {
   expect,
   vi,
 } from 'vitest';
-// import { v4 as uuid } from 'uuid'; // Unused import
 import { EnrichmentService } from '../services/enrichment.service';
+import { Vector } from '../../../shared/types';
+import { LLMService } from '../services/llm.service';
+import { VectorStoreService } from '../../vector/services/vector-store.service';
 
-// This helper function is not used in the final version of the test file
-// as fetch is not mocked directly, but it's good practice to keep it.
-function _makeFetchResponse({
-  ok = true,
-  status = 200,
-  statusText = 'OK',
-  headers = {},
-  body = '',
-}: {
-  ok?: boolean;
-  status?: number;
-  statusText?: string;
-  headers?: Record<string, string>;
-  body?: string;
-}) {
-  return {
-    ok,
-    status,
-    statusText,
-    headers: {
-      get(name: string) {
-        return headers[name.toLowerCase()] ?? null;
-      },
-    },
-    text: async () => body,
-  };
-}
+let svc: EnrichmentService;
 
-let svc: any;
-let mockLLM: any;
-let mockVector: any;
-let mockSearchAdapter: any;
-let mockFetchHTML: any;
-let mockDeepResearch: any;
+let mockLLM: {
+  getEmbedding: ReturnType<typeof vi.fn>;
+  generateText: ReturnType<typeof vi.fn>;
+};
+
+let mockVector: {
+  upsertVectors: ReturnType<typeof vi.fn>;
+};
+
+let mockSearchAdapter: {
+  search: ReturnType<typeof vi.fn>;
+};
+
+let mockFetchHTML: {
+  fetchHTML: ReturnType<typeof vi.fn>;
+};
+
+let mockDeepResearch: {
+  summarize: ReturnType<typeof vi.fn>;
+};
 
 beforeAll(() => {
   // No dynamic import needed, as EnrichmentService is a named export
@@ -68,7 +58,7 @@ describe('EnrichmentService', () => {
 
     // Mock VectorStoreService with upsertVectors spy
     mockVector = {
-      upsertVectors: vi.fn(async (vectors: any[]) => {
+      upsertVectors: vi.fn(async (vectors: Vector[]) => {
         return { upserted: vectors.length };
       }),
     };
@@ -95,8 +85,8 @@ describe('EnrichmentService', () => {
 
     // Correctly instantiate the service with all required mocks
     svc = new EnrichmentService(
-      mockLLM,
-      mockVector,
+      mockLLM as unknown as LLMService,
+      mockVector as unknown as VectorStoreService,
       mockFetchHTML,
       mockDeepResearch,
       mockSearchAdapter,

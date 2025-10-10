@@ -13,7 +13,11 @@ vi.mock('../../../shared/utils/hash', () => ({
 describe('AuthService', () => {
   let authService: AuthService;
   let mockDb: IDBStore;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockHashPassword: any;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockComparePassword: any;
 
   beforeEach(() => {
@@ -288,6 +292,7 @@ describe('AuthService', () => {
   describe('Edge cases', () => {
     it('should handle empty email', async () => {
       const email = '';
+
       const password = 'password123';
 
       mockHashPassword.mockResolvedValue('hashedPassword123');

@@ -1,7 +1,7 @@
 import { expressjwt, UnauthorizedError } from 'express-jwt';
 import { Request, Response, NextFunction } from 'express';
-import { config } from '../../config/app.config';
-import { secretsManager } from '../../config/secrets.config';
+import { config } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Validates and returns JWT secret from environment variables

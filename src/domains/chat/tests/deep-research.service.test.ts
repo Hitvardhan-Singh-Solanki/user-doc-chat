@@ -10,9 +10,14 @@ vi.mock(
 );
 
 describe('DeepResearchService', () => {
-  let deepResearchService: DeepResearchService;
+  // let deepResearchService: DeepResearchService;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockLLMService: any;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockPromptService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let MockedPromptService: any;
 
   beforeEach(() => {
@@ -40,7 +45,9 @@ describe('DeepResearchService', () => {
     MockedPromptService.mockImplementation(() => mockPromptService);
 
     // Mock SimpleTokenizerAdapter
-    vi.mocked(SimpleTokenizerAdapter).mockImplementation(() => ({}) as any);
+    vi.mocked(SimpleTokenizerAdapter).mockImplementation(
+      () => ({}) as SimpleTokenizerAdapter,
+    );
 
     // Reset mocks before creating service instance to preserve constructor call counts
     vi.clearAllMocks();

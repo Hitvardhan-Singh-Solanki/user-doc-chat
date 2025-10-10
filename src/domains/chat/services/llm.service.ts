@@ -1,17 +1,17 @@
 import { InferenceClient } from '@huggingface/inference';
 import { z } from 'zod';
 import CircuitBreaker from 'opossum';
-import { PromptConfig, SearchResult } from '../../../shared/types';
+import { PromptConfig } from '../../../shared/types';
 import { PromptService } from './prompt.service';
 import { UserInputSchema } from '../../../domains/auth/validators/user-input.validator';
 import { LowContentSchema } from '../../../domains/files/validators/file-input.validator';
 import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
-import { logger } from '../../../config/logger.config';
+import { logger } from '@config/logger.config';
 import { createCircuitBreaker } from '../../../shared/utils/cb';
 import { XenovaTokenizerAdapter } from '../../../infrastructure/external-services/ai/xenova.adapter';
 import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
-import { config } from '../../../config/app.config';
-import { secretsManager } from '../../../config/secrets.config';
+import { config } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Wraps a promise with timeout handling using AbortController
@@ -46,14 +46,17 @@ async function withTimeout<T>(
 
     clearTimeout(timeoutId);
     return result;
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
 
-    if (err.message?.includes('timed out after')) {
+    if (err instanceof Error && err.message?.includes('timed out after')) {
       throw err;
     }
 
-    if (controller.signal.aborted || err.name === 'AbortError') {
+    if (
+      controller.signal.aborted ||
+      (err instanceof Error && err.name === 'AbortError')
+    ) {
       throw new Error(
         `${operationName} request timed out after ${timeoutMs}ms`,
       );
@@ -94,14 +97,17 @@ async function* withStreamTimeout<T>(
     }
 
     clearTimeout(timeoutId);
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
 
-    if (err.message?.includes('timed out after')) {
+    if (err instanceof Error && err.message?.includes('timed out after')) {
       throw err;
     }
 
-    if (controller.signal.aborted || err.name === 'AbortError') {
+    if (
+      controller.signal.aborted ||
+      (err instanceof Error && err.name === 'AbortError')
+    ) {
       throw new Error(
         `${operationName} request timed out after ${timeoutMs}ms`,
       );
@@ -220,11 +226,11 @@ export class LLMService {
         signal: controller.signal,
         body: JSON.stringify({ text: promptService.sanitizeText(text) }),
       });
-    } catch (err: any) {
-      const isAbort = err?.name === 'AbortError';
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
       throw new Error(
         `Python embed API request ${isAbort ? 'timed out' : 'failed'}: ${
-          err?.message ?? String(err)
+          err instanceof Error ? err.message : String(err)
         }`,
       );
     } finally {
@@ -272,7 +278,7 @@ export class LLMService {
       return response as number[];
     if (
       Array.isArray(response[0]) &&
-      (response[0] as any[]).every((n) => typeof n === 'number')
+      (response[0] as number[]).every((n) => typeof n === 'number')
     )
       return response[0] as number[];
 

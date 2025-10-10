@@ -8,6 +8,7 @@ import {
   vi,
 } from 'vitest';
 import { PromptService } from '../services/prompt.service';
+import { SearchResult } from '../../../shared/types';
 // import { createHuggingFaceMock } from '../../../tests/mocks';
 
 // helper to create async iterables from arrays
@@ -93,7 +94,7 @@ vi.mock('../../../infrastructure/external-services/ai/xenova.adapter', () => {
 });
 
 // Delay importing the module under test until after vi.mock runs
-let LLMService: any;
+let LLMService: typeof import('../services/llm.service').LLMService;
 
 describe('LLMService (unit)', () => {
   const originalFetch = globalThis.fetch;
@@ -110,12 +111,14 @@ describe('LLMService (unit)', () => {
     HF.chatCompletion = vi.fn();
 
     // mock global fetch; tests change its implementation as needed
-    (globalThis as any).fetch = vi.fn();
+    (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch =
+      vi.fn();
   });
 
   afterEach(() => {
     // restore fetch
-    (globalThis as any).fetch = originalFetch;
+    (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch =
+      originalFetch;
     vi.resetAllMocks();
   });
 
@@ -148,7 +151,9 @@ describe('LLMService (unit)', () => {
     const fakeEmbedding = [0.1, 0.2, 0.3];
 
     // mock successful fetch
-    (globalThis as any).fetch.mockResolvedValue({
+    (
+      globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }
+    ).fetch.mockResolvedValue({
       ok: true,
       status: 200,
       statusText: 'OK',
@@ -159,7 +164,9 @@ describe('LLMService (unit)', () => {
     // sanitizeText is a spy from the top-level PROMPT object
     expect(sanitizeSpy).toHaveBeenCalled();
     expect(emb).toEqual(fakeEmbedding);
-    expect((globalThis as any).fetch).toHaveBeenCalledWith(
+    expect(
+      (globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }).fetch,
+    ).toHaveBeenCalledWith(
       'http://localhost:8000/embed', // Actual URL being called
       expect.objectContaining({ method: 'POST' }),
     );
@@ -170,7 +177,9 @@ describe('LLMService (unit)', () => {
     process.env.PYTHON_LLM_URL = 'http://example.local/embed';
     const svc = new LLMService();
 
-    (globalThis as any).fetch.mockResolvedValue({
+    (
+      globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }
+    ).fetch.mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'ERR',
@@ -189,17 +198,23 @@ describe('LLMService (unit)', () => {
     const svc = new LLMService();
 
     // flat array
-    (HF.featureExtraction as any).mockResolvedValue([1, 2, 3]);
+    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
+      1, 2, 3,
+    ]);
     const emb1 = await svc.getEmbedding('text');
     expect(emb1).toEqual([1, 2, 3]);
 
     // nested array
-    (HF.featureExtraction as any).mockResolvedValue([[4, 5, 6]]);
+    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
+      [4, 5, 6],
+    ]);
     const emb2 = await svc.getEmbedding('text2');
     expect(emb2).toEqual([4, 5, 6]);
 
     // invalid shape
-    (HF.featureExtraction as any).mockResolvedValue([['no', 'nums']]);
+    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
+      ['no', 'nums'],
+    ]);
     await expect(svc.getEmbedding('bad')).rejects.toThrow();
   });
 
@@ -213,17 +228,19 @@ describe('LLMService (unit)', () => {
       { choices: [{ delta: { content: 'Hello ' } }] },
       { choices: [{ delta: { content: 'world.' } }] },
     ];
-    (HF.chatCompletionStream as any).mockReturnValue(
+    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockReturnValue(
       asyncIterableFromArray(chunks),
     );
 
     // create a fake enrichment service and attach (it will be called but return null / undefined)
     const fakeEnr = { enrichIfUnknown: vi.fn(async () => null) };
-    svc.enrichmentService = fakeEnr as any;
+    svc.enrichmentService = fakeEnr as unknown as typeof svc.enrichmentService;
 
     const userInput = { question: 'Q1', context: 'ctx', chatHistory: [] };
     const got: string[] = [];
-    for await (const t of svc.generateAnswerStream(userInput as any)) {
+    for await (const t of svc.generateAnswerStream(
+      userInput as Parameters<typeof svc.generateAnswerStream>[0],
+    )) {
       got.push(t);
     }
 
@@ -245,13 +262,17 @@ describe('LLMService (unit)', () => {
 
     // Make chatCompletionStream return different iterables per call
     let calls = 0;
-    (HF.chatCompletionStream as any).mockImplementation(() => {
-      calls++;
-      if (calls === 1) return asyncIterableFromArray(initial);
-      return asyncIterableFromArray(enriched);
-    });
+    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockImplementation(
+      () => {
+        calls++;
+        if (calls === 1) return asyncIterableFromArray(initial);
+        return asyncIterableFromArray(enriched);
+      },
+    );
 
-    const fakeResults: any[] = [{ title: 'T', snippet: 'S', url: 'http://u' }];
+    const fakeResults: SearchResult[] = [
+      { title: 'T', snippet: 'S', url: 'http://u' },
+    ];
     const fakeEnr = {
       enrichIfUnknown: vi.fn(async (q: string, a: string) => {
         // Only return results if the answer contains "I don't know"
@@ -261,11 +282,13 @@ describe('LLMService (unit)', () => {
         return null;
       }),
     };
-    svc.enrichmentService = fakeEnr as any;
+    svc.enrichmentService = fakeEnr as unknown as typeof svc.enrichmentService;
 
     const userInput = { question: 'What is X?', context: '', chatHistory: [] };
     const tokens: string[] = [];
-    for await (const t of svc.generateAnswerStream(userInput as any)) {
+    for await (const t of svc.generateAnswerStream(
+      userInput as Parameters<typeof svc.generateAnswerStream>[0],
+    )) {
       tokens.push(t);
     }
 
@@ -283,7 +306,7 @@ describe('LLMService (unit)', () => {
     const svc = new LLMService();
 
     const initial = [{ choices: [{ delta: { content: "I don't know" } }] }];
-    (HF.chatCompletionStream as any).mockReturnValue(
+    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockReturnValue(
       asyncIterableFromArray(initial),
     );
 
@@ -292,11 +315,14 @@ describe('LLMService (unit)', () => {
         throw new Error('search error');
       }),
     };
-    svc.enrichmentService = throwingEnr as any;
+    svc.enrichmentService =
+      throwingEnr as unknown as typeof svc.enrichmentService;
 
     const userInput = { question: 'Q', context: '', chatHistory: [] };
     const tokens: string[] = [];
-    for await (const t of svc.generateAnswerStream(userInput as any)) {
+    for await (const t of svc.generateAnswerStream(
+      userInput as Parameters<typeof svc.generateAnswerStream>[0],
+    )) {
       tokens.push(t);
     }
 

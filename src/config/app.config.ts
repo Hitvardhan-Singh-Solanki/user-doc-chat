@@ -90,8 +90,10 @@ try {
   config = envSchema.parse(process.env);
 } catch (error) {
   if (error instanceof z.ZodError) {
+    // eslint-disable-next-line no-console
     console.error('❌ Configuration validation failed:');
     error.issues.forEach((err) => {
+      // eslint-disable-next-line no-console
       console.error(`  - ${err.path.join('.')}: ${err.message}`);
     });
     process.exit(1);

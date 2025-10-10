@@ -50,6 +50,7 @@ function buildSSLConfig(): boolean | object {
       DEV_SSL_ALLOW === 'true' || PG_SSL_REJECT_UNAUTHORIZED === 'false';
 
     if (allowRelaxedSSL) {
+      // eslint-disable-next-line no-console
       console.warn(
         '⚠️  WARNING: Using relaxed SSL settings in development. This is insecure for production!',
       );

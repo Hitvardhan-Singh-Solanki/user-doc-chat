@@ -7,12 +7,12 @@ import { VectorStoreService } from '../../../domains/vector/services/vector-stor
 import { redisChatHistory } from '../../../infrastructure/database/repositories/redis.repo';
 import { UserInputSchema } from '../../../domains/auth/validators/user-input.validator';
 import { EnrichmentService } from './enrichment.service';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+// import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
-import { logger } from '../../../config/logger.config';
-import { config } from '../../../config/app.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 export class WebsocketService {
   public io: Server;
@@ -51,10 +51,7 @@ export class WebsocketService {
 
     this.io = new Server(this.server, {
       cors: {
-        origin:
-          config.NODE_ENV === 'production'
-            ? config.FRONTEND_URL
-            : '*',
+        origin: config.NODE_ENV === 'production' ? config.FRONTEND_URL : '*',
         methods: ['GET', 'POST'],
       },
     });
@@ -99,16 +96,22 @@ export class WebsocketService {
         return next(new Error('Invalid token'));
       }
 
-      let userId = (decoded as any).sub;
+      let userId = (decoded as { sub?: string }).sub;
 
       if (!userId) {
-        const legacyId = (decoded as any).id ?? (decoded as any).userId;
+        const decodedWithLegacy = decoded as {
+          id?: string;
+          userId?: string;
+          iat?: number;
+          exp?: number;
+        };
+        const legacyId = decodedWithLegacy.id ?? decodedWithLegacy.userId;
         if (legacyId) {
           this.logger.warn(
             {
-              legacyClaim: (decoded as any).id ? 'id' : 'userId',
-              tokenIssuedAt: (decoded as any).iat,
-              tokenExpiresAt: (decoded as any).exp,
+              legacyClaim: decodedWithLegacy.id ? 'id' : 'userId',
+              tokenIssuedAt: decodedWithLegacy.iat,
+              tokenExpiresAt: decodedWithLegacy.exp,
               ip: socket.handshake.address,
             },
             'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
@@ -125,8 +128,11 @@ export class WebsocketService {
         return next(new Error('Invalid token: missing subject claim'));
       }
 
-      (socket as any).userId = String(userId);
-      (socket as any).tokenExp = (decoded as any).exp;
+      (socket as { userId?: string; tokenExp?: number }).userId =
+        String(userId);
+      (socket as { userId?: string; tokenExp?: number }).tokenExp = (
+        decoded as { exp?: number }
+      ).exp;
 
       this.logger.info(
         { userId, ip: socket.handshake.address },
@@ -139,9 +145,11 @@ export class WebsocketService {
 
   onConnection() {
     this.io.on('connection', (socket) => {
-      const userId = (socket as any).userId;
+      const userId = (socket as { userId?: string }).userId;
       this.logger.info({ userId }, 'User connected');
-      socket.join(userId);
+      if (userId) {
+        socket.join(userId);
+      }
 
       this.onQuestion(socket);
 
@@ -151,35 +159,36 @@ export class WebsocketService {
     });
   }
 
-  onQuestion(socket: any) {
-    socket.on(
-      'question',
-      async ({
-        fileId,
-        question,
-      }: {
+  onQuestion(socket: {
+    userId?: string;
+    emit: (event: string, data: unknown) => void;
+    on: (event: string, handler: (data: unknown) => void) => void;
+  }) {
+    socket.on('question', async (data: unknown) => {
+      const { fileId, question } = data as {
         fileId: string;
         question: string;
         chatHistory: string[];
-      }) => {
-        const userId = (socket as any).userId;
-        try {
-          this.logger.info({ userId, question }, 'Incoming message');
+      };
+      const userId = (socket as { userId?: string }).userId;
+      try {
+        this.logger.info({ userId, question }, 'Incoming message');
 
+        if (userId) {
           await this.processQuestion(question, userId, fileId);
-        } catch (err: unknown) {
-          this.logger.error(
-            { err },
-            'An error occurred during question processing',
-          );
-          const errorMessage =
-            err instanceof Error
-              ? err.message
-              : String(err) || 'something went wrong';
-          socket.emit('error', { message: errorMessage });
         }
-      },
-    );
+      } catch (err: unknown) {
+        this.logger.error(
+          { err },
+          'An error occurred during question processing',
+        );
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : String(err) || 'something went wrong';
+        socket.emit('error', { message: errorMessage });
+      }
+    });
   }
 
   private async processQuestion(
@@ -235,7 +244,6 @@ export class WebsocketService {
       });
 
       let fullAnswer = '';
-      let streamSuccessful = false;
 
       try {
         for await (const token of this.llmService.generateAnswerStream(
@@ -244,8 +252,6 @@ export class WebsocketService {
           this.io.to(userId).emit('answer_chunk', { token });
           fullAnswer += token;
         }
-
-        streamSuccessful = true;
 
         if (fullAnswer.toLowerCase().includes("i don't know")) {
           this.io.to(userId).emit('search_status', {

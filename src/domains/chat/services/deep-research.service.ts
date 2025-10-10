@@ -2,7 +2,7 @@ import { IDeepResearch } from '../../../shared/interfaces/deep-research.interfac
 import { LLMService } from './llm.service';
 import { PromptService } from './prompt.service';
 import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class DeepResearchService implements IDeepResearch {
   private readonly llmService: LLMService;
