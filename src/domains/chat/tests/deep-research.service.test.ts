@@ -5,9 +5,7 @@ import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('../services/prompt.service');
-vi.mock(
-  '../../../infrastructure/external-services/ai/custom-tokenizer.adapter',
-);
+vi.mock('@ai/custom-tokenizer.adapter');
 
 describe('DeepResearchService', () => {
   // let deepResearchService: DeepResearchService;
