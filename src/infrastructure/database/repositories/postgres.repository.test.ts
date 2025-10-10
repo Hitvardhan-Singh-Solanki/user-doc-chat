@@ -20,7 +20,7 @@ describe('PostgresService', () => {
 
   beforeEach(async () => {
     // Reset environment variables
-    delete process.env.VECTOR_DISTANCE_OPERATOR;
+    delete process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR;
 
     // Clear all mocks
     vi.clearAllMocks();
@@ -49,7 +49,7 @@ describe('PostgresService', () => {
   describe('distance-to-score conversion', () => {
     it('should correctly convert cosine distance to similarity score', async () => {
       // Set cosine distance operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'cosine';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'cosine';
       postgresService = PostgresService.getInstance();
 
       // Mock database response with cosine distances
@@ -97,11 +97,12 @@ describe('PostgresService', () => {
 
     it('should correctly convert euclidean distance to similarity score', async () => {
       // Set euclidean distance operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'euclidean';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'euclidean';
       (
         PostgresService as unknown as { instance: PostgresService | undefined }
       ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       // Mock database response with euclidean distances
       mockDb.query.mockResolvedValue({
@@ -142,17 +143,18 @@ describe('PostgresService', () => {
       // Euclidean distance 1.0 should give score 0.5 (1/(1+1))
       expect(result.matches[1].score).toBeCloseTo(0.5, 5);
 
-      // Cosine distance 5.0 should give score -1.5 (cosine distance)
-      expect(result.matches[2].score).toBeCloseTo(-1.5, 5);
+      // Euclidean distance 5.0 should give score 0.167 (1/(1+5))
+      expect(result.matches[2].score).toBeCloseTo(0.167, 3);
     });
 
     it('should correctly convert inner product to similarity score', async () => {
       // Set inner product operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'inner_product';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'inner_product';
       (
         PostgresService as unknown as { instance: PostgresService | undefined }
       ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       // Mock database response with inner product distances (negative values)
       mockDb.query.mockResolvedValue({
@@ -187,23 +189,24 @@ describe('PostgresService', () => {
 
       expect(result.matches).toHaveLength(3);
 
-      // Cosine distance -1.0 should give score 1.5 (cosine distance)
-      expect(result.matches[0].score).toBeCloseTo(1.5, 5);
+      // Inner product distance -1.0 should give score 1.0 (-(-1.0))
+      expect(result.matches[0].score).toBeCloseTo(1.0, 5);
 
-      // Cosine distance -0.5 should give score 1.25 (cosine distance)
-      expect(result.matches[1].score).toBeCloseTo(1.25, 5);
+      // Inner product distance -0.5 should give score 0.5 (-(-0.5))
+      expect(result.matches[1].score).toBeCloseTo(0.5, 5);
 
-      // Cosine distance 0.0 should give score 1.0 (cosine distance)
-      expect(result.matches[2].score).toBeCloseTo(1.0, 5);
+      // Inner product distance 0.0 should give score 0.0 (-0.0)
+      expect(result.matches[2].score).toBeCloseTo(0.0, 5);
     });
 
     it('should default to cosine distance when no operator is specified', async () => {
       // No environment variable set
-      delete process.env.VECTOR_DISTANCE_OPERATOR;
+      delete process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR;
       (
         PostgresService as unknown as { instance: PostgresService | undefined }
       ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       // Mock database response
       mockDb.query.mockResolvedValue({
@@ -231,8 +234,12 @@ describe('PostgresService', () => {
 
     it('should use correct SQL operator for each distance type', async () => {
       // Test cosine operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'cosine';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'cosine';
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       mockDb.query.mockResolvedValue({ rows: [] });
 
@@ -244,34 +251,36 @@ describe('PostgresService', () => {
       );
 
       // Test euclidean operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'euclidean';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'euclidean';
       (
         PostgresService as unknown as { instance: PostgresService | undefined }
       ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       mockDb.query.mockResolvedValue({ rows: [] });
 
       await postgresService.queryVector([0.1, 0.2, 0.3], 'user1', 'file1', 1);
 
       expect(mockDb.query).toHaveBeenCalledWith(
-        expect.stringContaining('embedding <->'),
+        expect.stringContaining('embedding <#>'),
         expect.any(Array),
       );
 
       // Test inner product operator
-      process.env.VECTOR_DISTANCE_OPERATOR = 'inner_product';
+      process.env.POSTGRES_VECTOR_DISTANCE_OPERATOR = 'inner_product';
       (
         PostgresService as unknown as { instance: PostgresService | undefined }
       ).instance = undefined;
       postgresService = PostgresService.getInstance();
+      postgresService.refreshDistanceOperator();
 
       mockDb.query.mockResolvedValue({ rows: [] });
 
       await postgresService.queryVector([0.1, 0.2, 0.3], 'user1', 'file1', 1);
 
       expect(mockDb.query).toHaveBeenCalledWith(
-        expect.stringContaining('embedding <->'),
+        expect.stringContaining('embedding <#>'),
         expect.any(Array),
       );
     });

@@ -7,7 +7,7 @@ import {
   VectorQueryResult,
   QueryMatch,
 } from '@interfaces/vector-store.interface';
-import { config } from '@config';
+import { config, reparseConfig } from '@config';
 
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
@@ -24,6 +24,14 @@ export class PostgresService implements IDBStore, IVectorStore {
       PostgresService.instance = new PostgresService();
     }
     return PostgresService.instance;
+  }
+
+  /**
+   * Refresh the distance operator from config (useful for tests)
+   */
+  public refreshDistanceOperator(): void {
+    reparseConfig();
+    this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
   }
 
   /**
