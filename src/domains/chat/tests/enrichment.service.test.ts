@@ -10,7 +10,7 @@ import {
 import { EnrichmentService } from '../services/enrichment.service';
 import { Vector } from '@shared/types';
 import { LLMService } from '../services/llm.service';
-import { VectorStoreService } from '../../vector/services/vector-store.service';
+import { VectorStoreService } from '@vector/services/vector-store.service';
 
 let svc: EnrichmentService;
 

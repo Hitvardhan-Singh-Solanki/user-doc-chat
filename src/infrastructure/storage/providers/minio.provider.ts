@@ -1,5 +1,5 @@
 import { Readable } from 'stream';
-import { minioClient } from '../../database/repositories/minio.repo';
+import { minioClient } from '@database/repositories/minio.repo';
 
 import { config } from '@config';
 

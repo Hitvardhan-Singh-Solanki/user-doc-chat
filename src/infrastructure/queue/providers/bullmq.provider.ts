@@ -6,7 +6,7 @@ import {
   connectionOptions,
   fileQueueName,
   legalDocumentsQueueName,
-} from '../../database/repositories/bullmq.repo';
+} from '@database/repositories/bullmq.repo';
 import { IQueueAdapter } from '@interfaces/queue-adapter.interface';
 
 /**

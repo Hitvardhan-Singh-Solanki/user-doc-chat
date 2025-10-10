@@ -61,7 +61,9 @@ export function securityHeaders(
 function setVaryOrigin(res: Response): void {
   const existingVary = res.getHeader('Vary');
   if (existingVary) {
-    const varyArray = Array.isArray(existingVary) ? existingVary : [existingVary];
+    const varyArray = Array.isArray(existingVary)
+      ? existingVary
+      : [existingVary];
     if (!varyArray.includes('Origin')) {
       res.setHeader('Vary', [...varyArray, 'Origin'].join(', '));
     }
