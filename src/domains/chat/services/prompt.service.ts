@@ -183,7 +183,7 @@ ${sanitizedQuestion}
           while (true) {
             const index = prompt.indexOf(sanitizedHistory, startIndex);
             if (index === -1) break;
-            
+
             prompt =
               prompt.slice(0, index) +
               truncatedText +
@@ -219,8 +219,11 @@ ${sanitizedQuestion}
           while (true) {
             const index = prompt.indexOf(sanitizedContext, startIndex);
             if (index === -1) break;
-            
-            prompt = prompt.slice(0, index) + truncatedText + prompt.slice(index + sanitizedContext.length);
+
+            prompt =
+              prompt.slice(0, index) +
+              truncatedText +
+              prompt.slice(index + sanitizedContext.length);
             startIndex = index + truncatedText.length;
           }
         }
