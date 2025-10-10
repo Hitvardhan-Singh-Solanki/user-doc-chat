@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as grpc from '@grpc/grpc-js';
-import { sanitizer } from '../../../../infrastructure/external-services/grpc/proto/sanitizer';
+import { sanitizer } from '@grpc/proto/sanitizer';
 import { secretsManager } from '@secrets';
 import { SanitizerServiceClientType } from '@shared/types/sanitizer.types'; // Messages
 

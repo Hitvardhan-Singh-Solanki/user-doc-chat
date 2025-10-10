@@ -4,7 +4,7 @@ import {
   VectorQueryResult,
   // QueryMatch,
 } from '@interfaces/vector-store.interface';
-import { LLMService } from '../../chat/services/llm.service';
+import { LLMService } from '@chat/services/llm.service';
 
 describe('VectorStoreService', () => {
   let mockLLM: {

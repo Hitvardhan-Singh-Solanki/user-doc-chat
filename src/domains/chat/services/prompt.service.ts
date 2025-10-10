@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { PromptConfig } from '@shared/types';
 import { LowContentSchema } from '@files/validators/file-input.validator';
 import { UserInputSchema } from '@auth/validators/user-input.validator';
-import { logger } from '../../../config/logger.config';
+import { logger } from '@config/logger.config';
 import { ITokenizer } from '@interfaces/tokenizer.interface';
 import { sanitizeInput } from '@shared/utils';
 import {

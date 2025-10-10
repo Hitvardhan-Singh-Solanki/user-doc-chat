@@ -1,6 +1,6 @@
 /* eslint-disable no-control-regex */
 import createHttpError from 'http-errors';
-import { ISanitizeFile } from '../../../../shared/interfaces/sanitize-file.interface';
+import { ISanitizeFile } from '@interfaces/sanitize-file.interface';
 
 export class TextSanitizationService implements ISanitizeFile {
   private CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
