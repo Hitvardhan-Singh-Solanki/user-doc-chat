@@ -3,19 +3,19 @@ import { logger } from '@config/logger.config';
 import { config } from '@config';
 
 /**
- * Builds Redis connection URL from configuration.
+ * Builds Redis connection configuration from settings.
  *
  * Priority:
  * 1. Use REDIS_URL if provided (full connection string)
- * 2. Build URL from individual components with proper encoding
+ * 2. Use Unix socket if REDIS_SOCKET is provided
+ * 3. Build URL from host/port components
  *
  * Features:
- * - Supports TLS (rediss://) when REDIS_TLS is true
- * - Properly encodes credentials (username:password)
- * - Includes database index and query parameters
- * - Handles special characters in passwords
+ * - Supports TLS for both socket and TCP connections
+ * - Properly handles credentials for all connection types
+ * - Returns appropriate config for node-redis v4
  */
-function buildRedisUrl(): string {
+function buildRedisConfig(): string | object {
   // If full URL is provided, use it directly
   if (config.REDIS_URL) {
     logger.info('Using provided REDIS_URL for Redis connection');
@@ -24,49 +24,41 @@ function buildRedisUrl(): string {
 
   // Handle Unix socket connection
   if (config.REDIS_SOCKET) {
-    const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
-    let auth = '';
+    const socketOptions: any = {
+      socket: {
+        path: config.REDIS_SOCKET,
+      },
+    };
 
-    // Handle credentials for socket connections
-    if (config.REDIS_USERNAME || config.REDIS_PASSWORD) {
-      const username = config.REDIS_USERNAME
-        ? encodeURIComponent(config.REDIS_USERNAME)
-        : '';
-      const password = config.REDIS_PASSWORD
-        ? encodeURIComponent(config.REDIS_PASSWORD)
-        : '';
-
-      if (username && password) {
-        auth = `${username}:${password}@`;
-      } else if (password) {
-        auth = `${password}@`;
-      } else if (username) {
-        auth = `${username}@`;
-      }
+    // Add TLS for socket if enabled
+    if (config.REDIS_TLS) {
+      socketOptions.socket.tls = true;
     }
 
-    // Build query parameters for socket connections
-    const queryParams: string[] = [];
+    // Add database index if not default
     if (config.REDIS_DB !== 0) {
-      queryParams.push(`db=${config.REDIS_DB}`);
+      socketOptions.database = config.REDIS_DB;
     }
 
-    const queryString =
-      queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
-    const url = `${scheme}://${auth}${config.REDIS_SOCKET}${queryString}`;
+    // Add credentials if provided
+    if (config.REDIS_USERNAME) {
+      socketOptions.username = config.REDIS_USERNAME;
+    }
+    if (config.REDIS_PASSWORD) {
+      socketOptions.password = config.REDIS_PASSWORD;
+    }
 
     logger.info(
       {
-        scheme,
-        socket: config.REDIS_SOCKET,
-        hasAuth: !!auth,
-        hasQuery: queryParams.length > 0,
+        socketPath: config.REDIS_SOCKET,
+        tls: config.REDIS_TLS,
         db: config.REDIS_DB,
+        hasAuth: !!(config.REDIS_USERNAME || config.REDIS_PASSWORD),
       },
-      'Built Redis URL with Unix socket',
+      'Built Redis socket connection options',
     );
 
-    return url;
+    return socketOptions;
   }
 
   // Build URL from host/port components
@@ -117,13 +109,20 @@ function buildRedisUrl(): string {
   return url;
 }
 
-// Build Redis URL from config
-const REDIS_URL = buildRedisUrl();
+// Build Redis configuration from config
+const REDIS_CONFIG = buildRedisConfig();
 
 // Create Redis clients with error handling and observability
-const redisPub = createClient({ url: REDIS_URL });
-const redisSub = createClient({ url: REDIS_URL });
-const redisChatHistory = createClient({ url: REDIS_URL });
+// Handle both URL strings and socket options for node-redis v4
+const redisPub = typeof REDIS_CONFIG === 'string' 
+  ? createClient({ url: REDIS_CONFIG })
+  : createClient(REDIS_CONFIG);
+const redisSub = typeof REDIS_CONFIG === 'string' 
+  ? createClient({ url: REDIS_CONFIG })
+  : createClient(REDIS_CONFIG);
+const redisChatHistory = typeof REDIS_CONFIG === 'string' 
+  ? createClient({ url: REDIS_CONFIG })
+  : createClient(REDIS_CONFIG);
 
 // Add error event handlers for all clients
 redisPub.on('error', (error) => {
