@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
+import type { UserConfig } from 'vitest/config';
 
-// @ts-expect-error ignoring this as there is some conflict with the tsconfig
-export default defineConfig(async () => {
+export default defineConfig(async (): Promise<UserConfig> => {
   const tsconfigPaths = await import('vite-tsconfig-paths');
   return {
     plugins: [tsconfigPaths.default()],
