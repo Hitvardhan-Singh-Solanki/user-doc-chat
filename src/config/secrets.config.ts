@@ -16,13 +16,20 @@ import { Secrets } from '@shared/types/secrets.types';
 
 class SecretsManager {
   private secrets: Secrets | null = null;
+  private initialized: boolean = false;
   private readonly log = logger.child({ component: 'SecretsManager' });
 
   /**
    * Initialize secrets from environment variables
    * Call this once at application startup
+   * Safe to call multiple times (idempotent)
    */
   public async initialize(): Promise<void> {
+    if (this.initialized) {
+      this.log.debug('Secrets already initialized, skipping');
+      return;
+    }
+
     try {
       this.secrets = {
         // JWT
@@ -67,6 +74,7 @@ class SecretsManager {
           : undefined, // Optional
       };
 
+      this.initialized = true;
       this.log.info('Secrets initialized successfully');
     } catch (error) {
       this.log.fatal({ error }, 'Failed to initialize secrets');
@@ -144,10 +152,12 @@ class SecretsManager {
   }
 
   /**
-   * Check if secrets are initialized
+   * Ensure secrets are initialized, initialize if needed
    */
   private ensureInitialized(): void {
-    if (!this.secrets) {
+    if (!this.initialized) {
+      // For synchronous access, we need to throw an error if not initialized
+      // The caller should have called initialize() first
       throw new Error('Secrets not initialized. Call initialize() first.');
     }
   }
