@@ -331,11 +331,8 @@ export async function withRegexTimeoutFallback<T>(
 /**
  * Checks if a regex pattern is safe to execute
  */
-export function isSafeRegexPattern(
-  pattern: string,
-  maxComplexity: number = 1000,
-): boolean {
-  return RegexValidator.isSafePattern(pattern, maxComplexity);
+export function isSafeRegexPattern(pattern: string): boolean {
+  return RegexValidator.isSafePattern(pattern);
 }
 
 /**
