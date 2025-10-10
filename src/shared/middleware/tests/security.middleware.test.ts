@@ -280,8 +280,54 @@ describe('Security Middleware', () => {
           endpoint: '/test',
           error: 'Redis server unavailable',
         }),
-        'File upload rate limiter service error, bypassing rate limit',
+        'File upload rate limiter service error, using in-memory fallback',
       );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ip: '192.168.1.1',
+          endpoint: '/test',
+        }),
+        'File upload allowed via in-memory fallback rate limiter',
+      );
+    });
+
+    it('should block file uploads when in-memory fallback limit is exceeded', async () => {
+      const mockReq = {
+        ip: '192.168.1.1',
+        headers: { 'user-agent': 'test-agent' },
+        path: '/test',
+      } as any;
+      const mockNext = vi.fn();
+
+      // Mock Redis failure
+      vi.spyOn(rateLimiterService, 'consumeFileUpload').mockRejectedValue(
+        new Error('Redis server unavailable'),
+      );
+
+      // Simulate multiple requests to exceed the in-memory limit (5 attempts)
+      let blockedRequest = false;
+      for (let i = 0; i < 6; i++) {
+        const mockRes = {
+          setHeader: vi.fn(),
+          status: vi.fn().mockReturnThis(),
+          json: vi.fn(),
+        } as any;
+
+        fileUploadRateLimit(mockReq, mockRes, mockNext);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        // Check if this request was blocked
+        if (mockRes.status.mock.calls.length > 0 && mockRes.status.mock.calls[0][0] === 429) {
+          blockedRequest = true;
+          expect(mockRes.json).toHaveBeenCalledWith({
+            error: 'Too many file uploads (fallback protection)',
+            retryAfter: 60,
+          });
+          break;
+        }
+      }
+
+      expect(blockedRequest).toBe(true);
     });
   });
 });
