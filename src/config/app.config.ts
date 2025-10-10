@@ -17,9 +17,23 @@ const envSchema = z.object({
   POSTGRES_VECTOR_DISTANCE_OPERATOR: z.string().default('cosine'),
 
   // Redis
+  REDIS_URL: z.string().optional(),
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
   REDIS_PASSWORD: z.string().optional(),
+  REDIS_USERNAME: z.string().optional(),
+  REDIS_TLS: z
+    .preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          return val.toLowerCase() === 'true';
+        }
+        return val;
+      },
+      z.coerce.boolean()
+    )
+    .default(false),
+  REDIS_DB: z.coerce.number().default(0),
 
   // JWT
   JWT_EXPIRES_IN: z.string().default('7d'),
