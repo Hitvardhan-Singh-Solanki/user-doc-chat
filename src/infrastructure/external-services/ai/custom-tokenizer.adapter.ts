@@ -7,8 +7,9 @@ export class SimpleTokenizerAdapter implements ITokenizer {
   private nextId = 0;
 
   encode(text: string): number[] {
-    // const tokens = text.match(/\w+|[^\s\w]/g) || [];
-    return (text.match(/\w+|[^\s\w]/g) || []).map((token) => {
+    // Split text into tokens, preserving spaces as separate tokens
+    const tokens = text.split(/(\s+)/).filter(token => token.length > 0);
+    return tokens.map((token) => {
       if (!this.vocabulary.has(token)) {
         this.vocabulary.set(token, this.nextId);
         this.reverseVocabulary.set(this.nextId, token);
@@ -18,8 +19,11 @@ export class SimpleTokenizerAdapter implements ITokenizer {
     });
   }
 
-  decode(/* tokens: number[] */): string {
-    return '';
+  decode(tokens: number[]): string {
+    return tokens
+      .map((tokenId) => this.reverseVocabulary.get(tokenId))
+      .filter((token) => token !== undefined)
+      .join(' ');
   }
 
   countTokens(text: string): number {
