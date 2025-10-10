@@ -66,6 +66,25 @@ export function corsSecurity(
   const origin = req.headers.origin;
   const allowedOrigins = config.CORS_ORIGINS;
 
+  // Allow requests with no Origin header (same-origin, CLI, health checks)
+  if (!origin) {
+    if (req.method === 'OPTIONS') {
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, DELETE, OPTIONS',
+      );
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Requested-With',
+      );
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.status(204).end();
+      return;
+    }
+    next();
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
