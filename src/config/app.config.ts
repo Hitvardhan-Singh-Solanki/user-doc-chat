@@ -14,6 +14,7 @@ const envSchema = z.object({
   POSTGRES_DB: z.string().default('user_doc_chat'),
   POSTGRES_USER: z.string().default('postgres'),
   POSTGRES_PASSWORD: z.string().default('password'),
+  POSTGRES_VECTOR_DISTANCE_OPERATOR: z.string().default('cosine'),
 
   // Redis
   REDIS_HOST: z.string().default('localhost'),
@@ -22,6 +23,9 @@ const envSchema = z.object({
 
   // JWT
   JWT_EXPIRES_IN: z.string().default('7d'),
+  
+  // Security
+  SALT_ROUNDS: z.coerce.number().default(10),
 
   // AI/LLM
   HUGGINGFACE_CHAT_MODEL: z.string().default('microsoft/DialoGPT-medium'),
@@ -37,6 +41,7 @@ const envSchema = z.object({
   // Processing
   CHUNK_SIZE: z.coerce.number().default(800),
   CHUNK_OVERLAP: z.coerce.number().default(100),
+  MAX_CONTEXT_TOKENS: z.coerce.number().default(2000),
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000), // 15 minutes
@@ -45,6 +50,10 @@ const envSchema = z.object({
   // File Upload
   MAX_FILE_SIZE: z.coerce.number().default(52428800), // 50MB
   MAX_UPLOAD_BYTES: z.coerce.number().default(10485760), // 10MB
+  
+  // Crawler/HTML Fetch
+  CRAWLER_MAX_BYTES: z.coerce.number().default(2_000_000), // 2MB
+  CRAWLER_USER_AGENT: z.string().default('user-doc-chat/1.0 (+enrichment)'),
 
   // CORS
   CORS_ORIGINS: z
@@ -100,6 +109,7 @@ export const databaseConfig = {
     database: config.POSTGRES_DB,
     user: config.POSTGRES_USER,
     password: config.POSTGRES_PASSWORD,
+    distanceOperator: config.POSTGRES_VECTOR_DISTANCE_OPERATOR,
   },
   redis: {
     host: config.REDIS_HOST,

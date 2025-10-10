@@ -1,12 +1,9 @@
 import { createClient } from 'redis';
 import { logger } from '../../../config/logger.config';
+import { config } from '../../../config/app.config';
 
-// Validate REDIS_URL environment variable before creating clients
-const REDIS_URL = process.env.REDIS_URL;
-if (!REDIS_URL) {
-  logger.error('REDIS_URL environment variable is required but not set');
-  process.exit(1);
-}
+// Build Redis URL from config
+const REDIS_URL = `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`;
 
 // Create Redis clients with error handling and observability
 const redisPub = createClient({ url: REDIS_URL });

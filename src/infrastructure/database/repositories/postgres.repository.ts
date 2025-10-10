@@ -16,8 +16,7 @@ export class PostgresService implements IDBStore, IVectorStore {
 
   private constructor() {
     this.pool = db;
-    // Default to cosine distance if not specified
-    this.distanceOperator = 'cosine'; // Default to cosine distance
+    this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
   }
 
   public static getInstance(): PostgresService {
