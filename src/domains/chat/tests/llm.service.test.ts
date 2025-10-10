@@ -9,7 +9,6 @@ import {
 } from 'vitest';
 import { PromptService } from '../services/prompt.service';
 import { SearchResult } from '../../../shared/types';
-// import { createHuggingFaceMock } from '../../../tests/mocks';
 
 // helper to create async iterables from arrays
 function asyncIterableFromArray(items: unknown[]) {

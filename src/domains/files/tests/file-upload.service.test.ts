@@ -6,7 +6,6 @@ import * as minioService from '../../../infrastructure/storage/providers/minio.p
 import { queueAdapter } from '../../../infrastructure/queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
-// import { mockFile, mockFileUploadData } from '../../../tests/fixtures';
 
 // Mock external dependencies
 vi.mock('file-type', () => ({
