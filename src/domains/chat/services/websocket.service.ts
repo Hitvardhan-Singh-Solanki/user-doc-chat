@@ -165,13 +165,32 @@ export class WebsocketService {
     on: (event: string, handler: (data: unknown) => void) => void;
   }) {
     socket.on('question', async (data: unknown) => {
-      const { fileId, question } = data as {
-        fileId: string;
-        question: string;
-        chatHistory: string[];
-      };
       const userId = (socket as { userId?: string }).userId;
       try {
+        // Validate payload structure
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid payload: expected an object');
+        }
+
+        const payload = data as Record<string, unknown>;
+
+        if (!payload.fileId || typeof payload.fileId !== 'string') {
+          throw new Error(
+            'Invalid payload: fileId is required and must be a string',
+          );
+        }
+
+        if (!payload.question || typeof payload.question !== 'string') {
+          throw new Error(
+            'Invalid payload: question is required and must be a string',
+          );
+        }
+
+        const { fileId, question } = payload as {
+          fileId: string;
+          question: string;
+        };
+
         this.logger.info({ userId, question }, 'Incoming message');
 
         if (userId) {
