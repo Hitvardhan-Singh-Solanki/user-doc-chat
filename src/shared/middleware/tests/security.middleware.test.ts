@@ -296,7 +296,7 @@ describe('Security Middleware', () => {
         ip: '192.168.1.1',
         headers: { 'user-agent': 'test-agent' },
         path: '/test',
-      } as any;
+      } as Request;
       const mockNext = vi.fn();
 
       // Mock Redis failure
@@ -311,13 +311,16 @@ describe('Security Middleware', () => {
           setHeader: vi.fn(),
           status: vi.fn().mockReturnThis(),
           json: vi.fn(),
-        } as any;
+        } as Response;
 
         fileUploadRateLimit(mockReq, mockRes, mockNext);
         await new Promise((resolve) => setTimeout(resolve, 10));
 
         // Check if this request was blocked
-        if (mockRes.status.mock.calls.length > 0 && mockRes.status.mock.calls[0][0] === 429) {
+        if (
+          mockRes.status.mock.calls.length > 0 &&
+          mockRes.status.mock.calls[0][0] === 429
+        ) {
           blockedRequest = true;
           expect(mockRes.json).toHaveBeenCalledWith({
             error: 'Too many file uploads (fallback protection)',

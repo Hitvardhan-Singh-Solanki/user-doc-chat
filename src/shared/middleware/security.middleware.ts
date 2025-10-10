@@ -8,7 +8,8 @@ import { config } from '@config';
  * Provides basic protection when Redis is unavailable
  */
 class InMemoryFileUploadLimiter {
-  private attempts: Map<string, { count: number; resetTime: number }> = new Map();
+  private attempts: Map<string, { count: number; resetTime: number }> =
+    new Map();
   private readonly maxAttempts = 5; // Conservative limit for fallback
   private readonly windowMs = 15 * 60 * 1000; // 15 minutes
 
@@ -46,9 +47,12 @@ class InMemoryFileUploadLimiter {
 const inMemoryFileUploadLimiter = new InMemoryFileUploadLimiter();
 
 // Clean up expired entries every 5 minutes
-setInterval(() => {
-  inMemoryFileUploadLimiter.cleanup();
-}, 5 * 60 * 1000);
+setInterval(
+  () => {
+    inMemoryFileUploadLimiter.cleanup();
+  },
+  5 * 60 * 1000,
+);
 
 /**
  * Security middleware for Express application
