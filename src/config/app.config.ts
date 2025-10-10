@@ -92,7 +92,7 @@ const envSchema = z.object({
   MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
 
   // Python gRPC Service
-  PYTHON_LLM_URL: z.string().default('localhost:50051'),
+  PYTHON_LLM_URL: z.string().url().default('http://localhost:50051'),
 
   // Logging
   LOG_LEVEL: z
