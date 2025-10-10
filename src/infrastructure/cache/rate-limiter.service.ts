@@ -9,36 +9,40 @@ export class RateLimiterService {
   private chatLimiter: RateLimiterRedis;
 
   constructor() {
+    // General rate limiter: 100 requests per 15 minutes (900 seconds)
     this.generalLimiter = new RateLimiterRedis({
       storeClient: redisPub,
       keyPrefix: 'rl_general',
       points: 100,
-      duration: 900,
-      blockDuration: 60,
+      duration: 900, // 15 minutes
+      blockDuration: 60, // 1 minute block after exceeding
     });
 
+    // Auth rate limiter: 5 attempts per 15 minutes (900 seconds)
     this.authLimiter = new RateLimiterRedis({
       storeClient: redisPub,
       keyPrefix: 'rl_auth',
       points: 5,
-      duration: 900,
-      blockDuration: 300,
+      duration: 900, // 15 minutes
+      blockDuration: 300, // 5 minutes block after exceeding
     });
 
+    // File upload rate limiter: 10 uploads per hour (3600 seconds)
     this.fileUploadLimiter = new RateLimiterRedis({
       storeClient: redisPub,
       keyPrefix: 'rl_upload',
       points: 10,
-      duration: 3600,
-      blockDuration: 1800,
+      duration: 3600, // 1 hour
+      blockDuration: 1800, // 30 minutes block after exceeding
     });
 
+    // Chat rate limiter: 200 messages per hour (3600 seconds)
     this.chatLimiter = new RateLimiterRedis({
       storeClient: redisPub,
       keyPrefix: 'rl_chat',
       points: 200,
-      duration: 3600,
-      blockDuration: 300,
+      duration: 3600, // 1 hour
+      blockDuration: 300, // 5 minutes block after exceeding
     });
   }
 
