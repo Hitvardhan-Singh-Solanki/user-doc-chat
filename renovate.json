@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base"],
+  "extends": ["config:recommended"],
   "schedule": ["before 6am on monday"],
   "timezone": "UTC",
   "labels": ["dependencies", "renovate"],
@@ -15,14 +15,19 @@
       "groupSlug": "non-major"
     },
     {
-      "matchPackagePatterns": ["eslint", "prettier", "vitest", "typescript"],
       "groupName": "dev dependencies",
-      "groupSlug": "dev-deps"
+      "groupSlug": "dev-deps",
+      "matchPackageNames": [
+        "/eslint/",
+        "/prettier/",
+        "/vitest/",
+        "/typescript/"
+      ]
     },
     {
-      "matchPackagePatterns": ["express", "pg", "redis", "minio"],
       "groupName": "production dependencies",
-      "groupSlug": "prod-deps"
+      "groupSlug": "prod-deps",
+      "matchPackageNames": ["/express/", "/pg/", "/redis/", "/minio/"]
     }
   ],
   "ignoreDeps": ["node"],
