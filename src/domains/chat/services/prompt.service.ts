@@ -178,7 +178,15 @@ ${sanitizedQuestion}
           'truncate-history',
         );
         if (sanitizedHistory.length > 0) {
-          prompt = prompt.replace(sanitizedHistory, truncatedText);
+          // Safe substring replacement to avoid regex/partial-match problems
+          let startIndex = 0;
+          while (true) {
+            const index = prompt.indexOf(sanitizedHistory, startIndex);
+            if (index === -1) break;
+            
+            prompt = prompt.slice(0, index) + truncatedText + prompt.slice(index + sanitizedHistory.length);
+            startIndex = index + truncatedText.length;
+          }
         }
       } else if (finalConfig.truncateStrategy === 'truncate-context') {
         const contextTokens = await this.countTokensCached(sanitizedContext);
@@ -203,7 +211,15 @@ ${sanitizedQuestion}
           'truncate-context',
         );
         if (sanitizedContext.length > 0) {
-          prompt = prompt.replace(sanitizedContext, truncatedText);
+          // Safe substring replacement to avoid regex/partial-match problems
+          let startIndex = 0;
+          while (true) {
+            const index = prompt.indexOf(sanitizedContext, startIndex);
+            if (index === -1) break;
+            
+            prompt = prompt.slice(0, index) + truncatedText + prompt.slice(index + sanitizedContext.length);
+            startIndex = index + truncatedText.length;
+          }
         }
       } else if (finalConfig.truncateStrategy === 'error') {
         this.logger.error(
