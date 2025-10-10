@@ -1,65 +1,30 @@
 import { Client } from 'minio';
+import { config as appConfig } from '../../../config/app.config';
+import { secretsManager } from '../../../config/secrets.config';
 
 /**
  * Validates and parses MinIO configuration from environment variables
  * @throws {Error} When required environment variables are missing or invalid
  */
 function validateMinioConfig() {
-  // Validate required environment variables
-  const endpoint = process.env.MINIO_ENDPOINT;
-  if (!endpoint || !endpoint.trim()) {
-    throw new Error(
-      'MINIO_ENDPOINT environment variable is required and must be non-empty',
-    );
-  }
+  // Use centralized config
+  const endpoint = appConfig.MINIO_ENDPOINT;
+  const port = appConfig.MINIO_PORT;
+  const useSSL = appConfig.MINIO_USE_SSL;
+  const bucketName = appConfig.MINIO_BUCKET_NAME;
 
-  const accessKey = process.env.MINIO_ACCESS_KEY;
-  if (!accessKey || !accessKey.trim()) {
-    throw new Error(
-      'MINIO_ACCESS_KEY environment variable is required and must be non-empty',
-    );
-  }
-
-  const secretKey = process.env.MINIO_SECRET_KEY;
-  if (!secretKey || !secretKey.trim()) {
-    throw new Error(
-      'MINIO_SECRET_KEY environment variable is required and must be non-empty',
-    );
-  }
-
-  // Parse and validate port
-  const portStr = process.env.MINIO_PORT || '9000';
-  const port = Number(portStr);
-  if (isNaN(port) || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(
-      `MINIO_PORT must be a valid integer between 1 and 65535, got: ${portStr}`,
-    );
-  }
-
-  // Parse SSL configuration
-  const useSslStr = process.env.MINIO_USE_SSL;
-  const isLocalEnv =
-    process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'local';
-  let useSSL: boolean;
-
-  if (useSslStr === undefined || useSslStr === '') {
-    // Default to true in non-local environments, false in local environments
-    useSSL = !isLocalEnv;
-  } else {
-    // Parse explicit SSL setting
-    const normalizedSslStr = useSslStr.toLowerCase().trim();
-    useSSL = normalizedSslStr === 'true' || normalizedSslStr === '1';
-  }
+  // Get credentials from secrets manager
+  const credentials = secretsManager.getMinioCredentials();
 
   return {
-    endPoint: endpoint.trim(),
+    endPoint: endpoint,
     port,
     useSSL,
-    accessKey: accessKey.trim(),
-    secretKey: secretKey.trim(),
+    accessKey: credentials.accessKey,
+    secretKey: credentials.secretKey,
   };
 }
 
 // Validate configuration and create client
-const config = validateMinioConfig();
-export const minioClient = new Client(config);
+const minioConfig = validateMinioConfig();
+export const minioClient = new Client(minioConfig);

@@ -1,8 +1,9 @@
 import pino, { LoggerOptions } from 'pino';
+import { config } from './app.config';
 
 // Configure different logging for production and development
 const options: LoggerOptions =
-  process.env.NODE_ENV !== 'production'
+  config.NODE_ENV !== 'production'
     ? {
         transport: {
           target: 'pino-pretty',
@@ -11,11 +12,11 @@ const options: LoggerOptions =
             ignore: 'pid,hostname',
           },
         },
-        level: process.env.LOG_LEVEL || 'debug',
+        level: config.LOG_LEVEL,
       }
     : {
         // Pretty printing in prod is optional; keep JSON by default.
-        level: process.env.LOG_LEVEL || 'info',
+        level: config.LOG_LEVEL,
       };
 
 export const logger = pino(options);

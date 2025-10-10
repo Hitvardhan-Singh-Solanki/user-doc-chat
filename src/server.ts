@@ -3,6 +3,7 @@ import { connectRedis } from './infrastructure/database/repositories/redis.repo'
 import { logger } from './config/logger.config';
 import { createApp } from './app';
 import { serviceFactory } from './shared/factories/service.factory';
+import { config } from './config/app.config';
 
 (async () => {
   let server: Server | undefined;
@@ -42,7 +43,7 @@ import { serviceFactory } from './shared/factories/service.factory';
       return parsedPort;
     };
 
-    const PORT: number = parsePort(process.env.PORT);
+    const PORT: number = config.PORT;
     const socketService = serviceFactory.getWebsocketService(app);
     server = socketService.getServer().listen(PORT, () => {
       logger.info({ port: PORT }, `Server is listening on port ${PORT}`);

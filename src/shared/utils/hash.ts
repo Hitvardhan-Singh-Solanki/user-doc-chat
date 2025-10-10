@@ -1,40 +1,10 @@
 import bcrypt from 'bcrypt';
 import pino from 'pino';
+import { config } from '../../config/app.config';
 
 const logger = pino({ name: 'hash-utils' });
 
-const SALT_ROUNDS = (() => {
-  const envValue = process.env.SALT_ROUNDS;
-  if (!envValue) return 10;
-
-  const parsed = parseInt(envValue, 10);
-
-  // Check for NaN or invalid values
-  if (isNaN(parsed)) {
-    logger.warn(`Invalid SALT_ROUNDS value "${envValue}", using default: 10`);
-    return 10;
-  }
-
-  // Enforce safe bounds (min 10, max 15) for bcrypt security/performance
-  const MIN_ROUNDS = 10;
-  const MAX_ROUNDS = 15;
-
-  if (parsed < MIN_ROUNDS) {
-    logger.warn(
-      `SALT_ROUNDS value ${parsed} is below minimum ${MIN_ROUNDS}, clamping to ${MIN_ROUNDS}`,
-    );
-    return MIN_ROUNDS;
-  }
-
-  if (parsed > MAX_ROUNDS) {
-    logger.warn(
-      `SALT_ROUNDS value ${parsed} exceeds maximum ${MAX_ROUNDS}, clamping to ${MAX_ROUNDS}`,
-    );
-    return MAX_ROUNDS;
-  }
-
-  return parsed;
-})();
+const SALT_ROUNDS = config.SALT_ROUNDS;
 
 export async function hashPassword(password: string): Promise<string> {
   // Validate input is not empty

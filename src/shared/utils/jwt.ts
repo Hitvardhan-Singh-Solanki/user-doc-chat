@@ -1,13 +1,15 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
 import { logger } from '../../config/logger.config';
+import { config } from '../../config/app.config';
+import { secretsManager } from '../../config/secrets.config';
 
 /**
  * Validates and returns JWT secret from environment variables
  * @throws {Error} When JWT_SECRET is missing, empty, or doesn't meet security requirements
  */
 function validateJwtSecret(): string {
-  const jwtSecret = process.env.JWT_SECRET;
+  const jwtSecret = secretsManager.getJwtSecret();
 
   if (!jwtSecret || !jwtSecret.trim()) {
     throw new Error(
@@ -52,7 +54,7 @@ function validateJwtSecret(): string {
   }
 
   // Security validation: check for environment-specific weak patterns
-  if (process.env.NODE_ENV === 'production') {
+  if (config.NODE_ENV === 'production') {
     if (
       trimmedSecret.includes('dev') ||
       trimmedSecret.includes('test') ||
@@ -73,7 +75,7 @@ function validateJwtSecret(): string {
  * @throws {Error} When JWT_EXPIRES_IN is missing or invalid
  */
 function validateJwtExpiresIn(): number {
-  const jwtExpiresIn = process.env.JWT_EXPIRES_IN;
+  const jwtExpiresIn = config.JWT_EXPIRES_IN;
 
   if (!jwtExpiresIn || !jwtExpiresIn.trim()) {
     throw new Error(
@@ -158,8 +160,8 @@ export function verifyJwt(
       ignoreExpiration: false,
       ignoreNotBefore: false,
       // Security: validate audience and issuer if provided
-      audience: process.env.JWT_AUDIENCE,
-      issuer: process.env.JWT_ISSUER,
+      audience: undefined, // Not in current config
+      issuer: undefined, // Not in current config
     }) as CustomJwtPayload;
 
     // Security validation: check for required claims
@@ -169,9 +171,7 @@ export function verifyJwt(
     }
 
     // Security validation: check token age (prevent very old tokens)
-    const maxAge = process.env.JWT_MAX_AGE
-      ? parseInt(process.env.JWT_MAX_AGE, 10)
-      : 86400; // 24 hours default
+    const maxAge = 86400; // 24 hours default
     const issuedAt = (decoded as any).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');
@@ -181,7 +181,7 @@ export function verifyJwt(
     return decoded;
   } catch (error) {
     // Security: don't log sensitive error details in production
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = config.NODE_ENV === 'production';
 
     if (isProduction) {
       logger.warn('JWT verification failed');
