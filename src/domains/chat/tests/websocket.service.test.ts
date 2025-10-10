@@ -52,7 +52,7 @@ const mockIo = {
   }),
   on: vi.fn(),
   to: vi.fn().mockReturnValue({ emit: vi.fn() }),
-  _authMiddleware: null as unknown,
+  _authMiddleware: null as ((socket: any, next: any) => void) | null,
 };
 
 vi.mock('socket.io', () => ({
@@ -72,8 +72,8 @@ describe('WebsocketService', () => {
       WebsocketService as unknown as { instance: WebsocketService | null }
     ).instance = null;
 
-    // Reset the middleware storage
-    (mockIo as unknown as { _authMiddleware: unknown })._authMiddleware = null;
+    // Don't reset the middleware storage - let it persist between tests
+    // mockIo._authMiddleware = null;
 
     // Create the service - this will call authVerification() which calls io.use()
     ws = serviceFactory.getWebsocketService(
@@ -118,28 +118,149 @@ describe('WebsocketService', () => {
       on: vi.fn(),
     };
 
-    // The middleware is now defined inline in authVerification()
-    // We need to test the actual WebSocket service behavior
-    expect(ws).toBeDefined();
-    expect(socket.userId).toBeUndefined(); // Not set yet
+    // Call the captured middleware
+    expect(mockIo._authMiddleware).toBeDefined();
+    const next = vi.fn();
+    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+
+    // Assert the expected outcomes
+    expect(socket.userId).toBe('user-123'); // Should be set to the sub value
+    expect(next).toHaveBeenCalled();
   });
 
   it('authVerification falls back to legacy userId claim with warning', async () => {
-    // Test that the WebSocket service is properly initialized
-    expect(ws).toBeDefined();
-    expect(ws.io).toBeDefined();
+    // Mock JWT to return legacy userId claim (no sub)
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({ userId: 'legacy-user-123' });
+
+    const socket: {
+      handshake: {
+        headers: { authorization?: string };
+        auth?: { token?: string };
+      };
+      join: ReturnType<typeof vi.fn>;
+      emit: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      userId?: string;
+    } = {
+      handshake: {
+        headers: { authorization: 'Bearer token' },
+        auth: { token: 'token' },
+      },
+      join: vi.fn(),
+      emit: vi.fn(),
+      on: vi.fn(),
+    };
+
+    // Spy on logger.warn to check for warning
+    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+
+    // Call the captured middleware
+    expect(mockIo._authMiddleware).toBeDefined();
+    const next = vi.fn();
+    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+
+    // Assert the expected outcomes
+    expect(socket.userId).toBe('legacy-user-123'); // Should be set to the legacy userId
+    expect(next).toHaveBeenCalled();
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        legacyClaim: 'userId',
+        ip: undefined,
+      }),
+      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.'
+    );
+
+    loggerSpy.mockRestore();
   });
 
   it('authVerification falls back to legacy id claim with warning', async () => {
-    // Test that the WebSocket service is properly initialized
-    expect(ws).toBeDefined();
-    expect(ws.io).toBeDefined();
+    // Mock JWT to return legacy id claim (no sub or userId)
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({ id: 'legacy-id-123' });
+
+    const socket: {
+      handshake: {
+        headers: { authorization?: string };
+        auth?: { token?: string };
+      };
+      join: ReturnType<typeof vi.fn>;
+      emit: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      userId?: string;
+    } = {
+      handshake: {
+        headers: { authorization: 'Bearer token' },
+        auth: { token: 'token' },
+      },
+      join: vi.fn(),
+      emit: vi.fn(),
+      on: vi.fn(),
+    };
+
+    // Spy on logger.warn to check for warning
+    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+
+    // Call the captured middleware
+    expect(mockIo._authMiddleware).toBeDefined();
+    const next = vi.fn();
+    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+
+    // Assert the expected outcomes
+    expect(socket.userId).toBe('legacy-id-123'); // Should be set to the legacy id
+    expect(next).toHaveBeenCalled();
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        legacyClaim: 'id',
+        ip: undefined,
+      }),
+      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.'
+    );
+
+    loggerSpy.mockRestore();
   });
 
   it('authVerification rejects token with no user identifier', async () => {
-    // Test that the WebSocket service is properly initialized
-    expect(ws).toBeDefined();
-    expect(ws.io).toBeDefined();
+    // Mock JWT to return no user identifier
+    const { verifyJwt } = await import('../../../shared/utils/jwt');
+    vi.mocked(verifyJwt).mockReturnValueOnce({ someOtherClaim: 'value' });
+
+    const socket: {
+      handshake: {
+        headers: { authorization?: string };
+        auth?: { token?: string };
+      };
+      join: ReturnType<typeof vi.fn>;
+      emit: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      userId?: string;
+    } = {
+      handshake: {
+        headers: { authorization: 'Bearer token' },
+        auth: { token: 'token' },
+      },
+      join: vi.fn(),
+      emit: vi.fn(),
+      on: vi.fn(),
+    };
+
+    // Spy on logger.warn to check for warning
+    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+
+    // Call the captured middleware
+    expect(mockIo._authMiddleware).toBeDefined();
+    const next = vi.fn();
+    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+
+    // Assert the expected outcomes
+    expect(socket.userId).toBeUndefined(); // Should not be set
+    expect(next).toHaveBeenCalledWith(expect.any(Error)); // Middleware should call next with error
+    expect(loggerSpy).toHaveBeenCalledWith(
+      { ip: undefined },
+      'Invalid token: missing subject claim'
+    );
+
+    loggerSpy.mockRestore();
   });
 
   it('processQuestion with no Pinecone matches', async () => {
