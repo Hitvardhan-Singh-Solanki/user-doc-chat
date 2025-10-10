@@ -1,23 +1,46 @@
 import {
+  afterEach,
   beforeAll,
   beforeEach,
-  afterEach,
   describe,
-  it,
   expect,
+  it,
+  type Mock,
   vi,
 } from 'vitest';
 import { PromptService } from '../services/prompt.service';
-import { SearchResult } from '@shared/types';
+import type { IEnrichmentService } from '@interfaces/enrichment.interface';
+import type { LLMService as LLMServiceType } from '../services/llm.service';
 
-// helper to create async iterables from arrays
-function asyncIterableFromArray(items: unknown[]) {
+vi.doMock('@secrets', () => ({
+  secretsManager: {
+    getHuggingfaceToken: vi.fn().mockReturnValue('test-huggingface-token'),
+    getJwtSecret: vi
+      .fn()
+      .mockReturnValue('7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk='),
+    getPineconeApiKey: vi.fn().mockReturnValue('test-pinecone-api-key'),
+    getMinioAccessKey: vi.fn().mockReturnValue('test-minio-access-key'),
+    getMinioSecretKey: vi.fn().mockReturnValue('test-minio-secret-key'),
+    getPostgresPassword: vi.fn().mockReturnValue('test-postgres-password'),
+    getRedisPassword: vi.fn().mockReturnValue(undefined),
+    getSanitizerHost: vi.fn().mockReturnValue(undefined),
+    getSanitizerTimeout: vi.fn().mockReturnValue(undefined),
+    getSanitizerConfig: vi.fn().mockReturnValue({
+      host: 'localhost:50051',
+      timeout: 5000,
+    }),
+  },
+}));
+
+function asyncIterableFromArray<T>(items: T[]): AsyncIterable<T> {
   return {
     [Symbol.asyncIterator]() {
       let i = 0;
       return {
-        next: async () => {
-          if (i >= items.length) return { done: true, value: undefined };
+        next: async (): Promise<IteratorResult<T>> => {
+          if (i >= items.length) {
+            return { done: true, value: undefined };
+          }
           const v = items[i++];
           return { done: false, value: v };
         },
@@ -26,77 +49,93 @@ function asyncIterableFromArray(items: unknown[]) {
   };
 }
 
-// --- Hoisted mocks (safe because PROMPT & HF exist above) ---
-const HF = {
-  featureExtraction: vi.fn(async (..._args: unknown[]) => []),
-  chatCompletionStream: vi.fn((..._args: unknown[]) => {
-    return {
-      [Symbol.asyncIterator]() {
-        return {
-          next: async () => ({ done: true, value: undefined }),
-        };
-      },
+interface ChatCompletionChunk {
+  choices: Array<{
+    delta: {
+      content?: string;
     };
-  }),
-  chatCompletion: vi.fn(async (..._args: unknown[]) => ({
-    choices: [{ message: { content: 'Hello world.' } }],
-  })),
+  }>;
+}
+
+interface ChatCompletionResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+}
+
+interface TextGenerationResponse {
+  generated_text: string;
+}
+
+type FeatureExtractionOutput = (number | number[] | number[][])[];
+
+const HF = {
+  featureExtraction: vi
+    .fn<() => Promise<FeatureExtractionOutput>>()
+    .mockResolvedValue([]),
+  chatCompletionStream: vi
+    .fn<() => AsyncIterable<ChatCompletionChunk>>()
+    .mockReturnValue(asyncIterableFromArray<ChatCompletionChunk>([])),
+  chatCompletion: vi
+    .fn<() => Promise<ChatCompletionResponse>>()
+    .mockResolvedValue({
+      choices: [{ message: { content: 'Hello world.' } }],
+    }),
+  textGeneration: vi
+    .fn<() => Promise<TextGenerationResponse | string>>()
+    .mockResolvedValue({
+      generated_text: 'Generated text response',
+    }),
 };
 
-vi.mock('@huggingface/inference', () => {
-  return {
-    InferenceClient: function (_token: string) {
-      return {
-        featureExtraction: HF.featureExtraction,
-        chatCompletionStream: HF.chatCompletionStream,
-        chatCompletion: HF.chatCompletion,
-      };
-    },
-  };
-});
+vi.mock('@huggingface/inference', () => ({
+  InferenceClient: function (_token: string) {
+    return {
+      featureExtraction: HF.featureExtraction,
+      chatCompletionStream: HF.chatCompletionStream,
+      chatCompletion: HF.chatCompletion,
+      textGeneration: HF.textGeneration,
+    };
+  },
+}));
 
-// Mocked AutoTokenizer.from_pretrained to prevent network calls during tests
-vi.mock('@xenova/transformers', () => {
-  return {
-    AutoTokenizer: {
-      from_pretrained: vi.fn().mockResolvedValue({
-        encode: (text: string) => text.split(' ').map((_, i) => i + 1), // Mock tokenization
-      }),
-    },
-  };
-});
+vi.mock('@xenova/transformers', () => ({
+  AutoTokenizer: {
+    from_pretrained: vi.fn().mockResolvedValue({
+      encode: (text: string) => text.split(' ').map((_, i) => i + 1),
+    }),
+  },
+}));
 
-// Mock XenovaTokenizerAdapter to initialize immediately in tests
-vi.mock('../../../infrastructure/external-services/ai/xenova.adapter', () => {
-  return {
-    XenovaTokenizerAdapter: class MockXenovaTokenizerAdapter {
-      constructor(private modelName: string) {}
+vi.mock('../../../infrastructure/external-services/ai/xenova.adapter', () => ({
+  XenovaTokenizerAdapter: class MockXenovaTokenizerAdapter {
+    constructor(private modelName: string) {}
 
-      async init() {
-        // Mock initialization that resolves immediately
-        return Promise.resolve();
-      }
+    async init() {
+      return Promise.resolve();
+    }
 
-      encode(text: string): number[] {
-        return text.split(' ').map((_, i) => i + 1);
-      }
+    encode(text: string): number[] {
+      return text.split(' ').map((_, i) => i + 1);
+    }
 
-      decode(tokens: number[]): string {
-        return tokens.map((t) => `token${t}`).join(' ');
-      }
+    decode(tokens: number[]): string {
+      return tokens.map((t) => `token${t}`).join(' ');
+    }
 
-      countTokens(text: string): number {
-        return this.encode(text).length;
-      }
-    },
-  };
-});
+    countTokens(text: string): number {
+      return this.encode(text).length;
+    }
+  },
+}));
 
-// Delay importing the module under test until after vi.mock runs
 let LLMService: typeof import('../services/llm.service').LLMService;
 
 describe('LLMService (unit)', () => {
   const originalFetch = globalThis.fetch;
+  let mockFetch: Mock;
 
   beforeAll(async () => {
     const mod = await import('../services/llm.service');
@@ -104,55 +143,61 @@ describe('LLMService (unit)', () => {
   });
 
   beforeEach(() => {
-    // reset controller implementations to fresh spies per test
-    HF.featureExtraction = vi.fn();
-    HF.chatCompletionStream = vi.fn();
-    HF.chatCompletion = vi.fn();
+    HF.featureExtraction.mockReset();
+    HF.chatCompletionStream.mockReset();
+    HF.chatCompletion.mockReset();
+    HF.textGeneration.mockReset();
 
-    // mock global fetch; tests change its implementation as needed
-    (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch =
-      vi.fn();
+    mockFetch = vi.fn();
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
   });
 
   afterEach(() => {
-    // restore fetch
-    (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch =
-      originalFetch;
+    globalThis.fetch = originalFetch;
     vi.resetAllMocks();
   });
 
-  it('chunkText splits text with overlap correctly', () => {
+  async function createInitializedService(): Promise<LLMServiceType> {
     const svc = new LLMService();
-    const text = 'abcdefghijklmnopqrstuvwxyz'; // 26 chars
-    const chunks = svc.chunkText(text, 10, 3); // size 10, overlap 3 => step 7
+    await svc['tokenizerReady'];
+    svc['hfToken'] = 'test-token';
+    svc['hfEmbeddingModel'] = 'test-embedding-model';
+    svc['hfChatModel'] = 'test-chat-model';
+    svc['hfSummaryModel'] = 'test-summary-model';
+    return svc;
+  }
+
+  it('chunkText splits text with overlap correctly', async () => {
+    const svc = await createInitializedService();
+    const text = 'abcdefghijklmnopqrstuvwxyz';
+    const chunks = svc.chunkText(text, 10, 3);
     expect(chunks[0]).toBe(text.slice(0, 10));
     expect(chunks[1]).toBe(text.slice(7, 17));
     expect(chunks.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('chunkText returns single chunk when shorter than chunkSize', () => {
-    const svc = new LLMService();
+  it('chunkText returns single chunk when shorter than chunkSize', async () => {
+    const svc = await createInitializedService();
     const short = 'short';
     const chunks = svc.chunkText(short, 50, 10);
     expect(chunks).toEqual([short]);
   });
 
   it('embeddingPython throws when PYTHON_LLM_URL not set', async () => {
-    const svc = new LLMService();
-    // The service now uses config.PYTHON_LLM_URL which has a default value
-    // So we need to test the actual error that occurs when the URL is invalid
-    await expect(svc.embeddingPython('hello')).rejects.toThrow();
+    const svc = await createInitializedService();
+    svc['pythonUrl'] = undefined;
+
+    await expect(svc.embeddingPython('hello')).rejects.toThrow(
+      'PYTHON_LLM_URL environment variable is not set',
+    );
   });
 
   it('embeddingPython calls fetch and returns embedding on success (and uses sanitizeText)', async () => {
     const sanitizeSpy = vi.spyOn(PromptService.prototype, 'sanitizeText');
-    const svc = new LLMService();
+    const svc = await createInitializedService();
     const fakeEmbedding = [0.1, 0.2, 0.3];
 
-    // mock successful fetch
-    (
-      globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }
-    ).fetch.mockResolvedValue({
+    mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
       statusText: 'OK',
@@ -160,181 +205,143 @@ describe('LLMService (unit)', () => {
     });
 
     const emb = await svc.embeddingPython(' some text ');
-    // sanitizeText is a spy from the top-level PROMPT object
+
     expect(sanitizeSpy).toHaveBeenCalled();
     expect(emb).toEqual(fakeEmbedding);
-    expect(
-      (globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }).fetch,
-    ).toHaveBeenCalledWith(
-      'http://localhost:8000/embed', // Actual URL being called
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:8000/embed',
       expect.objectContaining({ method: 'POST' }),
     );
     sanitizeSpy.mockRestore();
   });
 
   it('embeddingPython throws when fetch returns non-ok', async () => {
-    process.env.PYTHON_LLM_URL = 'http://example.local/embed';
-    const svc = new LLMService();
+    const svc = await createInitializedService();
 
-    (
-      globalThis as unknown as { fetch: ReturnType<typeof vi.fn> }
-    ).fetch.mockResolvedValue({
+    mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'ERR',
       text: async () => 'internal error',
     });
 
-    await expect(svc.embeddingPython('x'))
-      .rejects.toThrow
-      // Python embed API request failed/,
-      ();
+    await expect(svc.embeddingPython('x')).rejects.toThrow(
+      /Python embed API request failed/,
+    );
   });
 
   it('getEmbedding handles flat and nested array replies', async () => {
-    process.env.HUGGINGFACE_HUB_TOKEN = 'token';
-    process.env.HUGGINGFACE_EMBEDDING_MODEL = 'embed-model';
-    const svc = new LLMService();
+    const svc = await createInitializedService();
+    await svc['circuitBreakerReady'];
 
-    // flat array
-    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
-      1, 2, 3,
-    ]);
+    HF.featureExtraction.mockResolvedValue([1, 2, 3]);
     const emb1 = await svc.getEmbedding('text');
     expect(emb1).toEqual([1, 2, 3]);
 
-    // nested array
-    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
-      [4, 5, 6],
-    ]);
+    HF.featureExtraction.mockResolvedValue([[4, 5, 6]]);
     const emb2 = await svc.getEmbedding('text2');
     expect(emb2).toEqual([4, 5, 6]);
 
-    // invalid shape
-    (HF.featureExtraction as ReturnType<typeof vi.fn>).mockResolvedValue([
-      ['no', 'nums'],
+    HF.featureExtraction.mockResolvedValue([
+      ['invalid', 'data'] as unknown as number[],
     ]);
     await expect(svc.getEmbedding('bad')).rejects.toThrow();
   });
 
-  it('generateAnswerStream yields tokens and calls enrichment (which may no-op)', async () => {
-    process.env.HUGGINGFACE_HUB_TOKEN = 'token';
-    process.env.HUGGINGFACE_CHAT_MODEL = 'chat-model';
-    const svc = new LLMService();
+  it('generateAnswerStream yields tokens correctly', async () => {
+    const svc = await createInitializedService();
 
-    // initial stream yields two chunks
-    const chunks = [
+    const chunks: ChatCompletionChunk[] = [
       { choices: [{ delta: { content: 'Hello ' } }] },
       { choices: [{ delta: { content: 'world.' } }] },
     ];
-    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockReturnValue(
-      asyncIterableFromArray(chunks),
-    );
-
-    // create a fake enrichment service and attach (it will be called but return null / undefined)
-    const fakeEnr = { enrichIfUnknown: vi.fn(async () => null) };
-    svc.enrichmentService = fakeEnr as unknown as typeof svc.enrichmentService;
+    HF.chatCompletionStream.mockReturnValue(asyncIterableFromArray(chunks));
 
     const userInput = { question: 'Q1', context: 'ctx', chatHistory: [] };
     const got: string[] = [];
-    for await (const t of svc.generateAnswerStream(
-      userInput as Parameters<typeof svc.generateAnswerStream>[0],
-    )) {
+    for await (const t of svc.generateAnswerStream(userInput)) {
       got.push(t);
     }
 
     expect(got.join('')).toBe('Hello world.');
-    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
     expect(HF.chatCompletionStream).toHaveBeenCalled();
   });
 
-  it('generateAnswerStream triggers enrichment on "I don\'t know" and yields enriched tokens', async () => {
-    process.env.HUGGINGFACE_HUB_TOKEN = 'token';
-    process.env.HUGGINGFACE_CHAT_MODEL = 'chat-model';
-    const svc = new LLMService();
+  it('generateAnswerStreamWithEnrichment yields tokens with enriched context', async () => {
+    const svc = await createInitializedService();
 
-    const initial = [{ choices: [{ delta: { content: "I don't know" } }] }];
-    const enriched = [
-      { choices: [{ delta: { content: 'Enriched answer.' } }] },
+    const chunks: ChatCompletionChunk[] = [
+      { choices: [{ delta: { content: 'Enriched ' } }] },
+      { choices: [{ delta: { content: 'answer.' } }] },
     ];
-
-    // Make chatCompletionStream return different iterables per call
-    let calls = 0;
-    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockImplementation(
-      () => {
-        calls++;
-        if (calls === 1) return asyncIterableFromArray(initial);
-        return asyncIterableFromArray(enriched);
-      },
-    );
-
-    const fakeResults: SearchResult[] = [
-      { title: 'T', snippet: 'S', url: 'http://u' },
-    ];
-    const fakeEnr = {
-      enrichIfUnknown: vi.fn(async (q: string, a: string) => {
-        // Only return results if the answer contains "I don't know"
-        if (a.toLowerCase().includes("i don't know")) {
-          return fakeResults;
-        }
-        return null;
-      }),
-    };
-    svc.enrichmentService = fakeEnr as unknown as typeof svc.enrichmentService;
+    HF.chatCompletionStream.mockReturnValue(asyncIterableFromArray(chunks));
 
     const userInput = { question: 'What is X?', context: '', chatHistory: [] };
+    const enrichedContext = 'Additional context from web search';
+
     const tokens: string[] = [];
-    for await (const t of svc.generateAnswerStream(
-      userInput as Parameters<typeof svc.generateAnswerStream>[0],
+    for await (const t of svc.generateAnswerStreamWithEnrichment(
+      userInput,
+      enrichedContext,
     )) {
       tokens.push(t);
     }
 
-    const joined = tokens.join('');
-    expect(joined).toContain("I don't know");
-    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
-
-    // Note: The enrichment logic was moved to WebSocket service for better separation of concerns
-  });
-
-  it('generateAnswerStream swallows enrichment errors and continues', async () => {
-    process.env.HUGGINGFACE_HUB_TOKEN = 'token';
-    process.env.HUGGINGFACE_CHAT_MODEL = 'chat-model';
-    const svc = new LLMService();
-
-    const initial = [{ choices: [{ delta: { content: "I don't know" } }] }];
-    (HF.chatCompletionStream as ReturnType<typeof vi.fn>).mockReturnValue(
-      asyncIterableFromArray(initial),
-    );
-
-    const throwingEnr = {
-      enrichIfUnknown: vi.fn(async () => {
-        throw new Error('search error');
-      }),
-    };
-    svc.enrichmentService =
-      throwingEnr as unknown as typeof svc.enrichmentService;
-
-    const userInput = { question: 'Q', context: '', chatHistory: [] };
-    const tokens: string[] = [];
-    for await (const t of svc.generateAnswerStream(
-      userInput as Parameters<typeof svc.generateAnswerStream>[0],
-    )) {
-      tokens.push(t);
-    }
-
-    expect(tokens.join('')).toContain("I don't know");
-    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
-    expect(throwingEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
+    expect(tokens.join('')).toBe('Enriched answer.');
+    expect(HF.chatCompletionStream).toHaveBeenCalled();
   });
 
   it('buildPrompt and buildLowPrompt call underlying prompt utilities', async () => {
-    const svc = new LLMService();
+    const svc = await createInitializedService();
+
     const p = await svc.buildPrompt('ctx', 'q', []);
     const lp = await svc.buildLowPrompt(['a', 'b']);
     expect(typeof p).toBe('string');
     expect(typeof lp).toBe('string');
+  });
+
+  it('generateLowSummary returns summary text', async () => {
+    const svc = await createInitializedService();
+
+    HF.chatCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'Summary of content' } }],
+    });
+
+    const result = await svc.generateLowSummary(['content1', 'content2']);
+    expect(result).toBe('Summary of content');
+    expect(HF.chatCompletion).toHaveBeenCalled();
+  });
+
+  it('generateText returns generated text', async () => {
+    const svc = await createInitializedService();
+
+    HF.textGeneration.mockResolvedValue({
+      generated_text: 'Generated response',
+    });
+
+    const result = await svc.generateText('test prompt');
+    expect(result).toBe('Generated response');
+    expect(HF.textGeneration).toHaveBeenCalled();
+  });
+
+  it('generateText handles string response', async () => {
+    const svc = await createInitializedService();
+
+    HF.textGeneration.mockResolvedValue('Direct string response');
+
+    const result = await svc.generateText('test prompt');
+    expect(result).toBe('Direct string response');
+  });
+
+  it('enrichmentService setter works correctly', async () => {
+    const svc = await createInitializedService();
+
+    const mockEnrichmentService: IEnrichmentService = {
+      enrichIfUnknown: vi.fn(),
+      searchAndEmbed: vi.fn(),
+    };
+
+    svc.enrichmentService = mockEnrichmentService;
+    expect(svc['_enrichmentService']).toBe(mockEnrichmentService);
   });
 });
