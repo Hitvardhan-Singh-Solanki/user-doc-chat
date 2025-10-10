@@ -1,6 +1,6 @@
 import { Client } from 'minio';
-import { config as appConfig } from '../../../config/app.config';
-import { secretsManager } from '../../../config/secrets.config';
+import { config as appConfig } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Validates and parses MinIO configuration from environment variables
@@ -11,7 +11,7 @@ function validateMinioConfig() {
   const endpoint = appConfig.MINIO_ENDPOINT;
   const port = appConfig.MINIO_PORT;
   const useSSL = appConfig.MINIO_USE_SSL;
-  const bucketName = appConfig.MINIO_BUCKET_NAME;
+  // const bucketName = appConfig.MINIO_BUCKET_NAME;
 
   // Get credentials from secrets manager
   const credentials = secretsManager.getMinioCredentials();

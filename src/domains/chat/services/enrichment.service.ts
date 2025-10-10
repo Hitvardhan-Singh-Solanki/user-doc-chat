@@ -9,10 +9,10 @@ import { SimpleTokenizerAdapter } from '../../../infrastructure/external-service
 import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
 import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
 import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
-import { parsePositiveInt } from '../../../shared/utils';
-import { logger } from '../../../config/logger.config';
+// import { parsePositiveInt } from '../../../shared/utils';
+import { logger } from '@config/logger.config';
 import { circuitBreakerService } from '../../../shared/utils/circuit-breaker';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -92,15 +92,29 @@ export class EnrichmentService implements IEnrichmentService {
 
     const searchBreaker = circuitBreakerService.getBreaker(
       'search',
-      this.searchAdapter.search.bind(this.searchAdapter),
+      async (...args: unknown[]) => {
+        const [query, maxResults, signal] = args as [
+          string,
+          number?,
+          AbortSignal?,
+        ];
+        return await this.searchAdapter.search(query, maxResults, signal);
+      },
       { timeout: 10000, errorThresholdPercentage: 50, resetTimeout: 30000 },
     );
 
     let results: SearchResult[] = [];
     try {
-      results = await searchBreaker.fire(optimizedQuery, opts.maxResults);
-    } catch (err: any) {
-      if (err.code === 'EOPENBREAKER') {
+      results = (await searchBreaker.fire(
+        optimizedQuery,
+        opts.maxResults,
+      )) as SearchResult[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
         log.warn('Search service unavailable, skipping enrichment');
         return [];
       }
@@ -118,19 +132,26 @@ export class EnrichmentService implements IEnrichmentService {
 
     const fetchBreaker = circuitBreakerService.getBreaker(
       'fetch',
-      this.fetchHTML.fetchHTML.bind(this.fetchHTML),
+      async (...args: unknown[]) => {
+        const [results, options] = args as [SearchResult[], EnrichmentOptions?];
+        return await this.fetchHTML.fetchHTML(results, options);
+      },
       { timeout: 15000, errorThresholdPercentage: 50, resetTimeout: 30000 },
     );
 
     let sourceText: (string | undefined)[] = [];
     try {
-      sourceText = await fetchBreaker.fire(results, {
+      sourceText = (await fetchBreaker.fire(results, {
         maxPagesToFetch: opts.maxPagesToFetch,
         fetchConcurrency: opts.fetchConcurrency,
         minContentLength: opts.minContentLength,
-      });
-    } catch (err: any) {
-      if (err.code === 'EOPENBREAKER') {
+      })) as (string | undefined)[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
         log.warn(
           'HTML fetch service unavailable, returning search results without content',
         );

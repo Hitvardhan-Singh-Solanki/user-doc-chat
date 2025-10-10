@@ -8,8 +8,8 @@ import {
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { logger } from '../../../config/logger.config';
-import { config } from '../../../config/app.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 const acceptedMimeTypes = [
   'application/pdf',
@@ -193,7 +193,7 @@ export class FileUploadService {
             'Failed to update database status after queue failure. Both queue and database operations failed.',
           );
           // Attach DB error as metadata to the original queue error
-          (queueError as any).dbError = dbErr;
+          (queueError as Error & { dbError?: Error }).dbError = dbErr;
         }
 
         throw queueError;

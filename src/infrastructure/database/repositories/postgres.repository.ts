@@ -7,7 +7,7 @@ import {
   VectorQueryResult,
   QueryMatch,
 } from '../../../shared/interfaces/vector-store.interface';
-import { config } from '../../../config/app.config';
+import { config } from '@config';
 
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
@@ -136,7 +136,7 @@ export class PostgresService implements IDBStore, IVectorStore {
     const matches: QueryMatch[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id as string,
       score: this.distanceToScore(row.distance as number),
-      metadata: row.metadata || {},
+      metadata: (row.metadata as Record<string, unknown>) || {},
       embedding: row.embedding as number[],
     }));
 
@@ -158,7 +158,7 @@ export class PostgresService implements IDBStore, IVectorStore {
           return { rows: result.rows as T[] };
         },
         withTransaction: async <R>(
-          _txFn: (tx: IDBStore) => Promise<R>,
+          txFn: (tx: IDBStore) => Promise<R>,
         ): Promise<R> => {
           // Nested transactions are not supported in this implementation
           throw new Error('Nested transactions are not supported');

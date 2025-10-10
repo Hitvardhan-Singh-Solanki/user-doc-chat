@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../../config/logger.config';
+import { logger } from '@config/logger.config';
 import { rateLimiterService } from '../../infrastructure/cache/rate-limiter.service';
-import { config } from '../../config/app.config';
+import { config } from '@config';
 
 /**
  * Security middleware for Express application

@@ -14,7 +14,11 @@ export interface User {
 
 export type VectorStoreType = 'pinecone' | 'pgvector';
 
-export type Vector = { id: string; values: number[]; metadata?: any };
+export type Vector = {
+  id: string;
+  values: number[];
+  metadata?: Record<string, unknown>;
+};
 
 export interface MulterFile {
   fieldname: string;

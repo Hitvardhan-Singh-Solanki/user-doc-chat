@@ -14,7 +14,7 @@ export const createLLMServiceMock = () => ({
     }
     return chunks;
   },
-  generateLowSummary: async (chunks: string[], _options: unknown) => {
+  generateLowSummary: async (chunks: string[] /* _options: unknown */) => {
     return chunks.map((chunk: string) => `Summary of: ${chunk}`).join(' ');
   },
 });
@@ -43,7 +43,8 @@ export const createHashUtilsMock = () => ({
 export const createSocketIOServerMock = () => {
   const mockServer = {
     use: (middleware: unknown) => {
-      (mockServer as any)._authMiddleware = middleware;
+      (mockServer as unknown as { _authMiddleware: unknown })._authMiddleware =
+        middleware;
       return mockServer;
     },
     on: () => {},

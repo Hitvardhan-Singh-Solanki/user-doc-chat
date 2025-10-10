@@ -24,7 +24,7 @@ export class AuthService {
       );
 
       return result.rows[0];
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (this.isUniqueViolation(err)) {
         throw new Error('Email already in use');
       }
@@ -52,7 +52,7 @@ export class AuthService {
 
     const isValid = await comparePassword(
       password,
-      (user as any).password_hash,
+      (user as User & { password_hash: string }).password_hash,
     );
     if (!isValid) throw new Error('Invalid credentials');
 
@@ -64,7 +64,10 @@ export class AuthService {
    */
   private isUniqueViolation(err: unknown): boolean {
     return (
-      typeof err === 'object' && err !== null && (err as any).code === '23505'
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === '23505'
     );
   }
 }

@@ -42,10 +42,12 @@ export class BingSearchAdapter implements ISearchAdapter {
       throw new Error(`Bing Search failed: ${res.status} ${res.statusText}`);
     const data = await res.json();
 
-    return (data.webPages?.value || []).map((r: any) => ({
-      title: r.name,
-      snippet: r.snippet,
-      url: r.url,
-    }));
+    return (data.webPages?.value || []).map(
+      (r: { name: string; snippet: string; url: string }) => ({
+        title: r.name,
+        snippet: r.snippet,
+        url: r.url,
+      }),
+    );
   }
 }

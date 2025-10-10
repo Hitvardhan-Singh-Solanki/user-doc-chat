@@ -17,31 +17,31 @@ import { config } from './config/app.config';
     const app = createApp();
 
     // Start Server
-    const parsePort = (portStr: string | undefined): number => {
-      const DEFAULT_PORT = 3000;
-      const MIN_PORT = 0;
-      const MAX_PORT = 65535;
+    // const parsePort = (portStr: string | undefined): number => {
+    //   const DEFAULT_PORT = 3000;
+    //   const MIN_PORT = 0;
+    //   const MAX_PORT = 65535;
 
-      if (!portStr) {
-        return DEFAULT_PORT;
-      }
+    //   if (!portStr) {
+    //     return DEFAULT_PORT;
+    //   }
 
-      const parsedPort = parseInt(portStr, 10);
+    //   const parsedPort = parseInt(portStr, 10);
 
-      if (isNaN(parsedPort) || parsedPort < MIN_PORT || parsedPort > MAX_PORT) {
-        logger.warn(
-          {
-            providedPort: portStr,
-            parsedPort,
-            defaultPort: DEFAULT_PORT,
-          },
-          'Invalid port value provided, falling back to default',
-        );
-        return DEFAULT_PORT;
-      }
+    //   if (isNaN(parsedPort) || parsedPort < MIN_PORT || parsedPort > MAX_PORT) {
+    //     logger.warn(
+    //       {
+    //         providedPort: portStr,
+    //         parsedPort,
+    //         defaultPort: DEFAULT_PORT,
+    //       },
+    //       'Invalid port value provided, falling back to default',
+    //     );
+    //     return DEFAULT_PORT;
+    //   }
 
-      return parsedPort;
-    };
+    //   return parsedPort;
+    // };
 
     const PORT: number = config.PORT;
     const socketService = serviceFactory.getWebsocketService(app);

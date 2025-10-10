@@ -5,8 +5,8 @@ import { lookup } from 'dns/promises';
 import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
 import { EnrichmentOptions, SearchResult } from '../../../shared/types';
 import { Readability } from '@mozilla/readability';
-import { logger } from '../../../config/logger.config';
-import { config } from '../../../config/app.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 export class FetchHTMLService implements IHTMLFetch {
   private readonly log = logger.child({ component: 'FetchHTMLService' });
@@ -159,12 +159,12 @@ export class FetchHTMLService implements IHTMLFetch {
         log.warn('Failed to parse HTML into readable text.');
       }
       return parsedText;
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         log.warn('Fetch request timed out.');
       } else {
         log.error(
-          { err, stack: err.stack },
+          { err, stack: err instanceof Error ? err.stack : undefined },
           'FetchPageText encountered an error.',
         );
       }

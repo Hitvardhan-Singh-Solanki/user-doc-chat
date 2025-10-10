@@ -11,7 +11,12 @@ vi.mock('./db.repo', () => ({
 
 describe('PostgresService', () => {
   let postgresService: PostgresService;
-  let mockDb: any;
+
+  let mockDb: {
+    query: ReturnType<typeof vi.fn>;
+    connect: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     // Reset environment variables
@@ -22,10 +27,16 @@ describe('PostgresService', () => {
 
     // Get the mocked db
     const dbModule = await import('./db.repo');
-    mockDb = dbModule.db;
+    mockDb = dbModule.db as unknown as {
+      query: ReturnType<typeof vi.fn>;
+      connect: ReturnType<typeof vi.fn>;
+      end: ReturnType<typeof vi.fn>;
+    };
 
     // Reset the singleton instance to pick up new environment variables
-    (PostgresService as any).instance = undefined;
+    (
+      PostgresService as unknown as { instance: PostgresService | undefined }
+    ).instance = undefined;
 
     // Get fresh instance
     postgresService = PostgresService.getInstance();
@@ -87,7 +98,9 @@ describe('PostgresService', () => {
     it('should correctly convert euclidean distance to similarity score', async () => {
       // Set euclidean distance operator
       process.env.VECTOR_DISTANCE_OPERATOR = 'euclidean';
-      (PostgresService as any).instance = undefined;
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
 
       // Mock database response with euclidean distances
@@ -136,7 +149,9 @@ describe('PostgresService', () => {
     it('should correctly convert inner product to similarity score', async () => {
       // Set inner product operator
       process.env.VECTOR_DISTANCE_OPERATOR = 'inner_product';
-      (PostgresService as any).instance = undefined;
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
 
       // Mock database response with inner product distances (negative values)
@@ -185,7 +200,9 @@ describe('PostgresService', () => {
     it('should default to cosine distance when no operator is specified', async () => {
       // No environment variable set
       delete process.env.VECTOR_DISTANCE_OPERATOR;
-      (PostgresService as any).instance = undefined;
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
 
       // Mock database response
@@ -228,7 +245,9 @@ describe('PostgresService', () => {
 
       // Test euclidean operator
       process.env.VECTOR_DISTANCE_OPERATOR = 'euclidean';
-      (PostgresService as any).instance = undefined;
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
 
       mockDb.query.mockResolvedValue({ rows: [] });
@@ -242,7 +261,9 @@ describe('PostgresService', () => {
 
       // Test inner product operator
       process.env.VECTOR_DISTANCE_OPERATOR = 'inner_product';
-      (PostgresService as any).instance = undefined;
+      (
+        PostgresService as unknown as { instance: PostgresService | undefined }
+      ).instance = undefined;
       postgresService = PostgresService.getInstance();
 
       mockDb.query.mockResolvedValue({ rows: [] });

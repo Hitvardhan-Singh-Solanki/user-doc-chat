@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
-import { logger } from '../../../config/logger.config';
-import { config } from '../../../config/app.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 // Build Redis URL from config
 const REDIS_URL = `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`;

@@ -43,7 +43,7 @@ export class AuthController {
       log.info({ userId: user.id }, 'User signed up successfully');
       return res.status(201).json({ token });
     } catch (err: unknown) {
-      if ((err as any)?.message === 'Email already in use') {
+      if (err instanceof Error && err.message === 'Email already in use') {
         log.warn('Attempted signup with an existing email');
         return res.status(409).json({ error: 'Email already in use' });
       }
@@ -87,7 +87,7 @@ export class AuthController {
       log.info({ userId: user.id }, 'User logged in successfully');
       return res.status(200).json({ token });
     } catch (err: unknown) {
-      const msg = (err as any)?.message;
+      const msg = err instanceof Error ? err.message : '';
       if (msg === 'Invalid credentials') {
         log.warn('Attempted login with invalid credentials');
         return res.status(401).json({ error: 'Invalid credentials' });

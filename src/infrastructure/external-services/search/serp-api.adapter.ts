@@ -20,8 +20,10 @@ export class SerpApiAdapter implements ISearchAdapter {
       gl: 'us',
     });
     const res = await fetch(`https://serpapi.com/search.json?${params}`, {
-      signal: (AbortSignal as any).timeout
-        ? (AbortSignal as any).timeout(8000)
+      signal: (AbortSignal as { timeout?: (ms: number) => AbortSignal }).timeout
+        ? (AbortSignal as { timeout: (ms: number) => AbortSignal }).timeout(
+            8000,
+          )
         : undefined,
       headers: { Accept: 'application/json' },
     });
@@ -39,11 +41,13 @@ export class SerpApiAdapter implements ISearchAdapter {
     }
 
     const data = await res.json();
-    const items = (data.organic_results || []).map((r: any) => ({
-      title: r.title ?? '',
-      snippet: r.snippet ?? '',
-      url: r.link ?? '',
-    }));
+    const items = (data.organic_results || []).map(
+      (r: { title?: string; snippet?: string; link?: string }) => ({
+        title: r.title ?? '',
+        snippet: r.snippet ?? '',
+        url: r.link ?? '',
+      }),
+    );
     return items.slice(0, maxResults);
   }
 }

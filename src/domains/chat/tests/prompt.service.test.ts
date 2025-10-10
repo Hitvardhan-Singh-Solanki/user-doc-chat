@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PromptService } from '../services/prompt.service';
 import { PromptConfig } from '../../../shared/types';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { ITokenizer } from '../../../shared/interfaces/tokenizer.interface';
+// import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('@xenova/transformers', () => ({
@@ -37,9 +38,11 @@ describe('PromptService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const mockTokenizer = {
-      countTokens: vi.fn().mockReturnValue(100), // Default token count
+      countTokens: vi.fn().mockReturnValue(100),
+      encode: vi.fn().mockReturnValue([]),
+      decode: vi.fn().mockReturnValue(''),
     };
-    service = new PromptService(mockTokenizer as any);
+    service = new PromptService(mockTokenizer as ITokenizer);
   });
 
   describe('sanitizeText', () => {
@@ -164,10 +167,13 @@ describe('PromptService', () => {
           .fn()
           .mockReturnValueOnce(2000) /// First call: high count
           .mockReturnValue(800), // Subsequent calls: lower count
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
       // Replace the tokenizer
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = {
         question: 'Q',
@@ -189,9 +195,12 @@ describe('PromptService', () => {
       // Mock tokenizer to return high token count
       const mockTokenizer = {
         countTokens: vi.fn().mockReturnValue(2000),
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = {
         question: 'Q',
@@ -285,9 +294,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Initial prompt too long
           .mockReturnValueOnce(1000) // History tokens
           .mockReturnValue(800), // Final prompt
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = {
         question: 'Q',
@@ -313,9 +325,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Initial prompt too long
           .mockReturnValueOnce(1000) // Context tokens
           .mockReturnValue(800), // Final prompt
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = {
         question: 'Q',
@@ -341,9 +356,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Initial prompt too long
           .mockReturnValueOnce(1000) // Context tokens
           .mockReturnValue(1500), // Final prompt still too long
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = {
         question: 'Q',
@@ -372,9 +390,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Original text tokens
           .mockReturnValueOnce(1000) // Truncated text tokens
           .mockReturnValue(3000), // Final prompt
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const text = 'Very long legal text '.repeat(1000);
       const result = service.createSummarizationPrompt({ text });
@@ -392,9 +413,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Original text tokens
           .mockReturnValueOnce(1000) // Truncated text tokens
           .mockReturnValue(5000), // Final prompt still too long
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const text = 'Very long legal text '.repeat(1000);
       const config: PromptConfig = { maxLength: 3000 };
@@ -413,9 +437,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Initial prompt too long
           .mockReturnValueOnce(1000) // Content tokens
           .mockReturnValue(800), // Final prompt
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = ['Very long content '.repeat(100)];
       const config: PromptConfig = {
@@ -434,9 +461,12 @@ describe('PromptService', () => {
           .mockReturnValueOnce(2000) // Initial prompt too long
           .mockReturnValueOnce(1000) // Content tokens
           .mockReturnValue(1500), // Final prompt still too long
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      (service as any).tokenizer = mockTokenizer;
+      (service as unknown as { tokenizer: ITokenizer }).tokenizer =
+        mockTokenizer;
 
       const input = ['Very long content '.repeat(100)];
       const config: PromptConfig = {
@@ -454,9 +484,11 @@ describe('PromptService', () => {
     it('should use tokenizer for all token counting operations', () => {
       const mockTokenizer = {
         countTokens: vi.fn().mockReturnValue(100),
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      const serviceWithMock = new PromptService(mockTokenizer as any);
+      const serviceWithMock = new PromptService(mockTokenizer as ITokenizer);
 
       const input = {
         question: 'Test question',
@@ -476,9 +508,11 @@ describe('PromptService', () => {
         countTokens: vi.fn().mockImplementation(() => {
           throw new Error('Tokenizer error');
         }),
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
       };
 
-      const serviceWithMock = new PromptService(mockTokenizer as any);
+      const serviceWithMock = new PromptService(mockTokenizer as ITokenizer);
 
       const input = {
         question: 'Test question',
@@ -565,7 +599,7 @@ describe('PromptService', () => {
 
     it('should throw error when tokenizer is null', async () => {
       // Simulate tokenizer initialization failure
-      (service as any).tokenizer = null;
+      (service as unknown as { tokenizer: ITokenizer | null }).tokenizer = null;
 
       const input = {
         question: 'Test question',

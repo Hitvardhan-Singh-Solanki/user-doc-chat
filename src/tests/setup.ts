@@ -18,14 +18,14 @@ vi.mock('minio', () => {
 
 vi.mock('bullmq', () => {
   return {
-    Worker: vi.fn().mockImplementation((_queueName, _processor) => {
+    Worker: vi.fn().mockImplementation((/* _queueName, _processor */) => {
       return {
         id: 'worker-123',
         close: vi.fn(),
         on: vi.fn(),
       };
     }),
-    Queue: vi.fn().mockImplementation((queueName, _options) => {
+    Queue: vi.fn().mockImplementation((queueName /* _options */) => {
       return {
         name: queueName,
         add: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock('bullmq', () => {
         close: vi.fn(),
       };
     }),
-    QueueEvents: vi.fn().mockImplementation((queueName, _options) => {
+    QueueEvents: vi.fn().mockImplementation((queueName /* _options */) => {
       return {
         name: queueName,
         on: vi.fn(),

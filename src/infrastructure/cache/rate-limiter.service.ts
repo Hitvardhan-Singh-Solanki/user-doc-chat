@@ -1,6 +1,6 @@
 import { RateLimiterRedis } from 'rate-limiter-flexible';
 import { redisPub } from '../database/repositories/redis.repo';
-import { logger } from '../../config/logger.config';
+import { logger } from '@config/logger.config';
 
 export class RateLimiterService {
   private generalLimiter: RateLimiterRedis;

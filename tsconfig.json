@@ -9,7 +9,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "typeRoots": ["./node_modules/@types", "./src/**/*.d.ts"]
+    "typeRoots": ["./node_modules/@types", "./src/**/*.d.ts"],
+    "baseUrl": "./src",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@secrets": ["config/secrets.config"],
+      "@config": ["config/app.config"]
+    }
   },
   "include": ["src", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]

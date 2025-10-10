@@ -10,16 +10,20 @@ export const createRedisChatHistoryMock = () => ({
 
 export const createPostgresServiceMock = () => ({
   getInstance: () => ({
-    query: async <T = any>(..._args: any[]): Promise<{ rows: T[] }> => ({
+    query: async <T = unknown>(
+      ..._args: unknown[]
+    ): Promise<{ rows: T[] }> => ({
       rows: [],
     }),
     withTransaction: async <T>(
       fn: (client: {
-        query: <U = any>(...args: any[]) => Promise<{ rows: U[] }>;
+        query: <U = unknown>(...args: unknown[]) => Promise<{ rows: U[] }>;
       }) => Promise<T>,
     ): Promise<T> =>
       fn({
-        query: async <U = any>(..._args: any[]): Promise<{ rows: U[] }> => ({
+        query: async <U = unknown>(
+          ..._args: unknown[]
+        ): Promise<{ rows: U[] }> => ({
           rows: [],
         }),
       }),

@@ -6,7 +6,7 @@ import * as minioService from '../../../infrastructure/storage/providers/minio.p
 import { queueAdapter } from '../../../infrastructure/queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
-import { mockFile, mockFileUploadData } from '../../../tests/fixtures';
+// import { mockFile, mockFileUploadData } from '../../../tests/fixtures';
 
 // Mock external dependencies
 vi.mock('file-type', () => ({
@@ -31,9 +31,14 @@ vi.mock('uuid', () => ({
 describe('FileUploadService', () => {
   let fileUploadService: FileUploadService;
   let mockDb: IDBStore;
-  let mockFileTypeFromBuffer: any;
-  let mockUploadFileToMinio: any;
-  let mockQueueAdapter: any;
+  let mockFileTypeFromBuffer: ReturnType<typeof vi.fn>;
+  let mockUploadFileToMinio: ReturnType<typeof vi.fn>;
+  let mockQueueAdapter: {
+    enqueue: ReturnType<typeof vi.fn>;
+    getJobStatus: ReturnType<typeof vi.fn>;
+    getQueueEvents: ReturnType<typeof vi.fn>;
+    getQueue: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     // Setup mocks
@@ -193,7 +198,7 @@ describe('FileUploadService', () => {
     it('should throw error when file buffer is undefined', async () => {
       const mockFile: MulterFile = {
         ...createMockFile(),
-        buffer: undefined as any,
+        buffer: undefined as Buffer | undefined,
       };
       const userId = 'user123';
 
