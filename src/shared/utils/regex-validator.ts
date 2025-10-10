@@ -1,8 +1,3 @@
-/**
- * Regex pattern validation to prevent ReDoS attacks
- * Uses safe-regex2 package for robust ReDoS detection
- */
-
 import safeRegex from 'safe-regex2';
 
 export class UnsafeRegexError extends Error {
@@ -40,5 +35,4 @@ export class RegexValidator {
   static isSafePattern(pattern: string): boolean {
     return safeRegex(new RegExp(pattern));
   }
-
 }

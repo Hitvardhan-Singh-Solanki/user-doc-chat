@@ -148,6 +148,8 @@ export function signJwt(
   const options: SignOptions = {
     expiresIn,
     algorithm: 'HS256',
+    audience: secretsManager.getJwtAudience(),
+    issuer: secretsManager.getJwtIssuer(),
   };
 
   return jwt.sign(payload, JWT_SECRET, options);
@@ -194,9 +196,9 @@ export function verifyJwt(
       // Security: prevent algorithm confusion attacks
       ignoreExpiration: false,
       ignoreNotBefore: false,
-      // Security: validate audience and issuer if provided
-      audience: undefined, // Not in current config
-      issuer: undefined, // Not in current config
+      // Security: validate audience and issuer for enhanced security
+      audience: secretsManager.getJwtAudience(),
+      issuer: secretsManager.getJwtIssuer(),
     }) as CustomJwtPayload;
 
     // Security validation: check for required claims

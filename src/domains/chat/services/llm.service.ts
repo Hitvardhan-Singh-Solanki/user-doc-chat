@@ -49,10 +49,6 @@ async function withTimeout<T>(
   } catch (err: unknown) {
     clearTimeout(timeoutId);
 
-    if (err instanceof Error && err.message?.includes('timed out after')) {
-      throw err;
-    }
-
     if (
       controller.signal.aborted ||
       (err instanceof Error && err.name === 'AbortError')
@@ -99,10 +95,6 @@ async function* withStreamTimeout<T>(
     clearTimeout(timeoutId);
   } catch (err: unknown) {
     clearTimeout(timeoutId);
-
-    if (err instanceof Error && err.message?.includes('timed out after')) {
-      throw err;
-    }
 
     if (
       controller.signal.aborted ||
@@ -178,6 +170,10 @@ export class LLMService {
         logger.info('LLM Embedding Circuit Breaker: CLOSED'),
       );
     });
+  }
+
+  get enrichmentService(): IEnrichmentService | undefined {
+    return this._enrichmentService;
   }
 
   set enrichmentService(enr: IEnrichmentService) {

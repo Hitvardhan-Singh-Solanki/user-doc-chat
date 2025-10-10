@@ -41,7 +41,7 @@ function buildRedisConfig(): string | object {
     }
 
     // Add database index if not default
-    if (config.REDIS_DB !== 0) {
+    if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
       socketOptions.database = config.REDIS_DB;
     }
 
@@ -68,8 +68,27 @@ function buildRedisConfig(): string | object {
 
   // Build URL from host/port components
   const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
-  const host = config.REDIS_HOST;
-  const port = config.REDIS_PORT;
+
+  // Validate Redis host configuration
+  if (!config.REDIS_HOST || config.REDIS_HOST.trim() === '') {
+    throw new Error(
+      'REDIS_HOST environment variable is required and cannot be empty',
+    );
+  }
+
+  // Validate Redis port configuration
+  if (config.REDIS_PORT === undefined || config.REDIS_PORT === null) {
+    throw new Error('REDIS_PORT environment variable is required');
+  }
+
+  const port = Number(config.REDIS_PORT);
+  if (isNaN(port) || port <= 0 || port > 65535) {
+    throw new Error(
+      `REDIS_PORT must be a valid port number (1-65535), got: ${config.REDIS_PORT}`,
+    );
+  }
+
+  const host = config.REDIS_HOST.trim();
 
   // Handle credentials
   let auth = '';
@@ -92,7 +111,7 @@ function buildRedisConfig(): string | object {
 
   // Build query parameters
   const queryParams: string[] = [];
-  if (config.REDIS_DB !== 0) {
+  if (config.REDIS_DB != null && config.REDIS_DB !== 0) {
     queryParams.push(`db=${config.REDIS_DB}`);
   }
 

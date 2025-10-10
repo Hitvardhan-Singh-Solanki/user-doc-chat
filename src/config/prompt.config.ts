@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+const parseEnvInt = (envVar: string | undefined): number | undefined => {
+  if (!envVar) return undefined;
+  const parsed = parseInt(envVar, 10);
+  return isNaN(parsed) ? undefined : parsed;
+};
+
 const promptConfigSchema = z.object({
   MAX_INPUT_SIZE: z.number().default(50 * 1024 * 1024), // 50MB
   MAX_SENTENCES: z.number().default(10000),
@@ -24,90 +30,25 @@ const promptConfigSchema = z.object({
 export type PromptConfig = z.infer<typeof promptConfigSchema>;
 
 export const promptConfig = promptConfigSchema.parse({
-  MAX_INPUT_SIZE: process.env.PROMPT_MAX_INPUT_SIZE
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_MAX_INPUT_SIZE, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 50 * 1024 * 1024,
-  MAX_SENTENCES: process.env.PROMPT_MAX_SENTENCES
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_MAX_SENTENCES, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 10000,
-  MAX_HISTORY_LINES: process.env.PROMPT_MAX_HISTORY_LINES
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_MAX_HISTORY_LINES, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 1000,
-  MAX_TOKEN_OPERATIONS: process.env.PROMPT_MAX_TOKEN_OPERATIONS
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_MAX_TOKEN_OPERATIONS, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 100,
-  TOKEN_WINDOW_MS: process.env.PROMPT_TOKEN_WINDOW_MS
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_TOKEN_WINDOW_MS, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 5 * 60 * 1000,
-  PROMPT_TIMEOUT_MS: process.env.PROMPT_TIMEOUT_MS
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_TIMEOUT_MS, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 5000,
-  REGEX_TIMEOUT_MS: process.env.PROMPT_REGEX_TIMEOUT_MS
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_REGEX_TIMEOUT_MS, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 500,
-  PRIORITY_BUFFER: process.env.PROMPT_PRIORITY_BUFFER
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_PRIORITY_BUFFER, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 50,
-  OVERFLOW_BUFFER: process.env.PROMPT_OVERFLOW_BUFFER
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_OVERFLOW_BUFFER, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 100,
-  MAX_SANITIZATION_ITERATIONS: process.env.PROMPT_MAX_SANITIZATION_ITERATIONS
-    ? (() => {
-        const parsed = parseInt(
-          process.env.PROMPT_MAX_SANITIZATION_ITERATIONS,
-          10,
-        );
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 10,
-  MAX_REGEX_ITERATIONS: process.env.PROMPT_MAX_REGEX_ITERATIONS
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_MAX_REGEX_ITERATIONS, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 1000,
-  LARGE_DOCUMENT_THRESHOLD: process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD
-    ? (() => {
-        const parsed = parseInt(
-          process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD,
-          10,
-        );
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 1024 * 1024,
-  TOKEN_CACHE_SIZE: process.env.PROMPT_TOKEN_CACHE_SIZE
-    ? (() => {
-        const parsed = parseInt(process.env.PROMPT_TOKEN_CACHE_SIZE, 10);
-        return isNaN(parsed) ? undefined : parsed;
-      })()
-    : 1000,
+  MAX_INPUT_SIZE:
+    parseEnvInt(process.env.PROMPT_MAX_INPUT_SIZE) ?? 50 * 1024 * 1024,
+  MAX_SENTENCES: parseEnvInt(process.env.PROMPT_MAX_SENTENCES) ?? 10000,
+  MAX_HISTORY_LINES: parseEnvInt(process.env.PROMPT_MAX_HISTORY_LINES) ?? 1000,
+  MAX_TOKEN_OPERATIONS:
+    parseEnvInt(process.env.PROMPT_MAX_TOKEN_OPERATIONS) ?? 100,
+  TOKEN_WINDOW_MS:
+    parseEnvInt(process.env.PROMPT_TOKEN_WINDOW_MS) ?? 5 * 60 * 1000,
+  PROMPT_TIMEOUT_MS: parseEnvInt(process.env.PROMPT_TIMEOUT_MS) ?? 5000,
+  REGEX_TIMEOUT_MS: parseEnvInt(process.env.PROMPT_REGEX_TIMEOUT_MS) ?? 500,
+  PRIORITY_BUFFER: parseEnvInt(process.env.PROMPT_PRIORITY_BUFFER) ?? 50,
+  OVERFLOW_BUFFER: parseEnvInt(process.env.PROMPT_OVERFLOW_BUFFER) ?? 100,
+  MAX_SANITIZATION_ITERATIONS:
+    parseEnvInt(process.env.PROMPT_MAX_SANITIZATION_ITERATIONS) ?? 10,
+  MAX_REGEX_ITERATIONS:
+    parseEnvInt(process.env.PROMPT_MAX_REGEX_ITERATIONS) ?? 1000,
+  LARGE_DOCUMENT_THRESHOLD:
+    parseEnvInt(process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD) ?? 1024 * 1024,
+  TOKEN_CACHE_SIZE: parseEnvInt(process.env.PROMPT_TOKEN_CACHE_SIZE) ?? 1000,
   ALLOWED_LANGUAGES: process.env.PROMPT_ALLOWED_LANGUAGES
     ? process.env.PROMPT_ALLOWED_LANGUAGES.split(',')
         .map((s) => s.trim())

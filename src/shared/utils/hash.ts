@@ -1,8 +1,5 @@
 import bcrypt from 'bcrypt';
-// import pino from 'pino';
 import { authConfig } from '@config';
-
-// const logger = pino({ name: 'hash-utils' });
 
 export async function hashPassword(password: string): Promise<string> {
   // Validate input is not empty
@@ -18,7 +15,23 @@ export async function hashPassword(password: string): Promise<string> {
     );
   }
 
-  return await bcrypt.hash(password, authConfig.saltRounds);
+  // Validate saltRounds before using it
+  if (authConfig.saltRounds === undefined || authConfig.saltRounds === null) {
+    throw new Error('saltRounds is not defined in auth configuration');
+  }
+
+  const saltRounds = parseInt(String(authConfig.saltRounds), 10);
+
+  if (!Number.isFinite(saltRounds) || Number.isNaN(saltRounds)) {
+    throw new Error(
+      `Invalid saltRounds value: ${authConfig.saltRounds}. Must be a finite integer.`,
+    );
+  }
+
+  // Clamp saltRounds to bcrypt's valid range (4-31)
+  const validSaltRounds = Math.max(4, Math.min(31, saltRounds));
+
+  return await bcrypt.hash(password, validSaltRounds);
 }
 
 export async function comparePassword(

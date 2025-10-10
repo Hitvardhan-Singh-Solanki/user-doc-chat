@@ -1,0 +1,38 @@
+rules:
+  - match: '**/*.py'
+    behavior:
+      explain_code: false
+      emojis: false
+      write_style: concise
+      variable_naming: self_explanatory
+      type_handling: inline_or_typing_module
+      always_use_type: only_when_required
+      enforce_git_safety: true
+
+    custom_guidelines: |
+      # Python Project Standards
+      - Framework: FastAPI
+      - Modular by feature/domain (e.g., /auth, /tasks, /cases)
+      - Separation of concerns: routers → services → repositories → models
+      - Centralized error handling with proper HTTP codes and structured logging
+      - Unit, integration, e2e tests per module (Pytest / Playwright)
+      - Secure handling of sensitive data: encryption at rest & in transit, CDR scanning
+      - API versioning (/v1, /v2) and consistent REST/GraphQL design
+      - Audit logging, RBAC, multi-tenant isolation
+      - Scalability: async jobs (Celery), caching (Redis)
+      - Observability: Prometheus, monitoring, centralized logs (ELK/Grafana)
+      - CI/CD pipelines: linting, type checks (mypy), tests, security scans
+      - CamelCase variables/functions/classes; PascalCase for types/classes
+      - Immutable data structures and pure functions
+      - Black + Flake8 formatting
+      - Input validation & sanitization
+      - Secrets management: env vars + secure vault
+      - AI integration: RAG, structured JSON, never hallucinate, maintain prompt/version control
+      - Legal: GDPR/HIPAA, audit logs, secure file handling, hashed storage, access expiration
+      - Never suggest unsafe git commands (e.g., --no-verify)
+      - Make all variable and function names self-explanatory
+      - For gRPC, always generate clients/servers from proto files
+      - Do not manually modify generated gRPC code
+      - Async gRPC calls using asyncio
+      - Proper type hints for requests/responses
+      - Wrap gRPC calls in try/except and return structured errors

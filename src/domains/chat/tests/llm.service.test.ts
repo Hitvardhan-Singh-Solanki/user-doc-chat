@@ -17,13 +17,15 @@ import type {
   FeatureExtractionOutput,
   TextGenerationResponse,
 } from '@shared/types/test.types';
-
+// Use common secrets manager mock
 vi.doMock('@secrets', () => ({
   secretsManager: {
     getHuggingfaceToken: vi.fn().mockReturnValue('test-huggingface-token'),
     getJwtSecret: vi
       .fn()
       .mockReturnValue('7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk='),
+    getJwtAudience: vi.fn().mockReturnValue('test-audience'),
+    getJwtIssuer: vi.fn().mockReturnValue('test-issuer'),
     getPineconeApiKey: vi.fn().mockReturnValue('test-pinecone-api-key'),
     getMinioAccessKey: vi.fn().mockReturnValue('test-minio-access-key'),
     getMinioSecretKey: vi.fn().mockReturnValue('test-minio-secret-key'),

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PostgresService } from './postgres.repository';
-
-// Mock the database connection
+// Mock the database connection using common mock
 vi.mock('./db.repo', () => ({
   db: {
     query: vi.fn(),

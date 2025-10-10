@@ -12,11 +12,17 @@ import { config, reparseConfig } from '@config';
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
   private pool: typeof db;
-  private distanceOperator: string;
+  private distanceOperator: string | null = null;
 
   private constructor() {
     this.pool = db;
-    this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
+  }
+
+  private getDistanceOperatorValue(): string {
+    if (this.distanceOperator === null) {
+      this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
+    }
+    return this.distanceOperator;
   }
 
   public static getInstance(): PostgresService {
@@ -30,15 +36,17 @@ export class PostgresService implements IDBStore, IVectorStore {
    * Refresh the distance operator from config (useful for tests)
    */
   public refreshDistanceOperator(): void {
-    reparseConfig();
-    this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
+    // Force reload the config for tests
+    const newConfig = reparseConfig();
+    this.distanceOperator = newConfig.POSTGRES_VECTOR_DISTANCE_OPERATOR;
   }
 
   /**
    * Get the appropriate SQL distance operator based on configuration
    */
   private getDistanceOperator(): string {
-    switch (this.distanceOperator) {
+    const operator = this.getDistanceOperatorValue();
+    switch (operator) {
       case 'euclidean':
         return '<#>';
       case 'inner_product':
@@ -53,7 +61,7 @@ export class PostgresService implements IDBStore, IVectorStore {
    * Convert distance to similarity score based on the distance operator
    */
   private distanceToScore(distance: number): number {
-    switch (this.distanceOperator) {
+    switch (this.getDistanceOperatorValue()) {
       case 'cosine':
         // Cosine distance ranges from [0,2] where 0=identical, 2=opposite
         // Normalize to [0,1] similarity score: 1 - (distance / 2)

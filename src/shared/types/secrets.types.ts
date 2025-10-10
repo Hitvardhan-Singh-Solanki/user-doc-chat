@@ -1,6 +1,8 @@
 export interface Secrets {
   // JWT
   jwtSecret: string;
+  jwtAudience: string;
+  jwtIssuer: string;
 
   // AI/LLM
   huggingfaceToken: string;

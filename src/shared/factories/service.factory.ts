@@ -6,6 +6,7 @@ import { FetchHTMLService } from '@chat/services/fetch.service';
 import { DeepResearchService } from '@chat/services/deep-research.service';
 import { WebsocketService } from '@chat/services/websocket.service';
 import { config } from '@config';
+import { v4 as uuid } from 'uuid';
 
 export class ServiceFactory {
   private static instance: ServiceFactory;
@@ -74,7 +75,7 @@ export class ServiceFactory {
   }
 
   private getAppId(app: Application): string {
-    return app.get('appId') || `app-${crypto.randomUUID()}`;
+    return app.get('appId') || `app-${uuid()}`;
   }
 
   // Clear all services (useful for testing)

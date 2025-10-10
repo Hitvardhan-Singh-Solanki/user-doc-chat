@@ -197,6 +197,7 @@ describe('RegexTimeout Protection', () => {
 
       // Mock setTimeout to make the timeout trigger immediately
       const originalSetTimeout = global.setTimeout;
+      // @ts-ignore - Mock function doesn't need all setTimeout properties
       global.setTimeout = vi.fn((callback: Function, delay: number) => {
         if (delay === 1) {
           // For our test timeout, trigger immediately

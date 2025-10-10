@@ -20,7 +20,7 @@ const envSchema = z.object({
   POSTGRES_PORT: z.coerce.number().default(5432),
   POSTGRES_DB: z.string().default('user_doc_chat'),
   POSTGRES_USER: z.string().default('postgres'),
-  POSTGRES_PASSWORD: z.string(),
+  POSTGRES_PASSWORD: z.string().min(1, 'POSTGRES_PASSWORD is required'),
   POSTGRES_VECTOR_DISTANCE_OPERATOR: z.string().default('cosine'),
 
   // Redis
@@ -35,6 +35,8 @@ const envSchema = z.object({
 
   // JWT
   JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_AUDIENCE: z.string().min(1, 'JWT_AUDIENCE is required for security'),
+  JWT_ISSUER: z.string().min(1, 'JWT_ISSUER is required for security'),
 
   // Security
   SALT_ROUNDS: z.coerce.number().default(10),
@@ -46,12 +48,14 @@ const envSchema = z.object({
     .string()
     .default('sentence-transformers/all-MiniLM-L6-v2'),
   HUGGINGFACE_SUMMARY_MODEL: z.string().default('facebook/bart-large-cnn'),
+  HUGGINGFACE_HUB_TOKEN: z.string().min(1, 'HUGGINGFACE_HUB_TOKEN is required'),
 
   // Vector Store
   PINECONE_INDEX: z.string().default('user-doc-chat'),
   PINECONE_TOP_K: z.coerce.number().default(5),
   PINECONE_BATCH_SIZE: z.coerce.number().default(100),
   PINECONE_MAX_RETRIES: z.coerce.number().default(3),
+  PINECONE_API_KEY: z.string().min(1, 'PINECONE_API_KEY is required'),
   VECTOR_STORE_PROVIDER: z.enum(['pinecone', 'pgvector']).default('pinecone'),
 
   // Processing
@@ -84,6 +88,8 @@ const envSchema = z.object({
   MINIO_USE_SSL: z
     .preprocess(booleanPreprocess, z.coerce.boolean())
     .default(false),
+  MINIO_ACCESS_KEY: z.string().min(1, 'MINIO_ACCESS_KEY is required'),
+  MINIO_SECRET_KEY: z.string().min(1, 'MINIO_SECRET_KEY is required'),
   MINIO_BUCKET_NAME: z.string().default('user-doc-chat'),
   MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
 
@@ -97,7 +103,7 @@ const envSchema = z.object({
 });
 
 // Parse and validate environment variables
-let config: z.infer<typeof envSchema>;
+let configInitialized = false;
 
 function parseConfig() {
   try {
@@ -116,12 +122,33 @@ function parseConfig() {
   }
 }
 
-// Initialize config
-config = parseConfig();
+// Initialize config - lazy for test mode
+function initializeConfig() {
+  if (!configInitialized) {
+    const parsedConfig = parseConfig();
+    configInitialized = true;
+    configProxy = parsedConfig;
+    rebuildConfigs(parsedConfig);
+    return parsedConfig;
+  }
+  return configProxy;
+}
+
+// Auto-initialize for non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  const parsedConfig = parseConfig();
+  configInitialized = true;
+  configProxy = parsedConfig;
+  rebuildConfigs(parsedConfig);
+}
 
 // Runtime security validation for production environments
-if (config.NODE_ENV !== 'development') {
-  if (!config.POSTGRES_PASSWORD || config.POSTGRES_PASSWORD === 'password') {
+if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+  const parsedConfig = parseConfig();
+  if (
+    !parsedConfig.POSTGRES_PASSWORD ||
+    parsedConfig.POSTGRES_PASSWORD === 'password'
+  ) {
     // eslint-disable-next-line no-console
     console.error(
       '❌ Security Error: POSTGRES_PASSWORD is required and cannot be the default "password" in non-development environments',
@@ -132,100 +159,243 @@ if (config.NODE_ENV !== 'development') {
 
 // Export function to re-parse config (useful for tests)
 export function reparseConfig() {
-  config = parseConfig();
-  return config;
+  const parsedConfig = parseConfig();
+  rebuildConfigs(parsedConfig);
+  return parsedConfig;
 }
 
-export { config };
+// Export initializeConfig for test environments
+export { initializeConfig };
 
-export const serverConfig = {
-  nodeEnv: config.NODE_ENV,
-  port: config.PORT,
-  frontendUrl: config.FRONTEND_URL,
+// Export config with lazy initialization for test mode
+let configProxy: z.infer<typeof envSchema> | null = null;
+
+export const config = new Proxy({} as z.infer<typeof envSchema>, {
+  get(target, prop) {
+    if (!configInitialized || !configProxy) {
+      configProxy = initializeConfig();
+    }
+    return configProxy[prop as keyof typeof configProxy];
+  },
+});
+
+// Config objects that will be rebuilt when config changes
+let serverConfig: {
+  nodeEnv: string;
+  port: number;
+  frontendUrl?: string;
 };
 
-export const databaseConfig = {
+let databaseConfig: {
   postgres: {
-    host: config.POSTGRES_HOST,
-    port: config.POSTGRES_PORT,
-    database: config.POSTGRES_DB,
-    user: config.POSTGRES_USER,
-    password: config.POSTGRES_PASSWORD,
-    distanceOperator: config.POSTGRES_VECTOR_DISTANCE_OPERATOR,
-  },
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password: string;
+    distanceOperator: string;
+  };
   redis: {
-    url: config.REDIS_URL,
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
-    password: config.REDIS_PASSWORD,
-    username: config.REDIS_USERNAME,
-    tls: config.REDIS_TLS,
-    db: config.REDIS_DB,
-    socket: config.REDIS_SOCKET,
-  },
+    url?: string;
+    host: string;
+    port: number;
+    password?: string;
+    username?: string;
+    tls: boolean;
+    db: number;
+    socket?: string;
+  };
 };
 
-export const authConfig = {
-  jwtExpiresIn: config.JWT_EXPIRES_IN,
-  saltRounds: config.SALT_ROUNDS,
-  jwtMaxAge: config.JWT_MAX_AGE,
+let authConfig: {
+  jwtExpiresIn: string;
+  jwtAudience: string;
+  jwtIssuer: string;
+  saltRounds: number;
+  jwtMaxAge: number;
 };
 
-export const aiConfig = {
+let aiConfig: {
   huggingface: {
-    chatModel: config.HUGGINGFACE_CHAT_MODEL,
-    embeddingModel: config.HUGGINGFACE_EMBEDDING_MODEL,
-    summaryModel: config.HUGGINGFACE_SUMMARY_MODEL,
-  },
+    chatModel: string;
+    embeddingModel: string;
+    summaryModel: string;
+    apiToken: string;
+  };
   pinecone: {
-    index: config.PINECONE_INDEX,
-    topK: config.PINECONE_TOP_K,
-    batchSize: config.PINECONE_BATCH_SIZE,
-    maxRetries: config.PINECONE_MAX_RETRIES,
-  },
-  vectorStoreProvider: config.VECTOR_STORE_PROVIDER,
+    index: string;
+    topK: number;
+    batchSize: number;
+    maxRetries: number;
+    apiKey: string;
+  };
+  vectorStoreProvider: string;
 };
 
-export const processingConfig = {
-  chunkSize: config.CHUNK_SIZE,
-  chunkOverlap: config.CHUNK_OVERLAP,
-  maxContextTokens: config.MAX_CONTEXT_TOKENS,
+let processingConfig: {
+  chunkSize: number;
+  chunkOverlap: number;
+  maxContextTokens: number;
 };
 
-export const rateLimitConfig = {
-  windowMs: config.RATE_LIMIT_WINDOW_MS,
-  maxRequests: config.RATE_LIMIT_MAX_REQUESTS,
+let rateLimitConfig: {
+  windowMs: number;
+  maxRequests: number;
 };
 
-export const fileConfig = {
-  maxFileSize: config.MAX_FILE_SIZE,
+let fileConfig: {
+  maxFileSize: number;
 };
 
-export const corsConfig = {
-  origins: config.CORS_ORIGINS,
+let corsConfig: {
+  origins: string[];
 };
 
-export const storageConfig = {
+let storageConfig: {
   minio: {
-    endpoint: config.MINIO_ENDPOINT,
-    port: config.MINIO_PORT,
-    useSSL: config.MINIO_USE_SSL,
-    bucketName: config.MINIO_BUCKET_NAME,
-    defaultBucket: config.MINIO_DEFAULT_BUCKET,
-  },
+    endpoint: string;
+    port: number;
+    useSSL: boolean;
+    accessKey: string;
+    secretKey: string;
+    bucketName: string;
+    defaultBucket: string;
+  };
 };
 
-export const grpcConfig = {
-  pythonUrl: config.PYTHON_LLM_URL,
+let pythonHttpConfig: {
+  pythonUrl: string;
 };
 
-export const crawlerConfig = {
-  maxBytes: config.CRAWLER_MAX_BYTES,
-  userAgent: config.CRAWLER_USER_AGENT,
-  maxRedirects: config.CRAWLER_MAX_REDIRECTS,
-  timeoutMs: config.CRAWLER_TIMEOUT_MS,
+let crawlerConfig: {
+  maxBytes: number;
+  userAgent: string;
+  maxRedirects: number;
+  timeoutMs: number;
 };
 
-export const loggingConfig = {
-  level: config.LOG_LEVEL,
+let loggingConfig: {
+  level: string;
+};
+
+function rebuildConfigs(configData: z.infer<typeof envSchema>) {
+  serverConfig = {
+    nodeEnv: configData.NODE_ENV,
+    port: configData.PORT,
+    frontendUrl: configData.FRONTEND_URL,
+  };
+
+  databaseConfig = {
+    postgres: {
+      host: configData.POSTGRES_HOST,
+      port: configData.POSTGRES_PORT,
+      database: configData.POSTGRES_DB,
+      user: configData.POSTGRES_USER,
+      password: configData.POSTGRES_PASSWORD,
+      distanceOperator: configData.POSTGRES_VECTOR_DISTANCE_OPERATOR,
+    },
+    redis: {
+      url: configData.REDIS_URL,
+      host: configData.REDIS_HOST,
+      port: configData.REDIS_PORT,
+      password: configData.REDIS_PASSWORD,
+      username: configData.REDIS_USERNAME,
+      tls: configData.REDIS_TLS,
+      db: configData.REDIS_DB,
+      socket: configData.REDIS_SOCKET,
+    },
+  };
+
+  authConfig = {
+    jwtExpiresIn: configData.JWT_EXPIRES_IN,
+    jwtAudience: configData.JWT_AUDIENCE,
+    jwtIssuer: configData.JWT_ISSUER,
+    saltRounds: configData.SALT_ROUNDS,
+    jwtMaxAge: configData.JWT_MAX_AGE,
+  };
+
+  aiConfig = {
+    huggingface: {
+      chatModel: configData.HUGGINGFACE_CHAT_MODEL,
+      embeddingModel: configData.HUGGINGFACE_EMBEDDING_MODEL,
+      summaryModel: configData.HUGGINGFACE_SUMMARY_MODEL,
+      apiToken: configData.HUGGINGFACE_HUB_TOKEN,
+    },
+    pinecone: {
+      index: configData.PINECONE_INDEX,
+      topK: configData.PINECONE_TOP_K,
+      batchSize: configData.PINECONE_BATCH_SIZE,
+      maxRetries: configData.PINECONE_MAX_RETRIES,
+      apiKey: configData.PINECONE_API_KEY,
+    },
+    vectorStoreProvider: configData.VECTOR_STORE_PROVIDER,
+  };
+
+  processingConfig = {
+    chunkSize: configData.CHUNK_SIZE,
+    chunkOverlap: configData.CHUNK_OVERLAP,
+    maxContextTokens: configData.MAX_CONTEXT_TOKENS,
+  };
+
+  rateLimitConfig = {
+    windowMs: configData.RATE_LIMIT_WINDOW_MS,
+    maxRequests: configData.RATE_LIMIT_MAX_REQUESTS,
+  };
+
+  fileConfig = {
+    maxFileSize: configData.MAX_FILE_SIZE,
+  };
+
+  corsConfig = {
+    origins: configData.CORS_ORIGINS,
+  };
+
+  storageConfig = {
+    minio: {
+      endpoint: configData.MINIO_ENDPOINT,
+      port: configData.MINIO_PORT,
+      useSSL: configData.MINIO_USE_SSL,
+      accessKey: configData.MINIO_ACCESS_KEY,
+      secretKey: configData.MINIO_SECRET_KEY,
+      bucketName: configData.MINIO_BUCKET_NAME,
+      defaultBucket: configData.MINIO_DEFAULT_BUCKET,
+    },
+  };
+
+  pythonHttpConfig = {
+    pythonUrl: configData.PYTHON_LLM_URL,
+  };
+
+  crawlerConfig = {
+    maxBytes: configData.CRAWLER_MAX_BYTES,
+    userAgent: configData.CRAWLER_USER_AGENT,
+    maxRedirects: configData.CRAWLER_MAX_REDIRECTS,
+    timeoutMs: configData.CRAWLER_TIMEOUT_MS,
+  };
+
+  loggingConfig = {
+    level: configData.LOG_LEVEL,
+  };
+}
+
+// Initialize config objects (only for non-test environments)
+if (process.env.NODE_ENV !== 'test') {
+  const parsedConfig = parseConfig();
+  rebuildConfigs(parsedConfig);
+}
+
+// Export the config objects
+export {
+  serverConfig,
+  databaseConfig,
+  authConfig,
+  aiConfig,
+  processingConfig,
+  rateLimitConfig,
+  fileConfig,
+  corsConfig,
+  storageConfig,
+  pythonHttpConfig,
+  crawlerConfig,
+  loggingConfig,
 };

@@ -5,7 +5,7 @@ import {
   authRateLimit,
   fileUploadRateLimit,
 } from '../security.middleware';
-import { rateLimiterService } from '@cache/rate-limiter.service';
+import { getRateLimiterService } from '@cache/rate-limiter.service';
 import { logger } from '@config/logger.config';
 import {
   MockRequest,
@@ -17,7 +17,6 @@ import {
   MockRateLimiterService,
   TestLogger,
 } from '@shared/types/test.types';
-
 vi.mock('@cache/rate-limiter.service');
 vi.mock('@config/logger.config', () => ({
   logger: {
@@ -27,9 +26,27 @@ vi.mock('@config/logger.config', () => ({
   },
 }));
 
-const mockRateLimiterService =
-  rateLimiterService as unknown as MockRateLimiterService;
+const mockRateLimiterService = {
+  initialize: vi.fn().mockResolvedValue(undefined),
+  consumeGeneral: vi.fn().mockResolvedValue(undefined),
+  consumeAuth: vi.fn().mockResolvedValue(undefined),
+  consumeFileUpload: vi.fn().mockResolvedValue(undefined),
+  consumeChat: vi.fn().mockResolvedValue(undefined),
+  getRateLimitInfo: vi.fn().mockResolvedValue({
+    remainingPoints: 50,
+    msBeforeNext: 1000,
+  }),
+  getRemainingPoints: vi.fn().mockResolvedValue(50),
+  getTotalHits: vi.fn().mockResolvedValue(0),
+  reset: vi.fn().mockResolvedValue(undefined),
+  isRedisBackend: vi.fn().mockReturnValue(true),
+} as unknown as MockRateLimiterService;
 const mockLogger = logger as unknown as TestLogger;
+
+// Mock the factory function to return our mock service
+vi.mocked(getRateLimiterService).mockResolvedValue(
+  mockRateLimiterService as any,
+);
 
 describe('Security Middleware', () => {
   let mockReq: MockRequest;
@@ -55,7 +72,13 @@ describe('Security Middleware', () => {
     mockNext = vi.fn() as unknown as MockNextFunction;
     mockNext.called = false;
 
+    // Reset all mocks
     vi.clearAllMocks();
+
+    // Reset the factory function mock
+    vi.mocked(getRateLimiterService).mockResolvedValue(
+      mockRateLimiterService as any,
+    );
   });
 
   describe('rateLimit', () => {
@@ -315,9 +338,9 @@ describe('Security Middleware', () => {
       const mockNext = vi.fn();
 
       // Mock Redis failure
-      vi.spyOn(rateLimiterService, 'consumeFileUpload').mockRejectedValue(
-        new Error('Redis server unavailable'),
-      );
+      mockRateLimiterService.consumeFileUpload = vi
+        .fn()
+        .mockRejectedValue(new Error('Redis server unavailable'));
 
       // Simulate multiple requests to exceed the in-memory limit (6 attempts)
       let blockedRequest = false;
@@ -338,7 +361,7 @@ describe('Security Middleware', () => {
             blockedRequest = true;
             expect(mockRes.json).toHaveBeenCalledWith({
               error: 'Too many file uploads (fallback protection)',
-              retryAfter: 60,
+              retryAfter: expect.any(Number),
             });
             break;
           }

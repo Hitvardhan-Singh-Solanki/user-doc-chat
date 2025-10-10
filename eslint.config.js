@@ -33,7 +33,6 @@ module.exports = [
     rules: {
       eqeqeq: 'error',
       'no-console': 'warn',
-      // Set TypeScript any and unused vars rules to warn for better visibility
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'warn',
     },

@@ -1,0 +1,16 @@
+rules:
+  - match: '**'
+    behavior:
+      explain_code: false
+      emojis: false
+      write_style: concise
+      variable_naming: self_explanatory
+      enforce_git_safety: true
+
+    custom_guidelines: |
+      # Default rules for all files
+      - Do not add explainer comments
+      - Do not use emojis
+      - Always prefer safe git operations
+      - Use clear, self-explanatory variable and method names
+      - Follow project modularity, security, and observability standards where applicable

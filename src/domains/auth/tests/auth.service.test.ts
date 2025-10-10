@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { IDBStore } from '@interfaces/db-store.interface';
 import * as hashUtils from '@utils/hash';
 import { mockUser } from '@tests/fixtures';
+import { createDatabaseMock } from '@tests/mocks';
 
 // Mock the hash utilities
 vi.mock('@utils/hash', () => ({
@@ -21,11 +22,8 @@ describe('AuthService', () => {
   let mockComparePassword: any;
 
   beforeEach(() => {
-    // Setup mocks
-    mockDb = {
-      query: vi.fn(),
-      withTransaction: vi.fn(),
-    };
+    // Setup mocks using common mock builder
+    mockDb = createDatabaseMock();
 
     mockHashPassword = vi.mocked(hashUtils.hashPassword);
     mockComparePassword = vi.mocked(hashUtils.comparePassword);
@@ -152,7 +150,7 @@ describe('AuthService', () => {
       });
     });
 
-    it("should throw 'Invalid credentials' when user not found", async () => {
+    it("should throw 'User not found' when user not found", async () => {
       const email = 'nonexistent@example.com';
       const password = 'password123';
 
@@ -161,7 +159,7 @@ describe('AuthService', () => {
       });
 
       await expect(authService.login(email, password)).rejects.toThrow(
-        'Invalid credentials',
+        'User not found',
       );
       expect(mockComparePassword).not.toHaveBeenCalled();
     });

@@ -1,0 +1,19 @@
+rules:
+  - match: 'proto/**/*.proto'
+    behavior:
+      explain_code: false
+      emojis: false
+      write_style: concise
+      always_use_type: true
+
+    custom_guidelines: |
+      # gRPC / Proto Standards
+      - Centralized proto definitions in /proto
+      - Explicit types only; avoid optional unless necessary
+      - Snake_case for fields, PascalCase for messages
+      - Descriptive comments required; do not remove
+      - Maintain backward compatibility for messages
+      - For new fields, use optional or new messages
+      - Never remove or rename existing fields
+      - Clients/servers must be generated from proto files
+      - Do not manually modify generated gRPC code

@@ -29,11 +29,16 @@ jobs:
           npm install -g retire
           npm install --save-dev eslint-plugin-security
 
+      - name: Create reports directory
+        run: mkdir -p reports
+
       - name: Run Snyk security scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           # Authenticate with Snyk (if SNYK_TOKEN is available)
           if [ -n "$SNYK_TOKEN" ]; then
-            snyk auth $SNYK_TOKEN
+            snyk auth "$SNYK_TOKEN"
           fi
 
           # Run Snyk scan and output to JSON

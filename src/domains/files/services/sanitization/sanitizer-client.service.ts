@@ -11,7 +11,8 @@ const GRPC_HOST =
   secretsManager.getSanitizerConfig().host || 'python_apis:50051';
 const REQUEST_TIMEOUT_MS = (() => {
   const timeout = secretsManager.getSanitizerConfig().timeout;
-  return timeout && timeout > 0 ? timeout : 10000;
+  const numericTimeout = Number(timeout);
+  return !isNaN(numericTimeout) && numericTimeout > 0 ? numericTimeout : 10000;
 })();
 
 // TLS Configuration

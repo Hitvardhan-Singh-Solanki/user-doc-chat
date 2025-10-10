@@ -47,7 +47,7 @@ jobs:
           if [ -f "reports/hardcoded-secrets.txt" ] && [ -s "reports/hardcoded-secrets.txt" ]; then
             SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
             # Filter out test files and comments
-            REAL_SECRETS=$(grep -E -v "test|spec|mock|TODO|comment" reports/hardcoded-secrets.txt | wc -l)
+            REAL_SECRETS=$(grep -E -v "test|spec|mock|TODO|comment" reports/hardcoded-secrets.txt | wc -l || echo "0")
             if [ "$REAL_SECRETS" -gt 0 ]; then
               echo "❌ **BLOCKING**: $REAL_SECRETS potential hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
               CRITICAL_ISSUES=$((CRITICAL_ISSUES + REAL_SECRETS))
