@@ -1,5 +1,6 @@
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { SearchResult } from '../../../shared/types';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { logger } from '../../../config/logger.config';
+import { SearchResult } from '@shared/types';
 
 export class SerpApiAdapter implements ISearchAdapter {
   private apiKey: string;
@@ -20,8 +21,10 @@ export class SerpApiAdapter implements ISearchAdapter {
       gl: 'us',
     });
     const res = await fetch(`https://serpapi.com/search.json?${params}`, {
-      signal: (AbortSignal as any).timeout
-        ? (AbortSignal as any).timeout(8000)
+      signal: (AbortSignal as { timeout?: (ms: number) => AbortSignal }).timeout
+        ? (AbortSignal as { timeout: (ms: number) => AbortSignal }).timeout(
+            8000,
+          )
         : undefined,
       headers: { Accept: 'application/json' },
     });
@@ -30,7 +33,8 @@ export class SerpApiAdapter implements ISearchAdapter {
       let errorBody: string;
       try {
         errorBody = await res.text();
-      } catch {
+      } catch (parseError) {
+        logger.debug({ parseError }, 'Failed to parse error response body');
         errorBody = 'Unable to read response body';
       }
       throw new Error(
@@ -39,11 +43,13 @@ export class SerpApiAdapter implements ISearchAdapter {
     }
 
     const data = await res.json();
-    const items = (data.organic_results || []).map((r: any) => ({
-      title: r.title ?? '',
-      snippet: r.snippet ?? '',
-      url: r.link ?? '',
-    }));
+    const items = (data.organic_results || []).map(
+      (r: { title?: string; snippet?: string; link?: string }) => ({
+        title: r.title ?? '',
+        snippet: r.snippet ?? '',
+        url: r.link ?? '',
+      }),
+    );
     return items.slice(0, maxResults);
   }
 }

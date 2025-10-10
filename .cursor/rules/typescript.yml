@@ -1,0 +1,36 @@
+rules:
+  - match: '**/*.ts'
+    behavior:
+      explain_code: false
+      emojis: false
+      write_style: concise
+      variable_naming: self_explanatory
+      type_handling: separate_files
+      always_use_type: only_when_required
+      enforce_git_safety: true
+
+    custom_guidelines: |
+      # TypeScript Project Standards
+      - Modular by feature/domain (e.g., /auth, /tasks, /cases)
+      - Separation of concerns: controllers → services → repositories → models
+      - Centralized error handling with proper HTTP codes and structured logging
+      - Unit, integration, e2e tests per module (Jest / Vitest)
+      - Secure handling of sensitive data: encryption at rest & in transit, CDR scanning
+      - API versioning (/v1, /v2) and consistent REST/GraphQL design
+      - Audit logging, RBAC, multi-tenant isolation
+      - Scalability: async jobs, queues (BullMQ), caching (Redis)
+      - Observability: Prometheus, monitoring, centralized logs (ELK/Grafana)
+      - CI/CD pipelines: linting, type checks, tests, security scans
+      - CamelCase variables/functions/classes; PascalCase for types/interfaces
+      - Immutable data structures and pure functions
+      - Prettier + ESLint formatting
+      - Input validation & sanitization
+      - Secrets management: env vars + secure vault
+      - AI integration: RAG, structured JSON, never hallucinate, maintain prompt/version control
+      - Legal: GDPR/HIPAA, audit logs, secure file handling, hashed storage, access expiration
+      - Never suggest unsafe git commands (e.g., --no-verify)
+      - Make all variable and method names self-explanatory
+      - For gRPC, always generate clients/servers from proto files
+      - Do not manually modify generated gRPC code
+      - Thin service layer; business logic in services
+      - Strict typing; async/await for all calls

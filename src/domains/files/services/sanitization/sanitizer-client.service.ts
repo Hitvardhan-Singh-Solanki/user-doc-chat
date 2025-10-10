@@ -1,20 +1,18 @@
 import { promises as fs } from 'fs';
 import * as grpc from '@grpc/grpc-js';
-import { sanitizer } from '../../../../infrastructure/external-services/grpc/proto/sanitizer';
+import { sanitizer } from '@grpc/proto/sanitizer';
+import { secretsManager } from '@secrets';
+import { SanitizerServiceClientType } from '@shared/types/sanitizer.types'; // Messages
 
 // Messages
 const { SanitizeRequest } = sanitizer;
 
-// Get the correct type for the client
-type SanitizerServiceClientType = InstanceType<
-  typeof sanitizer.SanitizerServiceClient
->;
-
-const GRPC_HOST = process.env.SANITIZER_HOST || 'python_apis:50051';
+const GRPC_HOST =
+  secretsManager.getSanitizerConfig().host || 'python_apis:50051';
 const REQUEST_TIMEOUT_MS = (() => {
-  const raw = process.env.SANITIZER_TIMEOUT;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 10000;
+  const timeout = secretsManager.getSanitizerConfig().timeout;
+  const numericTimeout = Number(timeout);
+  return !isNaN(numericTimeout) && numericTimeout > 0 ? numericTimeout : 10000;
 })();
 
 // TLS Configuration
@@ -120,11 +118,15 @@ export async function sanitizeFileGrpc(
     const metadata = new grpc.Metadata();
 
     // Use the correct method name from generated code: SanitizeDocument
+
     client.SanitizeDocument(
       request,
       metadata,
       { deadline },
-      (error, response) => {
+      (
+        error: grpc.ServiceError | null,
+        response: sanitizer.SanitizeResponse | undefined,
+      ) => {
         if (error) {
           return reject(new Error(`gRPC call failed: ${error.message}`));
         }

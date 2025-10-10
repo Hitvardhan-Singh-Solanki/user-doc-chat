@@ -1,12 +1,14 @@
 import { expressjwt, UnauthorizedError } from 'express-jwt';
 import { Request, Response, NextFunction } from 'express';
+import { config } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Validates and returns JWT secret from environment variables
  * @throws {Error} When JWT_SECRET is missing, empty, or doesn't meet security requirements
  */
 function validateJwtSecret(): string {
-  const jwtSecret = process.env.JWT_SECRET;
+  const jwtSecret = secretsManager.getJwtSecret();
 
   if (!jwtSecret || !jwtSecret.trim()) {
     throw new Error(
@@ -51,7 +53,7 @@ function validateJwtSecret(): string {
   }
 
   // Security validation: check for environment-specific weak patterns
-  if (process.env.NODE_ENV === 'production') {
+  if (config.NODE_ENV === 'production') {
     if (
       trimmedSecret.includes('dev') ||
       trimmedSecret.includes('test') ||
@@ -74,9 +76,9 @@ export const requireAuth = expressjwt({
   secret: validatedJwtSecret,
   algorithms: ['HS256'], // Only allow HS256 to prevent algorithm confusion attacks
   requestProperty: 'user',
-  // Security: validate audience and issuer if provided
-  audience: process.env.JWT_AUDIENCE,
-  issuer: process.env.JWT_ISSUER,
+  // Security: validate audience and issuer for enhanced security
+  audience: secretsManager.getJwtAudience(),
+  issuer: secretsManager.getJwtIssuer(),
   // Security: don't ignore expiration or not-before claims
   ignoreExpiration: false,
   ignoreNotBefore: false,
@@ -93,7 +95,7 @@ export function jwtErrorHandler(
   next: NextFunction,
 ): void {
   if (err instanceof UnauthorizedError) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = config.NODE_ENV === 'production';
 
     if (isProduction) {
       // In production, don't expose detailed error information

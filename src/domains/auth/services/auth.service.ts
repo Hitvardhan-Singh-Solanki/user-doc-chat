@@ -1,7 +1,12 @@
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { User } from '../../../shared/types';
-import { hashPassword, comparePassword } from '../../../shared/utils/hash';
-import { normalizeEmail } from '../../../shared/utils/email';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { User } from '@shared/types';
+import { hashPassword, comparePassword } from '@utils/hash';
+import { normalizeEmail } from '@utils/email';
+import {
+  InvalidCredentialsError,
+  UserNotFoundError,
+  InvalidPasswordHashError,
+} from '@shared/errors/auth.errors';
 
 export class AuthService {
   private db: IDBStore;
@@ -24,7 +29,7 @@ export class AuthService {
       );
 
       return result.rows[0];
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (this.isUniqueViolation(err)) {
         throw new Error('Email already in use');
       }
@@ -47,14 +52,25 @@ export class AuthService {
 
     const user = result.rows[0];
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new UserNotFoundError();
+    }
+
+    const userWithPassword = user as User & { password_hash: string };
+    if (
+      !userWithPassword.password_hash ||
+      typeof userWithPassword.password_hash !== 'string' ||
+      userWithPassword.password_hash.trim() === ''
+    ) {
+      throw new InvalidPasswordHashError();
     }
 
     const isValid = await comparePassword(
       password,
-      (user as any).password_hash,
+      userWithPassword.password_hash,
     );
-    if (!isValid) throw new Error('Invalid credentials');
+    if (!isValid) {
+      throw new InvalidCredentialsError();
+    }
 
     return { id: user.id, email: user.email };
   }
@@ -64,7 +80,11 @@ export class AuthService {
    */
   private isUniqueViolation(err: unknown): boolean {
     return (
-      typeof err === 'object' && err !== null && (err as any).code === '23505'
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      typeof (err as { code: unknown }).code === 'string' &&
+      (err as { code: string }).code === '23505'
     );
   }
 }

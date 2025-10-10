@@ -1,4 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone';
+import { secretsManager } from '@secrets';
 
 /**
  * Factory function to create a Pinecone client with proper validation
@@ -7,10 +8,12 @@ import { Pinecone } from '@pinecone-database/pinecone';
  * @throws Error if API key is missing or empty
  */
 export function createPineconeClient(apiKey?: string): Pinecone {
-  const key = apiKey || process.env.PINECONE_API_KEY;
+  const key = apiKey || secretsManager.getPineconeApiKey();
 
   if (!key || key.trim() === '') {
-    throw new Error('PINECONE_API_KEY environment variable is required');
+    throw new Error(
+      'Pinecone API key is required (provide via apiKey or secrets manager)',
+    );
   }
 
   return new Pinecone({

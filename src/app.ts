@@ -3,7 +3,7 @@ import './domains/files/events/file.event';
 import authRoutes from './domains/auth/routes/auth.routes';
 import healthRoutes from './domains/health/routes/health.route';
 import fileRoutes from './domains/files/routes/file.routes';
-import { WebsocketService } from './domains/chat/services/websocket.service';
+import { serviceFactory } from './shared/factories/service.factory';
 import { requestLogger } from './shared/middleware/monitoring.middleware';
 import {
   securityHeaders,
@@ -49,7 +49,7 @@ export function createApp(): express.Application {
 
   // Websocket Service
   logger.info('Initializing WebSocket service...');
-  WebsocketService.getInstance(app);
+  serviceFactory.getWebsocketService(app);
   logger.info('WebSocket service initialized.');
 
   return app;

@@ -1,4 +1,4 @@
-import { ITokenizer } from '../../../shared/interfaces/tokenizer.interface';
+import { ITokenizer } from '@interfaces/tokenizer.interface';
 
 export class SimpleTokenizerAdapter implements ITokenizer {
   // Add vocabulary maps and ID counter to the class
@@ -7,7 +7,8 @@ export class SimpleTokenizerAdapter implements ITokenizer {
   private nextId = 0;
 
   encode(text: string): number[] {
-    const tokens = text.match(/\w+|[^\s\w]/g) || [];
+    // Split text into tokens, preserving spaces as separate tokens
+    const tokens = text.split(/(\s+)/).filter((token) => token.length > 0);
     return tokens.map((token) => {
       if (!this.vocabulary.has(token)) {
         this.vocabulary.set(token, this.nextId);
@@ -19,10 +20,20 @@ export class SimpleTokenizerAdapter implements ITokenizer {
   }
 
   decode(tokens: number[]): string {
-    return '';
+    return tokens
+      .map((tokenId, index) => {
+        const token = this.reverseVocabulary.get(tokenId);
+        if (token === undefined) {
+          throw new Error(
+            `Unknown token ID ${tokenId} at index ${index} in tokenizer instance`,
+          );
+        }
+        return token;
+      })
+      .join('');
   }
 
-  countTokens(text: string): number {
+  async countTokens(text: string): Promise<number> {
     return this.encode(text).length;
   }
 }

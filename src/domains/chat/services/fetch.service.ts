@@ -2,10 +2,11 @@ import pLimit from 'p-limit';
 import net from 'net';
 import { JSDOM } from 'jsdom';
 import { lookup } from 'dns/promises';
-import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
-import { EnrichmentOptions, SearchResult } from '../../../shared/types';
+import { IHTMLFetch } from '@interfaces/html-fetch.interface';
+import { EnrichmentOptions, SearchResult } from '@shared/types';
 import { Readability } from '@mozilla/readability';
-import { logger } from '../../../config/logger.config';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 export class FetchHTMLService implements IHTMLFetch {
   private readonly log = logger.child({ component: 'FetchHTMLService' });
@@ -93,10 +94,10 @@ export class FetchHTMLService implements IHTMLFetch {
 
   private async fetchPageText(
     url: string,
-    timeoutMs = 10000,
+    timeoutMs = config.CRAWLER_TIMEOUT_MS,
     redirectCount = 0,
   ): Promise<string | null> {
-    const MAX_REDIRECTS = 5;
+    const MAX_REDIRECTS = config.CRAWLER_MAX_REDIRECTS;
     const log = this.log.child({ url, redirectCount });
 
     try {
@@ -117,9 +118,7 @@ export class FetchHTMLService implements IHTMLFetch {
         signal: controller.signal,
         redirect: 'manual',
         headers: {
-          ...(process.env.CRAWLER_USER_AGENT
-            ? { 'User-Agent': process.env.CRAWLER_USER_AGENT }
-            : { 'User-Agent': 'user-doc-chat/1.0 (+enrichment)' }),
+          'User-Agent': config.CRAWLER_USER_AGENT,
           Accept:
             'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
@@ -160,12 +159,12 @@ export class FetchHTMLService implements IHTMLFetch {
         log.warn('Failed to parse HTML into readable text.');
       }
       return parsedText;
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         log.warn('Fetch request timed out.');
       } else {
         log.error(
-          { err, stack: err.stack },
+          { err, stack: err instanceof Error ? err.stack : undefined },
           'FetchPageText encountered an error.',
         );
       }
@@ -297,7 +296,7 @@ export class FetchHTMLService implements IHTMLFetch {
       return false;
     }
     const len = Number(res.headers.get('content-length') || '0');
-    const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000);
+    const maxBytes = config.CRAWLER_MAX_BYTES;
     if (len && len > maxBytes) {
       this.log.warn(
         { contentLength: len, maxBytes, url: res.url },
@@ -309,7 +308,7 @@ export class FetchHTMLService implements IHTMLFetch {
   }
 
   private async fetchAndDecodeBody(res: Response): Promise<string | null> {
-    const maxBytes = Number(process.env.CRAWLER_MAX_BYTES || 2_000_000);
+    const maxBytes = config.CRAWLER_MAX_BYTES;
     let html: string;
 
     if (res.body) {

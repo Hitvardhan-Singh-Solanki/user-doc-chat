@@ -6,8 +6,8 @@ import {
   connectionOptions,
   fileQueueName,
   legalDocumentsQueueName,
-} from '../../database/repositories/bullmq.repo';
-import { IQueueAdapter } from '../../../shared/interfaces/queue-adapter.interface';
+} from '@database/repositories/bullmq.repo';
+import { IQueueAdapter } from '@interfaces/queue-adapter.interface';
 
 /**
  * BullMQ Queue Adapter

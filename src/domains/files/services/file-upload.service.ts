@@ -1,14 +1,12 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { uploadFileToMinio } from '../../../infrastructure/storage/providers/minio.provider';
-import { FileJob, MulterFile, UserFileRecord } from '../../../shared/types';
-import {
-  queueAdapter,
-  fileQueueName,
-} from '../../../infrastructure/queue/providers/bullmq.provider';
+import { uploadFileToMinio } from '@storage/providers/minio.provider';
+import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
+import { queueAdapter, fileQueueName } from '@queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { logger } from '../../../config/logger.config';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 
 const acceptedMimeTypes = [
   'application/pdf',
@@ -74,6 +72,7 @@ export class FileUploadService {
     log.info('Starting file upload process');
 
     try {
+      // ✓ File buffer validation
       if (!file?.buffer || file.buffer.length === 0) {
         log.warn('File buffer is empty or missing');
         throw createHttpError({
@@ -82,25 +81,80 @@ export class FileUploadService {
         });
       }
 
-      const detected = await fileTypeFromBuffer(file.buffer!);
-      const mime = detected?.mime ?? file.mimetype;
-      if (!mime || !acceptedMimeTypes.includes(mime)) {
-        log.warn({ mime }, 'Unsupported file type detected');
+      const MAX_FILE_SIZE = config.MAX_FILE_SIZE;
+      if (file.size > MAX_FILE_SIZE) {
+        log.warn({ size: file.size, maxSize: MAX_FILE_SIZE }, 'File too large');
         throw createHttpError({
           status: 400,
-          message: 'Unsupported file type',
+          message: `File too large. Maximum size is ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`,
         });
       }
-      log.info({ mime, size: file.size }, 'File type and size are valid');
 
-      const safeName = String(file.originalname || '')
-        // eslint-disable-next-line no-control-regex, no-useless-escape
-        .replace(/[\/\\\u0000-\u001F]/g, '')
-        .slice(0, 200);
+      const detected = await fileTypeFromBuffer(file.buffer!);
+      let finalMimeType: string;
+
+      if (detected) {
+        // Signature detection succeeded - use detected MIME type
+        finalMimeType = detected.mime;
+
+        if (detected.mime !== file.mimetype) {
+          log.warn(
+            { detected: detected.mime, claimed: file.mimetype },
+            'Mimetype mismatch detected - using detected type for security',
+          );
+        }
+      } else if (acceptedMimeTypes.includes(file.mimetype)) {
+        // Some formats (e.g. text/plain) have no signature; trust declared type
+        log.warn(
+          { claimedMime: file.mimetype },
+          'File signature detection inconclusive - falling back to declared MIME type',
+        );
+        finalMimeType = file.mimetype;
+      } else {
+        log.warn(
+          { claimedMime: file.mimetype },
+          'File signature detection inconclusive - rejecting upload for security',
+        );
+        throw createHttpError({
+          status: 400,
+          message:
+            'Unable to verify file type. File signature detection failed.',
+        });
+      }
+
+      if (!acceptedMimeTypes.includes(finalMimeType)) {
+        log.warn(
+          { finalMimeType, claimedMime: file.mimetype },
+          'Unsupported file type',
+        );
+        throw createHttpError({
+          status: 400,
+          message: `File type ${finalMimeType} not supported`,
+        });
+      }
+
+      log.info(
+        { mime: finalMimeType, size: file.size },
+        'File type and size are valid',
+      );
+
+      const sanitizedName = String(file.originalname || '')
+        .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace special chars with underscore
+        .replace(/\.{2,}/g, '.') // Remove multiple consecutive dots
+        .replace(/^\.+|\.+$/g, '') // Remove leading/trailing dots
+        .substring(0, 255); // Limit length
+
+      if (!sanitizedName) {
+        log.warn('Filename became empty after sanitization');
+        throw createHttpError({
+          status: 400,
+          message: 'Invalid filename',
+        });
+      }
 
       // Percent-encode reserved characters for MinIO object key
-      const encodedName = encodeURIComponent(safeName);
-      const key = `${uuid()}-${encodedName}`;
+      const encodedName = encodeURIComponent(sanitizedName);
+      const key = `user-uploads/${userId}/${uuid()}-${encodedName}`;
       log.info({ key }, 'Uploading file to MinIO');
       await uploadFileToMinio(key, file.buffer!);
       log.info('File successfully uploaded to MinIO');
@@ -111,7 +165,7 @@ export class FileUploadService {
         VALUES ($1, $2, $3, $4)
         RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
         `,
-        [file.originalname, file.size, userId, 'uploaded'],
+        [sanitizedName, file.size, userId, 'uploaded'],
       );
       const fileRecord = result.rows[0];
       log.info({ fileId: fileRecord.id }, 'File record created in database');
@@ -148,7 +202,7 @@ export class FileUploadService {
             'Failed to update database status after queue failure. Both queue and database operations failed.',
           );
           // Attach DB error as metadata to the original queue error
-          (queueError as any).dbError = dbErr;
+          (queueError as Error & { dbError?: Error }).dbError = dbErr;
         }
 
         throw queueError;

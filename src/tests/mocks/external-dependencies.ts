@@ -1,7 +1,7 @@
 // Mock factory functions for external dependencies
 // These return the mock implementations directly to avoid hoisting issues
 
-export const createHuggingFaceMock = () => ({
+export const createHuggingFaceDependencyMock = () => ({
   featureExtraction: async (..._args: unknown[]) => [],
   chatCompletionStream: (..._args: unknown[]) => {
     return {

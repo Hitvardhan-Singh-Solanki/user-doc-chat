@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { logger } from '../../../config/logger.config';
 
 const {
   DATABASE_URL,
@@ -50,8 +51,14 @@ function buildSSLConfig(): boolean | object {
       DEV_SSL_ALLOW === 'true' || PG_SSL_REJECT_UNAUTHORIZED === 'false';
 
     if (allowRelaxedSSL) {
-      console.warn(
-        '⚠️  WARNING: Using relaxed SSL settings in development. This is insecure for production!',
+      logger.warn(
+        {
+          environment: 'development',
+          securityRisk: 'relaxed_ssl_settings',
+          warning:
+            'Using relaxed SSL settings in development. This is insecure for production!',
+        },
+        'Development SSL configuration warning',
       );
 
       const sslConfig: { rejectUnauthorized: boolean; ca?: string } = {

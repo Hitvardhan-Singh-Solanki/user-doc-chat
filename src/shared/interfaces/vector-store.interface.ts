@@ -3,7 +3,7 @@ import { Vector } from '../types';
 export interface QueryMatch {
   id: string;
   score: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   embedding?: number[];
 }
 

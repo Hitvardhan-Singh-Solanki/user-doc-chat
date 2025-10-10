@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DeepResearchService } from '../services/deep-research.service';
 import { PromptService } from '../services/prompt.service';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('../services/prompt.service');
-vi.mock(
-  '../../../infrastructure/external-services/ai/custom-tokenizer.adapter',
-);
+vi.mock('@ai/custom-tokenizer.adapter');
 
 describe('DeepResearchService', () => {
-  let deepResearchService: DeepResearchService;
+  // let deepResearchService: DeepResearchService;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockLLMService: any;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockPromptService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let MockedPromptService: any;
 
   beforeEach(() => {
@@ -40,7 +43,9 @@ describe('DeepResearchService', () => {
     MockedPromptService.mockImplementation(() => mockPromptService);
 
     // Mock SimpleTokenizerAdapter
-    vi.mocked(SimpleTokenizerAdapter).mockImplementation(() => ({}) as any);
+    vi.mocked(SimpleTokenizerAdapter).mockImplementation(
+      () => ({}) as SimpleTokenizerAdapter,
+    );
 
     // Reset mocks before creating service instance to preserve constructor call counts
     vi.clearAllMocks();
@@ -171,7 +176,7 @@ describe('DeepResearchService', () => {
     it('should use correct parameters for generateLowSummary', async () => {
       const inputText = 'Legal document text';
       const sanitizedText = 'Legal document text';
-      const prompt = 'Extract clauses...';
+      const _prompt = 'Extract clauses...';
       const expectedSummary = 'Document summary';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
@@ -189,7 +194,7 @@ describe('DeepResearchService', () => {
     it('should pass through LLM generateLowSummary result unchanged', async () => {
       const inputText = 'Test text';
       const sanitizedText = 'Test text';
-      const prompt = 'Test prompt';
+      const _prompt = 'Test prompt';
       const llmResult = 'Complex object result';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
@@ -212,7 +217,7 @@ describe('DeepResearchService', () => {
         Party A shall...
       `;
       const sanitizedText = inputText.trim();
-      const prompt = 'Extract legal clauses...';
+      const _prompt = 'Extract legal clauses...';
       const expectedSummary =
         'Contains 2 articles with definitions and obligations.';
 
@@ -239,7 +244,7 @@ describe('DeepResearchService', () => {
     it('should handle async operations correctly', async () => {
       const inputText = 'Test async behavior';
       const sanitizedText = 'Test async behavior';
-      const prompt = 'Async prompt';
+      const _prompt = 'Async prompt';
       let resolvePromise: (value: string) => void;
 
       const summaryPromise = new Promise<string>((resolve) => {

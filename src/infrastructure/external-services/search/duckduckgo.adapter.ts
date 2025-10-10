@@ -1,5 +1,6 @@
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { SearchResult } from '../../../shared/types';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { SearchResult } from '@shared/types';
+import { config } from '@config';
 
 export class DuckDuckGoAdapter implements ISearchAdapter {
   async search(
@@ -23,7 +24,7 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
         signal: effectiveSignal,
         headers: {
           Accept: 'application/json',
-          'User-Agent': process.env.CRAWLER_USER_AGENT!,
+          'User-Agent': config.CRAWLER_USER_AGENT,
         },
       });
     } finally {

@@ -1,16 +1,17 @@
 import { v4 as uuid } from 'uuid';
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { EnrichmentOptions, SearchResult } from '../../../shared/types';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { EnrichmentOptions, SearchResult } from '@shared/types';
 import { LLMService } from './llm.service';
-import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
-import { DuckDuckGoAdapter } from '../../../infrastructure/external-services/search/duckduckgo.adapter';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { DuckDuckGoAdapter } from '@search/duckduckgo.adapter';
 import { PromptService } from './prompt.service';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
-import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
-import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
-import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
-import { parsePositiveInt } from '../../../shared/utils';
-import { logger } from '../../../config/logger.config'; // Assuming you have a configured logger
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
+import { IHTMLFetch } from '@interfaces/html-fetch.interface';
+import { IDeepResearch } from '@interfaces/deep-research.interface';
+import { IEnrichmentService } from '@interfaces/enrichment.interface';
+import { logger } from '@config/logger.config';
+import { circuitBreakerService } from '@utils/circuit-breaker';
+import { config } from '@config';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -88,10 +89,37 @@ export class EnrichmentService implements IEnrichmentService {
     const optimizedQuery = await this.generateOptimizedQuery(query);
     log.info({ optimizedQuery }, 'Generated optimized search query.');
 
-    const results = await this.searchAdapter.search(
-      optimizedQuery,
-      opts.maxResults,
+    const searchBreaker = circuitBreakerService.getBreaker(
+      'search',
+      async (...args: unknown[]) => {
+        const [query, maxResults, signal] = args as [
+          string,
+          number?,
+          AbortSignal?,
+        ];
+        return await this.searchAdapter.search(query, maxResults, signal);
+      },
+      { timeout: 10000, errorThresholdPercentage: 50, resetTimeout: 30000 },
     );
+
+    let results: SearchResult[] = [];
+    try {
+      results = (await searchBreaker.fire(
+        optimizedQuery,
+        opts.maxResults,
+      )) as SearchResult[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
+        log.warn('Search service unavailable, skipping enrichment');
+        return [];
+      }
+      throw err;
+    }
+
     if (!results || results.length === 0) {
       log.warn('No search results found. Returning empty array.');
       return [];
@@ -101,11 +129,35 @@ export class EnrichmentService implements IEnrichmentService {
       'Search results retrieved. Starting HTML fetching.',
     );
 
-    const sourceText = await this.fetchHTML.fetchHTML(results, {
-      maxPagesToFetch: opts.maxPagesToFetch,
-      fetchConcurrency: opts.fetchConcurrency,
-      minContentLength: opts.minContentLength,
-    });
+    const fetchBreaker = circuitBreakerService.getBreaker(
+      'fetch',
+      async (...args: unknown[]) => {
+        const [results, options] = args as [SearchResult[], EnrichmentOptions?];
+        return await this.fetchHTML.fetchHTML(results, options);
+      },
+      { timeout: 15000, errorThresholdPercentage: 50, resetTimeout: 30000 },
+    );
+
+    let sourceText: (string | undefined)[] = [];
+    try {
+      sourceText = (await fetchBreaker.fire(results, {
+        maxPagesToFetch: opts.maxPagesToFetch,
+        fetchConcurrency: opts.fetchConcurrency,
+        minContentLength: opts.minContentLength,
+      })) as (string | undefined)[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
+        log.warn(
+          'HTML fetch service unavailable, returning search results without content',
+        );
+        return results;
+      }
+      throw err;
+    }
 
     if (!sourceText || sourceText.length === 0) {
       log.warn(
@@ -223,8 +275,8 @@ export class EnrichmentService implements IEnrichmentService {
       maxPagesToFetch: 5,
       fetchConcurrency: 3,
       minContentLength: 200,
-      chunkSize: parsePositiveInt(process.env.CHUNK_SIZE, 800),
-      chunkOverlap: parsePositiveInt(process.env.CHUNK_OVERLAP, 100),
+      chunkSize: config.CHUNK_SIZE,
+      chunkOverlap: config.CHUNK_OVERLAP,
     };
   }
 

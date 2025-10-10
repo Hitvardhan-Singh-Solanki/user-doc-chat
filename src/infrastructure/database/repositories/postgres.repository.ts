@@ -1,22 +1,29 @@
 import { QueryResult } from 'pg';
+import { logger } from '../../../config/logger.config';
 import { db } from './db.repo';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { Vector } from '../../../shared/types';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { Vector } from '@shared/types';
 import {
   IVectorStore,
   VectorQueryResult,
   QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
+} from '@interfaces/vector-store.interface';
+import { config, reparseConfig } from '@config';
 
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
   private pool: typeof db;
-  private distanceOperator: string;
+  private distanceOperator: string | null = null;
 
   private constructor() {
     this.pool = db;
-    // Default to cosine distance if not specified
-    this.distanceOperator = process.env.VECTOR_DISTANCE_OPERATOR || 'cosine';
+  }
+
+  private getDistanceOperatorValue(): string {
+    if (this.distanceOperator === null) {
+      this.distanceOperator = config.POSTGRES_VECTOR_DISTANCE_OPERATOR;
+    }
+    return this.distanceOperator;
   }
 
   public static getInstance(): PostgresService {
@@ -27,10 +34,20 @@ export class PostgresService implements IDBStore, IVectorStore {
   }
 
   /**
+   * Refresh the distance operator from config (useful for tests)
+   */
+  public refreshDistanceOperator(): void {
+    // Force reload the config for tests
+    const newConfig = reparseConfig();
+    this.distanceOperator = newConfig.POSTGRES_VECTOR_DISTANCE_OPERATOR;
+  }
+
+  /**
    * Get the appropriate SQL distance operator based on configuration
    */
   private getDistanceOperator(): string {
-    switch (this.distanceOperator) {
+    const operator = this.getDistanceOperatorValue();
+    switch (operator) {
       case 'euclidean':
         return '<#>';
       case 'inner_product':
@@ -45,7 +62,7 @@ export class PostgresService implements IDBStore, IVectorStore {
    * Convert distance to similarity score based on the distance operator
    */
   private distanceToScore(distance: number): number {
-    switch (this.distanceOperator) {
+    switch (this.getDistanceOperatorValue()) {
       case 'cosine':
         // Cosine distance ranges from [0,2] where 0=identical, 2=opposite
         // Normalize to [0,1] similarity score: 1 - (distance / 2)
@@ -96,8 +113,12 @@ export class PostgresService implements IDBStore, IVectorStore {
     } catch (e) {
       try {
         await client.query('ROLLBACK');
-      } catch {
-        // ignore rollback errors
+      } catch (rollbackError) {
+        // Log rollback errors but don't throw - we're already handling the original error
+        logger.debug(
+          { rollbackError },
+          'Transaction rollback failed during error handling',
+        );
       }
       throw e;
     } finally {
@@ -136,7 +157,7 @@ export class PostgresService implements IDBStore, IVectorStore {
     const matches: QueryMatch[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id as string,
       score: this.distanceToScore(row.distance as number),
-      metadata: row.metadata || {},
+      metadata: (row.metadata as Record<string, unknown>) || {},
       embedding: row.embedding as number[],
     }));
 
@@ -173,9 +194,18 @@ export class PostgresService implements IDBStore, IVectorStore {
         await client.query('ROLLBACK');
       } catch (rollbackError) {
         // Log rollback error but don't mask the original error
-        // Using console.error here is intentional for critical transaction failures
-        // eslint-disable-next-line no-console
-        console.error('Transaction rollback failed:', rollbackError);
+        logger.error(
+          {
+            rollbackError:
+              rollbackError instanceof Error
+                ? rollbackError.message
+                : String(rollbackError),
+            originalError:
+              error instanceof Error ? error.message : String(error),
+            transactionContext: 'rollback_failed',
+          },
+          'Transaction rollback failed',
+        );
       }
       throw error;
     } finally {
