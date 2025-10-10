@@ -31,7 +31,7 @@ const parseRedisPort = (): number => {
 };
 
 export const connectionOptions = {
-  host: config.REDIS_HOST,
+  host: config.REDIS_HOST?.trim() || '127.0.0.1',
   port: parseRedisPort(),
 };
 

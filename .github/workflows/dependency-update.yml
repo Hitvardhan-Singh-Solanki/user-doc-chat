@@ -6,6 +6,10 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   dependency-update:
     runs-on: ubuntu-latest
@@ -22,6 +26,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Create reports directory
+        run: mkdir -p reports
 
       - name: Check for outdated packages
         run: |

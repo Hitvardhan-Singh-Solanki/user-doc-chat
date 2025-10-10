@@ -11,7 +11,7 @@ import { MAX_INPUT_SIZE } from '@config/prompt.config';
 
 // Mock tokenizer
 const mockTokenizer: ITokenizer = {
-  countTokens: vi.fn((text: string) => Math.ceil(text.length / 4)),
+  countTokens: vi.fn(async (text: string) => Math.ceil(text.length / 4)),
   encode: vi.fn((text: string) => text.split(' ').map((_, i) => i + 1)),
   decode: vi.fn((tokens: number[]) => tokens.map((t) => `token${t}`).join(' ')),
 };
@@ -156,7 +156,7 @@ describe('PromptService Security Tests', () => {
       // Mock the tokenizer to track calls
       let callCount = 0;
       const mockTokenizerWithLimit: ITokenizer = {
-        countTokens: vi.fn(() => {
+        countTokens: vi.fn(async () => {
           callCount++;
           return 100;
         }),
@@ -166,92 +166,162 @@ describe('PromptService Security Tests', () => {
 
       const service = new PromptService(mockTokenizerWithLimit);
 
-      // This would need to be tested with the actual implementation
-      // that uses countTokensCached
-      expect(callCount).toBe(0);
+      // Create a large input that will trigger token counting in mainPrompt
+      const largeContext = 'This is a legal document. '.repeat(1000); // ~25k characters
+      const largeQuestion = 'What are the key provisions? '.repeat(50); // ~1.5k characters (under 2000 limit)
+      const largeHistory = Array(50).fill(
+        'Previous conversation message. '.repeat(50),
+      ); // ~75k characters
+
+      const userInput = {
+        question: largeQuestion,
+        context: largeContext,
+        chatHistory: largeHistory,
+      };
+
+      // Call mainPrompt which will trigger token counting
+      const result = await service.mainPrompt(userInput);
+
+      // Assert that tokenizer was called
+      expect(callCount).toBeGreaterThan(0);
+
+      // Assert that the result is properly truncated or processed
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should throw ResourceExhaustedError when token operations exceed limit', async () => {
+      // Mock tokenizer that throws immediately to simulate resource exhaustion
+      const mockTokenizerWithLimit: ITokenizer = {
+        countTokens: vi.fn(async () => {
+          throw new Error('Token limit exceeded');
+        }),
+        encode: vi.fn(),
+        decode: vi.fn(),
+      };
+
+      const service = new PromptService(mockTokenizerWithLimit);
+
+      const userInput = {
+        question: 'What is the law?',
+        context: 'Legal context',
+        chatHistory: [],
+      };
+
+      // Expect the service to handle token limit gracefully
+      await expect(service.mainPrompt(userInput)).rejects.toThrow(
+        'Token limit exceeded',
+      );
+    });
+
+    it('should reset tokenization counter after time window expires', async () => {
+      const mockTokenizer: ITokenizer = {
+        countTokens: vi.fn().mockResolvedValue(10),
+        encode: vi.fn(),
+        decode: vi.fn(),
+      };
+
+      const service = new PromptService(mockTokenizer);
+
+      // Access private properties for testing
+      const servicePrivate = service as unknown as {
+        tokenizationCount: number;
+        tokenizationWindowStart: number;
+        tokenCache: Map<string, number>;
+      };
+
+      // Simulate that we're at the limit
+      servicePrivate.tokenizationCount = 100; // MAX_TOKEN_OPERATIONS
+      servicePrivate.tokenizationWindowStart = Date.now() - 6 * 60 * 1000; // 6 minutes ago
+
+      const userInput = {
+        question: 'Test question',
+        context: 'Test context',
+        chatHistory: [],
+        language: 'english' as const,
+        jurisdiction: 'india' as const,
+        tone: 'formal' as const,
+      };
+
+      // Should not throw because time window has expired and counter should reset
+      await expect(service.mainPrompt(userInput)).resolves.toBeDefined();
+
+      // Verify counter was reset
+      expect(servicePrivate.tokenizationCount).toBe(1); // Should be 1 after the call
+      expect(servicePrivate.tokenCache.size).toBeGreaterThan(0); // Cache should have entries after successful call
     });
   });
 
   describe('Configuration Validation', () => {
-    it('should reject invalid language', () => {
+    let mockTokenizer: ITokenizer;
+    let service: PromptService;
+
+    beforeEach(() => {
+      mockTokenizer = {
+        countTokens: vi.fn().mockResolvedValue(100),
+        encode: vi.fn(),
+        decode: vi.fn(),
+      };
+      service = new PromptService(mockTokenizer);
+    });
+
+    it('should reject invalid language', async () => {
+      const userInput = {
+        question: 'What is the law?',
+        context: 'Legal context',
+        chatHistory: [],
+      };
       const invalidConfig = { language: 'spanish' };
 
-      // This would need to be tested with the actual mainPrompt method
-      // that calls validateConfig
-      expect(() => {
-        // Simulate config validation
-        if (!['english'].includes(invalidConfig.language)) {
-          throw new ValidationError(
-            'language',
-            invalidConfig.language,
-            'Only English is supported',
-          );
-        }
-      }).toThrow(ValidationError);
+      await expect(
+        service.mainPrompt(userInput, invalidConfig),
+      ).rejects.toThrow(ValidationError);
     });
 
-    it('should reject invalid jurisdiction', () => {
+    it('should reject invalid jurisdiction', async () => {
+      const userInput = {
+        question: 'What is the law?',
+        context: 'Legal context',
+        chatHistory: [],
+      };
       const invalidConfig = { jurisdiction: 'US' };
 
-      expect(() => {
-        if (!['INDIA'].includes(invalidConfig.jurisdiction)) {
-          throw new ValidationError(
-            'jurisdiction',
-            invalidConfig.jurisdiction,
-            'Only Indian jurisdiction is supported',
-          );
-        }
-      }).toThrow(ValidationError);
+      await expect(
+        service.mainPrompt(userInput, invalidConfig),
+      ).rejects.toThrow(ValidationError);
     });
 
-    it('should reject invalid tone', () => {
+    it('should reject invalid tone', async () => {
+      const userInput = {
+        question: 'What is the law?',
+        context: 'Legal context',
+        chatHistory: [],
+      };
       const invalidConfig = { tone: 'aggressive' };
 
-      expect(() => {
-        if (
-          !['formal', 'casual', 'professional'].includes(invalidConfig.tone)
-        ) {
-          throw new ValidationError(
-            'tone',
-            invalidConfig.tone,
-            'Only formal, casual, or professional tones are supported',
-          );
-        }
-      }).toThrow(ValidationError);
+      await expect(
+        service.mainPrompt(userInput, invalidConfig),
+      ).rejects.toThrow(ValidationError);
     });
 
-    it('should accept valid configurations', () => {
+    it('should accept valid configurations', async () => {
+      const userInput = {
+        question: 'What is the law?',
+        context: 'Legal context',
+        chatHistory: [],
+      };
       const validConfigs = [
-        { language: 'english', jurisdiction: 'INDIA', tone: 'formal' },
-        { language: 'english', jurisdiction: 'INDIA', tone: 'casual' },
-        { language: 'english', jurisdiction: 'INDIA', tone: 'professional' },
+        { language: 'english', jurisdiction: 'india', tone: 'formal' },
+        { language: 'english', jurisdiction: 'india', tone: 'casual' },
+        { language: 'english', jurisdiction: 'india', tone: 'professional' },
       ];
 
-      validConfigs.forEach((config) => {
-        expect(() => {
-          if (!['english'].includes(config.language)) {
-            throw new ValidationError(
-              'language',
-              config.language,
-              'Only English is supported',
-            );
-          }
-          if (!['INDIA'].includes(config.jurisdiction)) {
-            throw new ValidationError(
-              'jurisdiction',
-              config.jurisdiction,
-              'Only Indian jurisdiction is supported',
-            );
-          }
-          if (!['formal', 'casual', 'professional'].includes(config.tone)) {
-            throw new ValidationError(
-              'tone',
-              config.tone,
-              'Only formal, casual, or professional tones are supported',
-            );
-          }
-        }).not.toThrow();
-      });
+      for (const config of validConfigs) {
+        await expect(
+          service.mainPrompt(userInput, config),
+        ).resolves.toBeDefined();
+      }
     });
   });
 

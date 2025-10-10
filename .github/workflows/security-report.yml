@@ -29,6 +29,27 @@ jobs:
           npm install -g retire
           npm install --save-dev eslint-plugin-security
 
+      - name: Run Snyk security scan
+        run: |
+          # Authenticate with Snyk (if SNYK_TOKEN is available)
+          if [ -n "$SNYK_TOKEN" ]; then
+            snyk auth $SNYK_TOKEN
+          fi
+
+          # Run Snyk scan and output to JSON
+          snyk test --json > reports/snyk-vulnerabilities.json || true
+
+          # Also run Snyk monitor for continuous monitoring
+          snyk monitor --json > reports/snyk-monitor.json || true
+
+      - name: Run Retire.js security scan
+        run: |
+          # Run Retire.js scan with JSON output
+          retire --outputformat json --outputpath reports/retire-vulnerabilities.json || true
+
+          # Also run with text output for human readability
+          retire --outputformat text --outputpath reports/retire-vulnerabilities.txt || true
+
       - name: Run comprehensive security scan
         run: |
           ./security-scan.sh
@@ -36,7 +57,7 @@ jobs:
       - name: Generate security report
         run: |
           # Create comprehensive security report
-          cat > reports/weekly-security-report.md << 'EOF'
+          cat > reports/weekly-security-report.md <<EOF
           # 🔒 Weekly Security Report
 
           **Generated**: $(date)
@@ -79,7 +100,19 @@ jobs:
             echo "- **SQL Patterns**: $SQL_COUNT" >> reports/weekly-security-report.md
           fi
 
-          cat >> reports/weekly-security-report.md << 'EOF'
+          # Add Snyk vulnerabilities count
+          if [ -f "reports/snyk-vulnerabilities.json" ]; then
+            SNYK_VULN_COUNT=$(jq '.vulnerabilities | length' reports/snyk-vulnerabilities.json 2>/dev/null || echo "0")
+            echo "- **Snyk Vulnerabilities**: $SNYK_VULN_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          # Add Retire.js vulnerabilities count
+          if [ -f "reports/retire-vulnerabilities.json" ]; then
+            RETIRE_VULN_COUNT=$(jq '.data | length' reports/retire-vulnerabilities.json 2>/dev/null || echo "0")
+            echo "- **Retire.js Vulnerabilities**: $RETIRE_VULN_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          cat >> reports/weekly-security-report.md <<EOF
 
           ## 🚨 Critical Issues
 

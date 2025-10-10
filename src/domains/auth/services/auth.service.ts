@@ -67,6 +67,7 @@ export class AuthService {
       typeof err === 'object' &&
       err !== null &&
       'code' in err &&
+      typeof (err as { code: unknown }).code === 'string' &&
       (err as { code: string }).code === '23505'
     );
   }

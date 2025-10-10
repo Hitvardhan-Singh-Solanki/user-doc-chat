@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+const booleanPreprocess = (val: unknown) => {
+  if (typeof val === 'string') {
+    return val.toLowerCase() === 'true';
+  }
+  return val;
+};
+
 const envSchema = z.object({
   // Server
   NODE_ENV: z
@@ -13,7 +20,7 @@ const envSchema = z.object({
   POSTGRES_PORT: z.coerce.number().default(5432),
   POSTGRES_DB: z.string().default('user_doc_chat'),
   POSTGRES_USER: z.string().default('postgres'),
-  POSTGRES_PASSWORD: z.string().default('password'),
+  POSTGRES_PASSWORD: z.string(),
   POSTGRES_VECTOR_DISTANCE_OPERATOR: z.string().default('cosine'),
 
   // Redis
@@ -22,14 +29,7 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().default(6379),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_USERNAME: z.string().optional(),
-  REDIS_TLS: z
-    .preprocess((val) => {
-      if (typeof val === 'string') {
-        return val.toLowerCase() === 'true';
-      }
-      return val;
-    }, z.coerce.boolean())
-    .default(false),
+  REDIS_TLS: z.preprocess(booleanPreprocess, z.coerce.boolean()).default(false),
   REDIS_DB: z.coerce.number().default(0),
   REDIS_SOCKET: z.string().optional(),
 
@@ -82,12 +82,7 @@ const envSchema = z.object({
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.coerce.number().default(9000),
   MINIO_USE_SSL: z
-    .preprocess((val) => {
-      if (typeof val === 'string') {
-        return val.toLowerCase() === 'true';
-      }
-      return val;
-    }, z.coerce.boolean())
+    .preprocess(booleanPreprocess, z.coerce.boolean())
     .default(false),
   MINIO_BUCKET_NAME: z.string().default('user-doc-chat'),
   MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
@@ -124,6 +119,17 @@ function parseConfig() {
 // Initialize config
 config = parseConfig();
 
+// Runtime security validation for production environments
+if (config.NODE_ENV !== 'development') {
+  if (!config.POSTGRES_PASSWORD || config.POSTGRES_PASSWORD === 'password') {
+    // eslint-disable-next-line no-console
+    console.error(
+      '❌ Security Error: POSTGRES_PASSWORD is required and cannot be the default "password" in non-development environments',
+    );
+    process.exit(1);
+  }
+}
+
 // Export function to re-parse config (useful for tests)
 export function reparseConfig() {
   config = parseConfig();
@@ -148,14 +154,21 @@ export const databaseConfig = {
     distanceOperator: config.POSTGRES_VECTOR_DISTANCE_OPERATOR,
   },
   redis: {
+    url: config.REDIS_URL,
     host: config.REDIS_HOST,
     port: config.REDIS_PORT,
     password: config.REDIS_PASSWORD,
+    username: config.REDIS_USERNAME,
+    tls: config.REDIS_TLS,
+    db: config.REDIS_DB,
+    socket: config.REDIS_SOCKET,
   },
 };
 
 export const authConfig = {
   jwtExpiresIn: config.JWT_EXPIRES_IN,
+  saltRounds: config.SALT_ROUNDS,
+  jwtMaxAge: config.JWT_MAX_AGE,
 };
 
 export const aiConfig = {
@@ -167,12 +180,16 @@ export const aiConfig = {
   pinecone: {
     index: config.PINECONE_INDEX,
     topK: config.PINECONE_TOP_K,
+    batchSize: config.PINECONE_BATCH_SIZE,
+    maxRetries: config.PINECONE_MAX_RETRIES,
   },
+  vectorStoreProvider: config.VECTOR_STORE_PROVIDER,
 };
 
 export const processingConfig = {
   chunkSize: config.CHUNK_SIZE,
   chunkOverlap: config.CHUNK_OVERLAP,
+  maxContextTokens: config.MAX_CONTEXT_TOKENS,
 };
 
 export const rateLimitConfig = {
@@ -194,11 +211,19 @@ export const storageConfig = {
     port: config.MINIO_PORT,
     useSSL: config.MINIO_USE_SSL,
     bucketName: config.MINIO_BUCKET_NAME,
+    defaultBucket: config.MINIO_DEFAULT_BUCKET,
   },
 };
 
 export const grpcConfig = {
   pythonUrl: config.PYTHON_LLM_URL,
+};
+
+export const crawlerConfig = {
+  maxBytes: config.CRAWLER_MAX_BYTES,
+  userAgent: config.CRAWLER_USER_AGENT,
+  maxRedirects: config.CRAWLER_MAX_REDIRECTS,
+  timeoutMs: config.CRAWLER_TIMEOUT_MS,
 };
 
 export const loggingConfig = {

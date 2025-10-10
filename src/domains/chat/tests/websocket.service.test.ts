@@ -64,7 +64,12 @@ describe('WebsocketService', () => {
   let ws: WebsocketService;
 
   beforeEach(() => {
-    app = { use: vi.fn() };
+    app = {
+      use: vi.fn(),
+      get: vi.fn((key: string) =>
+        key === 'appId' ? 'test-app-id' : undefined,
+      ),
+    };
     vi.clearAllMocks();
 
     // Reset singleton instance before each test

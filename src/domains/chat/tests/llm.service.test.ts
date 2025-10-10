@@ -109,7 +109,7 @@ vi.mock('../../../infrastructure/external-services/ai/xenova.adapter', () => ({
       return tokens.map((t) => `token${t}`).join(' ');
     }
 
-    countTokens(text: string): number {
+    async countTokens(text: string): Promise<number> {
       return this.encode(text).length;
     }
   },

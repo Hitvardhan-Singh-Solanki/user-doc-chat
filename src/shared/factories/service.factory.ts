@@ -52,7 +52,10 @@ export class ServiceFactory {
   }
 
   getWebsocketService(app: Application) {
-    return this.getService('websocket', () => {
+    const appId = this.getAppId(app);
+    const cacheKey = `websocket-${appId}`;
+
+    return this.getService(cacheKey, () => {
       const db = this.getDatabase();
       const llmService = this.getLLMService();
       const vectorStoreService = this.getVectorStoreService();
@@ -68,6 +71,10 @@ export class ServiceFactory {
         deepResearchService,
       );
     });
+  }
+
+  private getAppId(app: Application): string {
+    return app.get('appId') || `app-${crypto.randomUUID()}`;
   }
 
   // Clear all services (useful for testing)

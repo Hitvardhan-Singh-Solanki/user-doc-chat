@@ -5,7 +5,7 @@ import * as hashUtils from '@utils/hash';
 import { mockUser } from '@tests/fixtures';
 
 // Mock the hash utilities
-vi.mock('../../../shared/utils/hash', () => ({
+vi.mock('@utils/hash', () => ({
   hashPassword: vi.fn(),
   comparePassword: vi.fn(),
 }));

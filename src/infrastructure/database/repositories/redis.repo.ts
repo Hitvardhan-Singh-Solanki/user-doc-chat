@@ -84,7 +84,7 @@ function buildRedisConfig(): string | object {
     if (username && password) {
       auth = `${username}:${password}@`;
     } else if (password) {
-      auth = `${password}@`;
+      auth = `:${password}@`;
     } else if (username) {
       auth = `${username}@`;
     }

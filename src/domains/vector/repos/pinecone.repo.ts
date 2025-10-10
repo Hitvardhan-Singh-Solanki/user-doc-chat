@@ -11,7 +11,9 @@ export function createPineconeClient(apiKey?: string): Pinecone {
   const key = apiKey || secretsManager.getPineconeApiKey();
 
   if (!key || key.trim() === '') {
-    throw new Error('PINECONE_API_KEY environment variable is required');
+    throw new Error(
+      'Pinecone API key is required (provide via apiKey or secrets manager)',
+    );
   }
 
   return new Pinecone({

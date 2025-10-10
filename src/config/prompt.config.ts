@@ -5,6 +5,7 @@ const promptConfigSchema = z.object({
   MAX_SENTENCES: z.number().default(10000),
   MAX_HISTORY_LINES: z.number().default(1000),
   MAX_TOKEN_OPERATIONS: z.number().default(100),
+  TOKEN_WINDOW_MS: z.number().default(5 * 60 * 1000), // 5 minutes
   PROMPT_TIMEOUT_MS: z.number().default(5000),
   REGEX_TIMEOUT_MS: z.number().default(500),
   PRIORITY_BUFFER: z.number().default(50),
@@ -14,7 +15,7 @@ const promptConfigSchema = z.object({
   LARGE_DOCUMENT_THRESHOLD: z.number().default(1024 * 1024), // 1MB
   TOKEN_CACHE_SIZE: z.number().default(1000),
   ALLOWED_LANGUAGES: z.array(z.string()).default(['english']),
-  ALLOWED_JURISDICTIONS: z.array(z.string()).default(['INDIA']),
+  ALLOWED_JURISDICTIONS: z.array(z.string()).default(['india']),
   ALLOWED_TONES: z
     .array(z.string())
     .default(['formal', 'casual', 'professional']),
@@ -24,49 +25,105 @@ export type PromptConfig = z.infer<typeof promptConfigSchema>;
 
 export const promptConfig = promptConfigSchema.parse({
   MAX_INPUT_SIZE: process.env.PROMPT_MAX_INPUT_SIZE
-    ? parseInt(process.env.PROMPT_MAX_INPUT_SIZE)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_MAX_INPUT_SIZE, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 50 * 1024 * 1024,
   MAX_SENTENCES: process.env.PROMPT_MAX_SENTENCES
-    ? parseInt(process.env.PROMPT_MAX_SENTENCES)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_MAX_SENTENCES, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 10000,
   MAX_HISTORY_LINES: process.env.PROMPT_MAX_HISTORY_LINES
-    ? parseInt(process.env.PROMPT_MAX_HISTORY_LINES)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_MAX_HISTORY_LINES, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 1000,
   MAX_TOKEN_OPERATIONS: process.env.PROMPT_MAX_TOKEN_OPERATIONS
-    ? parseInt(process.env.PROMPT_MAX_TOKEN_OPERATIONS)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_MAX_TOKEN_OPERATIONS, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 100,
+  TOKEN_WINDOW_MS: process.env.PROMPT_TOKEN_WINDOW_MS
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_TOKEN_WINDOW_MS, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
+    : 5 * 60 * 1000,
   PROMPT_TIMEOUT_MS: process.env.PROMPT_TIMEOUT_MS
-    ? parseInt(process.env.PROMPT_TIMEOUT_MS)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_TIMEOUT_MS, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 5000,
   REGEX_TIMEOUT_MS: process.env.PROMPT_REGEX_TIMEOUT_MS
-    ? parseInt(process.env.PROMPT_REGEX_TIMEOUT_MS)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_REGEX_TIMEOUT_MS, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 500,
   PRIORITY_BUFFER: process.env.PROMPT_PRIORITY_BUFFER
-    ? parseInt(process.env.PROMPT_PRIORITY_BUFFER)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_PRIORITY_BUFFER, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 50,
   OVERFLOW_BUFFER: process.env.PROMPT_OVERFLOW_BUFFER
-    ? parseInt(process.env.PROMPT_OVERFLOW_BUFFER)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_OVERFLOW_BUFFER, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 100,
   MAX_SANITIZATION_ITERATIONS: process.env.PROMPT_MAX_SANITIZATION_ITERATIONS
-    ? parseInt(process.env.PROMPT_MAX_SANITIZATION_ITERATIONS)
+    ? (() => {
+        const parsed = parseInt(
+          process.env.PROMPT_MAX_SANITIZATION_ITERATIONS,
+          10,
+        );
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 10,
   MAX_REGEX_ITERATIONS: process.env.PROMPT_MAX_REGEX_ITERATIONS
-    ? parseInt(process.env.PROMPT_MAX_REGEX_ITERATIONS)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_MAX_REGEX_ITERATIONS, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 1000,
   LARGE_DOCUMENT_THRESHOLD: process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD
-    ? parseInt(process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD)
+    ? (() => {
+        const parsed = parseInt(
+          process.env.PROMPT_LARGE_DOCUMENT_THRESHOLD,
+          10,
+        );
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 1024 * 1024,
   TOKEN_CACHE_SIZE: process.env.PROMPT_TOKEN_CACHE_SIZE
-    ? parseInt(process.env.PROMPT_TOKEN_CACHE_SIZE)
+    ? (() => {
+        const parsed = parseInt(process.env.PROMPT_TOKEN_CACHE_SIZE, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })()
     : 1000,
   ALLOWED_LANGUAGES: process.env.PROMPT_ALLOWED_LANGUAGES
     ? process.env.PROMPT_ALLOWED_LANGUAGES.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((lang) => lang.toLowerCase())
     : ['english'],
   ALLOWED_JURISDICTIONS: process.env.PROMPT_ALLOWED_JURISDICTIONS
     ? process.env.PROMPT_ALLOWED_JURISDICTIONS.split(',')
-    : ['INDIA'],
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((jurisdiction) => jurisdiction.toLowerCase())
+    : ['india'],
   ALLOWED_TONES: process.env.PROMPT_ALLOWED_TONES
     ? process.env.PROMPT_ALLOWED_TONES.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
     : ['formal', 'casual', 'professional'],
 });
 
@@ -75,6 +132,7 @@ export const {
   MAX_SENTENCES,
   MAX_HISTORY_LINES,
   MAX_TOKEN_OPERATIONS,
+  TOKEN_WINDOW_MS,
   PROMPT_TIMEOUT_MS,
   REGEX_TIMEOUT_MS,
   PRIORITY_BUFFER,
@@ -93,11 +151,11 @@ export type AllowedJurisdiction = (typeof ALLOWED_JURISDICTIONS)[number];
 export type AllowedTone = (typeof ALLOWED_TONES)[number];
 
 export const SUSPICIOUS_PATTERNS = [
-  /^SYSTEM\s+INSTRUCTION\s*:/gi,
+  /^SYSTEM\s+INSTRUCTION\s*:/gim,
   /CONTEXT\s*===/gi,
   /ANSWER\s*===/gi,
-  /^ROLE\s*:/gi,
-  /^CONSTRAINTS\s*:/gi,
+  /^ROLE\s*:/gim,
+  /^CONSTRAINTS\s*:/gim,
   /IGNORE\s+PREVIOUS/gi,
   /DISREGARD\s+EARLIER/gi,
   /FORGET\s+CONTEXT/gi,

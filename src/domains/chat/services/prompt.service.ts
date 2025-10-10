@@ -16,6 +16,7 @@ import {
   MAX_TOKEN_OPERATIONS,
   SUSPICIOUS_PATTERNS,
   TOKEN_CACHE_SIZE,
+  TOKEN_WINDOW_MS,
 } from '@config/prompt.config';
 import {
   PromptInjectionError,
@@ -29,6 +30,7 @@ export class PromptService {
   private tokenizer: ITokenizer;
   private tokenCache: Map<string, number> = new Map();
   private tokenizationCount: number = 0;
+  private tokenizationWindowStart: number = Date.now();
   private readonly CHARS_PER_TOKEN = 4;
 
   // Compiled regex patterns for performance
@@ -101,7 +103,7 @@ export class PromptService {
       temperature: 0,
       truncateStrategy: 'truncate-context',
       language: 'english',
-      jurisdiction: 'INDIA',
+      jurisdiction: 'india',
       logStats: true,
       truncateBuffer: 500,
     };
@@ -284,7 +286,7 @@ ${sanitizedQuestion}
       temperature: 0,
       truncateStrategy: 'truncate-context',
       language: 'english',
-      jurisdiction: 'INDIA',
+      jurisdiction: 'india',
       logStats: true,
       truncateBuffer: 200,
     };
@@ -414,7 +416,7 @@ ${content}
       temperature: 0,
       truncateStrategy: 'truncate-context',
       language: 'english',
-      jurisdiction: 'INDIA',
+      jurisdiction: 'india',
       logStats: true,
       truncateBuffer: 200,
     };
@@ -604,6 +606,14 @@ Optimized search query:
       return this.tokenCache.get(text)!;
     }
 
+    // Reset counter if time window has expired
+    const now = Date.now();
+    if (now - this.tokenizationWindowStart > TOKEN_WINDOW_MS) {
+      this.tokenizationCount = 0;
+      this.tokenizationWindowStart = now;
+      this.tokenCache.clear();
+    }
+
     if (this.tokenizationCount >= MAX_TOKEN_OPERATIONS) {
       throw new ResourceExhaustedError(
         'tokenization operations',
@@ -624,7 +634,7 @@ Optimized search query:
 
   private async countTokensWithTimeout(text: string): Promise<number> {
     return Promise.race([
-      Promise.resolve(this.tokenizer.countTokens(text)),
+      this.tokenizer.countTokens(text),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Token counting timeout')), 5000),
       ),
@@ -855,7 +865,12 @@ Optimized search query:
   }
 
   private validateConfig(config: PromptConfig) {
-    if (!ALLOWED_LANGUAGES.includes(config.language as AllowedLanguage)) {
+    if (
+      !config.language ||
+      !ALLOWED_LANGUAGES.includes(
+        config.language.toLowerCase() as AllowedLanguage,
+      )
+    ) {
       throw new ValidationError(
         'language',
         config.language,
@@ -865,7 +880,7 @@ Optimized search query:
     if (
       config.jurisdiction &&
       !ALLOWED_JURISDICTIONS.includes(
-        config.jurisdiction as AllowedJurisdiction,
+        config.jurisdiction.toLowerCase() as AllowedJurisdiction,
       )
     ) {
       throw new ValidationError(

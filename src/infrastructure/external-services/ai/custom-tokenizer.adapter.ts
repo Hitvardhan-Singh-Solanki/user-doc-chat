@@ -21,12 +21,11 @@ export class SimpleTokenizerAdapter implements ITokenizer {
 
   decode(tokens: number[]): string {
     return tokens
-      .map((tokenId) => this.reverseVocabulary.get(tokenId))
-      .filter((token) => token !== undefined)
-      .join(' ');
+      .map((tokenId) => this.reverseVocabulary.get(tokenId) ?? '')
+      .join('');
   }
 
-  countTokens(text: string): number {
+  async countTokens(text: string): Promise<number> {
     return this.encode(text).length;
   }
 }

@@ -24,7 +24,7 @@ export class XenovaTokenizerAdapter implements ITokenizer {
     );
   }
 
-  countTokens(text: string): number {
+  async countTokens(text: string): Promise<number> {
     return this.encode(text).length;
   }
 }

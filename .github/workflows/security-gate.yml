@@ -31,7 +31,7 @@ jobs:
           if [ -f "reports/npm-audit.json" ]; then
             VULN_COUNT=$(jq '.vulnerabilities | length' reports/npm-audit.json 2>/dev/null || echo "0")
             if [ "$VULN_COUNT" -gt 0 ]; then
-              HIGH_VULNS=$(jq '.vulnerabilities | map(select(.severity == "high" or .severity == "critical")) | length' reports/npm-audit.json 2>/dev/null || echo "0")
+              HIGH_VULNS=$(jq '.vulnerabilities | to_entries | map(.value) | map(select(.severity == "high" or .severity == "critical")) | length' reports/npm-audit.json 2>/dev/null || echo "0")
               if [ "$HIGH_VULNS" -gt 0 ]; then
                 echo "❌ **BLOCKING**: $HIGH_VULNS high/critical NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
                 CRITICAL_ISSUES=$((CRITICAL_ISSUES + HIGH_VULNS))
@@ -47,7 +47,7 @@ jobs:
           if [ -f "reports/hardcoded-secrets.txt" ] && [ -s "reports/hardcoded-secrets.txt" ]; then
             SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
             # Filter out test files and comments
-            REAL_SECRETS=$(grep -v "test\|spec\|mock\|TODO\|comment" reports/hardcoded-secrets.txt | wc -l)
+            REAL_SECRETS=$(grep -E -v "test|spec|mock|TODO|comment" reports/hardcoded-secrets.txt | wc -l)
             if [ "$REAL_SECRETS" -gt 0 ]; then
               echo "❌ **BLOCKING**: $REAL_SECRETS potential hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
               CRITICAL_ISSUES=$((CRITICAL_ISSUES + REAL_SECRETS))
@@ -82,6 +82,7 @@ jobs:
           else
             echo "✅ **SECURITY GATE PASSED**: No critical issues found" >> $GITHUB_STEP_SUMMARY
             echo "blocked=false" >> $GITHUB_OUTPUT
+            echo "critical_issues=0" >> $GITHUB_OUTPUT
           fi
 
       - name: Comment Security Gate Results

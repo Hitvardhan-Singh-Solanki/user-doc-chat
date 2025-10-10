@@ -28,7 +28,7 @@ export class ValidationError extends Error {
 export class SecurityError extends Error {
   constructor(reason: string, input?: string) {
     const message = input
-      ? `Security violation: ${reason} (input: ${input.substring(0, 100)}...)`
+      ? `Security violation: ${reason} (input: ${input.length > 100 ? input.substring(0, 100) + '...' : input})`
       : `Security violation: ${reason}`;
     super(message);
     this.name = 'SecurityError';

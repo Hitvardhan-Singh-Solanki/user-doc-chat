@@ -67,12 +67,13 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const status = '${{ job.status }}';
             const commentBody = `## 🛡️ OWASP ZAP Security Scan Results
 
             ### 🔍 Scan Details:
             - **Target**: http://localhost:3000
             - **Scan Type**: Baseline + Full Scan
-            - **Status**: ${job.status}
+            - **Status**: ${status}
 
             ### 📊 Results:
             - ZAP security reports are available in the workflow artifacts
