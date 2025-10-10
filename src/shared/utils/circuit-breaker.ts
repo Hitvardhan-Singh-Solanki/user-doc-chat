@@ -1,12 +1,6 @@
 import CircuitBreaker from 'opossum';
 import { logger } from '@config/logger.config';
-
-export interface CircuitBreakerOptions {
-  timeout?: number;
-  errorThresholdPercentage?: number;
-  resetTimeout?: number;
-  name?: string;
-}
+import { CircuitBreakerOptions } from '@shared/types/circuit-breaker.types';
 
 /**
  * Creates a circuit breaker for a given function

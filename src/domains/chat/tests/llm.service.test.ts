@@ -11,6 +11,12 @@ import {
 import { PromptService } from '../services/prompt.service';
 import type { IEnrichmentService } from '@interfaces/enrichment.interface';
 import type { LLMService as LLMServiceType } from '../services/llm.service';
+import type {
+  ChatCompletionChunk,
+  ChatCompletionResponse,
+  FeatureExtractionOutput,
+  TextGenerationResponse,
+} from '@shared/types/test.types';
 
 vi.doMock('@secrets', () => ({
   secretsManager: {
@@ -48,28 +54,6 @@ function asyncIterableFromArray<T>(items: T[]): AsyncIterable<T> {
     },
   };
 }
-
-interface ChatCompletionChunk {
-  choices: Array<{
-    delta: {
-      content?: string;
-    };
-  }>;
-}
-
-interface ChatCompletionResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
-
-interface TextGenerationResponse {
-  generated_text: string;
-}
-
-type FeatureExtractionOutput = (number | number[] | number[][])[];
 
 const HF = {
   featureExtraction: vi
