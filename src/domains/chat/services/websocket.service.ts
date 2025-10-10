@@ -1,6 +1,6 @@
 import http from 'http';
 import { Application } from 'express';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
@@ -8,12 +8,16 @@ import { VectorStoreService } from '@vector/services/vector-store.service';
 import { redisChatHistory } from '@database/repositories/redis.repo';
 import { UserInputSchema } from '@auth/validators/user-input.validator';
 import { EnrichmentService } from './enrichment.service';
-// import { PostgresService } from '@database/repositories/postgres.repository';
 import { IDBStore } from '@interfaces/db-store.interface';
 import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
+
+interface AuthenticatedSocket extends Socket {
+  userId: string;
+  tokenExp?: number;
+}
 
 const QuestionPayloadSchema = z.object({
   fileId: z
@@ -138,11 +142,9 @@ export class WebsocketService {
         return next(new Error('Invalid token: missing subject claim'));
       }
 
-      (socket as { userId?: string; tokenExp?: number }).userId =
-        String(userId);
-      (socket as { userId?: string; tokenExp?: number }).tokenExp = (
-        decoded as { exp?: number }
-      ).exp;
+      const authenticatedSocket = socket as AuthenticatedSocket;
+      authenticatedSocket.userId = String(userId);
+      authenticatedSocket.tokenExp = (decoded as { exp?: number }).exp;
 
       this.logger.info(
         { userId, ip: socket.handshake.address },
@@ -155,13 +157,14 @@ export class WebsocketService {
 
   onConnection() {
     this.io.on('connection', (socket) => {
-      const userId = (socket as { userId?: string }).userId;
+      const authenticatedSocket = socket as AuthenticatedSocket;
+      const userId = authenticatedSocket.userId;
       this.logger.info({ userId }, 'User connected');
       if (userId) {
         socket.join(userId);
       }
 
-      this.onQuestion(socket);
+      this.onQuestion(authenticatedSocket);
 
       socket.on('disconnect', () => {
         this.logger.info({ userId }, 'User disconnected');
@@ -169,13 +172,9 @@ export class WebsocketService {
     });
   }
 
-  onQuestion(socket: {
-    userId?: string;
-    emit: (event: string, data: unknown) => void;
-    on: (event: string, handler: (data: unknown) => void) => void;
-  }) {
+  onQuestion(socket: AuthenticatedSocket) {
     socket.on('question', async (data: unknown) => {
-      const userId = (socket as { userId?: string }).userId;
+      const userId = socket.userId;
       try {
         // Validate payload using Zod schema
         const validationResult = QuestionPayloadSchema.safeParse(data);
@@ -276,8 +275,10 @@ export class WebsocketService {
           });
 
           try {
+            this.validateServices();
+
             const enrichedResults =
-              await this.llmService.enrichmentService?.searchAndEmbed(
+              await this.llmService.enrichmentService!.searchAndEmbed(
                 question,
                 {
                   fileId,
@@ -403,11 +404,31 @@ export class WebsocketService {
   }
 
   private initServices() {
-    this.llmService.enrichmentService = new EnrichmentService(
-      this.llmService,
-      this.pineconeService,
-      this.fetchHTMLService,
-      this.deepResearchService,
-    );
+    try {
+      this.logger.info('Initializing enrichment service...');
+      this.llmService.enrichmentService = new EnrichmentService(
+        this.llmService,
+        this.pineconeService,
+        this.fetchHTMLService,
+        this.deepResearchService,
+      );
+      this.logger.info('Enrichment service initialized successfully');
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to initialize enrichment service');
+      throw new Error(
+        `Failed to initialize enrichment service: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  private validateServices() {
+    if (!this.llmService.enrichmentService) {
+      this.logger.error(
+        'EnrichmentService validation failed: service is not initialized',
+      );
+      throw new Error(
+        'EnrichmentService is not available. Service initialization failed.',
+      );
+    }
   }
 }

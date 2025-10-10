@@ -77,8 +77,11 @@ describe('WebsocketService', () => {
       WebsocketService as unknown as { instance: WebsocketService | null }
     ).instance = null;
 
-    // Don't reset the middleware storage - let it persist between tests
-    // mockIo._authMiddleware = null;
+    // Clear service factory cache to ensure fresh service creation
+    serviceFactory.clear();
+
+    // Reset middleware storage to ensure test isolation
+    mockIo._authMiddleware = null;
 
     // Create the service - this will call authVerification() which calls io.use()
     ws = serviceFactory.getWebsocketService(
@@ -323,7 +326,7 @@ describe('WebsocketService', () => {
     expect(emitMock).toHaveBeenCalledWith('answer_complete');
   });
 
-  it('processQuestion with Pinecone matches streams LLM', async () => {
+  it('processQuestion with Pinecone matches streams LLM successfully', async () => {
     const dbMock = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
 
     // Mock getOrCreateChat: simulate INSERT returning chat ID
@@ -344,24 +347,94 @@ describe('WebsocketService', () => {
       .fn()
       .mockResolvedValue('ctx');
 
+    // Mock LLMService to return deterministic success
+    const mockLLMService = {
+      getEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+      generateAnswerStream: async function* () {
+        yield 'Hello';
+        yield ' World';
+        yield '!';
+      },
+    } as unknown as LLMService;
+    (ws as unknown as WebsocketServiceWithPrivateMethods).llmService =
+      mockLLMService;
+
     await (ws as unknown as WebsocketServiceWithPrivateMethods).processQuestion(
       'hi',
       'user-123',
       'file-1',
     );
 
-    // Now redisChatHistory should have been called for user message
+    // Verify Redis calls
+    expect(redisChatHistory.rPush).toHaveBeenCalledWith(
+      'chat:user-123:file-1',
+      'User: hi',
+    );
+    expect(redisChatHistory.rPush).toHaveBeenCalledWith(
+      'chat:user-123:file-1',
+      'AI: Hello World!',
+    );
+
+    // Verify LLM service calls
+    expect(mockLLMService.getEmbedding).toHaveBeenCalledWith('hi');
+
+    // Verify deterministic success events
+    expect(emitMock).toHaveBeenCalledWith('answer_chunk', { token: 'Hello' });
+    expect(emitMock).toHaveBeenCalledWith('answer_chunk', { token: ' World' });
+    expect(emitMock).toHaveBeenCalledWith('answer_chunk', { token: '!' });
+    expect(emitMock).toHaveBeenCalledWith('answer_complete');
+  });
+
+  it('processQuestion with Pinecone matches handles LLM failure', async () => {
+    const dbMock = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
+
+    // Mock getOrCreateChat: simulate INSERT returning chat ID
+    dbMock.query = vi.fn().mockResolvedValue({ rows: [{ id: 'chat-1' }] }); // insert new chat
+
+    const emitMock = vi.fn();
+    vi.spyOn(ws.io, 'to').mockReturnValue({
+      emit: emitMock,
+    } as unknown as ReturnType<typeof ws.io.to>);
+
+    // Ensure Pinecone returns matches
+    (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).pineconeService.query = vi.fn().mockResolvedValue({ matches: [{}] });
+    (
+      ws as unknown as WebsocketServiceWithPrivateMethods
+    ).pineconeService.getContextWithSummarization = vi
+      .fn()
+      .mockResolvedValue('ctx');
+
+    // Mock LLMService to throw error
+    const mockLLMService = {
+      getEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+      generateAnswerStream: vi
+        .fn()
+        .mockRejectedValue(new Error('LLM service error')),
+    } as unknown as LLMService;
+    (ws as unknown as WebsocketServiceWithPrivateMethods).llmService =
+      mockLLMService;
+
+    await (ws as unknown as WebsocketServiceWithPrivateMethods).processQuestion(
+      'hi',
+      'user-123',
+      'file-1',
+    );
+
+    // Verify Redis calls
     expect(redisChatHistory.rPush).toHaveBeenCalledWith(
       'chat:user-123:file-1',
       'User: hi',
     );
 
-    // The LLM service might fail in tests, so we check for either success or error
-    const calls = emitMock.mock.calls;
-    const hasAnswerChunk = calls.some((call) => call[0] === 'answer_chunk');
-    const hasError = calls.some((call) => call[0] === 'error');
+    // Verify LLM service calls
+    expect(mockLLMService.getEmbedding).toHaveBeenCalledWith('hi');
 
-    expect(hasAnswerChunk || hasError).toBe(true);
+    // Verify deterministic error event
+    expect(emitMock).toHaveBeenCalledWith('error', {
+      message: 'Failed to generate complete answer. Please try again.',
+    });
   });
 
   it('appendChatHistory calls Redis correctly', async () => {

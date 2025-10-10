@@ -12,7 +12,7 @@ import { secretsManager } from './config/secrets.config';
     logger.info('Starting server initialization...');
 
     logger.info('Initializing secrets...');
-    await secretsManager.initialize();
+    secretsManager.initialize();
     logger.info('Secrets initialized successfully.');
 
     logger.info('Attempting to connect to Redis...');

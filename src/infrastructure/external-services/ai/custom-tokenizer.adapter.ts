@@ -21,7 +21,15 @@ export class SimpleTokenizerAdapter implements ITokenizer {
 
   decode(tokens: number[]): string {
     return tokens
-      .map((tokenId) => this.reverseVocabulary.get(tokenId) ?? '')
+      .map((tokenId, index) => {
+        const token = this.reverseVocabulary.get(tokenId);
+        if (token === undefined) {
+          throw new Error(
+            `Unknown token ID ${tokenId} at index ${index} in tokenizer instance`,
+          );
+        }
+        return token;
+      })
       .join('');
   }
 

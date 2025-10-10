@@ -45,7 +45,7 @@ The system will:
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Node.js 22.14.0 (TypeScript, Express) with modular architecture
+- **Backend**: Node.js 22.11.0 (TypeScript, Express) with modular architecture
 - **AI/LLM**: Hugging Face Transformers, OpenAI API
 - **Vector Store**: PostgreSQL + pgvector, Pinecone
 - **Storage**: MinIO/S3-compatible storage

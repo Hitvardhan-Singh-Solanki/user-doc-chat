@@ -2,6 +2,11 @@ import { IDBStore } from '@interfaces/db-store.interface';
 import { User } from '@shared/types';
 import { hashPassword, comparePassword } from '@utils/hash';
 import { normalizeEmail } from '@utils/email';
+import {
+  InvalidCredentialsError,
+  UserNotFoundError,
+  InvalidPasswordHashError,
+} from '@shared/errors/auth.errors';
 
 export class AuthService {
   private db: IDBStore;
@@ -47,14 +52,25 @@ export class AuthService {
 
     const user = result.rows[0];
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new UserNotFoundError();
+    }
+
+    const userWithPassword = user as User & { password_hash: string };
+    if (
+      !userWithPassword.password_hash ||
+      typeof userWithPassword.password_hash !== 'string' ||
+      userWithPassword.password_hash.trim() === ''
+    ) {
+      throw new InvalidPasswordHashError();
     }
 
     const isValid = await comparePassword(
       password,
-      (user as User & { password_hash: string }).password_hash,
+      userWithPassword.password_hash,
     );
-    if (!isValid) throw new Error('Invalid credentials');
+    if (!isValid) {
+      throw new InvalidCredentialsError();
+    }
 
     return { id: user.id, email: user.email };
   }

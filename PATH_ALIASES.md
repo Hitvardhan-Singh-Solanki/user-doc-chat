@@ -53,14 +53,14 @@ This document outlines the path aliases configured for the project to eliminate 
 ```typescript
 import { AuthService } from '../../../domains/auth/services/auth.service';
 import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { rateLimiterService } from '../../../infrastructure/cache/rate-limiter.service';
+import { getRateLimiterService } from '../../../infrastructure/cache/rate-limiter.service';
 ```
 
 ### After (Clean Alias Imports)
 ```typescript
 import { AuthService } from '@auth/services/auth.service';
 import { IDBStore } from '@interfaces/db-store.interface';
-import { rateLimiterService } from '@cache/rate-limiter.service';
+import { getRateLimiterService } from '@cache/rate-limiter.service';
 ```
 
 ## Benefits

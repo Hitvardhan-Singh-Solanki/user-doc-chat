@@ -24,7 +24,7 @@ class SecretsManager {
    * Call this once at application startup
    * Safe to call multiple times (idempotent)
    */
-  public async initialize(): Promise<void> {
+  public initialize(): void {
     if (this.initialized) {
       this.log.debug('Secrets already initialized, skipping');
       return;
@@ -36,6 +36,14 @@ class SecretsManager {
         jwtSecret: this.getRequiredSecret(
           'JWT_SECRET',
           'JWT secret is required for authentication',
+        ),
+        jwtAudience: this.getRequiredSecret(
+          'JWT_AUDIENCE',
+          'JWT audience is required for security',
+        ),
+        jwtIssuer: this.getRequiredSecret(
+          'JWT_ISSUER',
+          'JWT issuer is required for security',
         ),
 
         // AI/LLM
@@ -87,7 +95,7 @@ class SecretsManager {
       this.log.info('Secrets initialized successfully');
     } catch (error) {
       this.log.fatal({ error }, 'Failed to initialize secrets');
-      throw new Error('Secrets initialization failed');
+      throw new Error('Secrets initialization failed', { cause: error });
     }
   }
 
@@ -108,7 +116,26 @@ class SecretsManager {
    */
   public getJwtSecret(): string {
     this.ensureInitialized();
+    this.auditSecretAccess('jwtSecret', 'get');
     return this.secrets!.jwtSecret;
+  }
+
+  /**
+   * Get JWT audience
+   */
+  public getJwtAudience(): string {
+    this.ensureInitialized();
+    this.auditSecretAccess('jwtAudience', 'get');
+    return this.secrets!.jwtAudience;
+  }
+
+  /**
+   * Get JWT issuer
+   */
+  public getJwtIssuer(): string {
+    this.ensureInitialized();
+    this.auditSecretAccess('jwtIssuer', 'get');
+    return this.secrets!.jwtIssuer;
   }
 
   /**
@@ -116,6 +143,7 @@ class SecretsManager {
    */
   public getHuggingfaceToken(): string {
     this.ensureInitialized();
+    this.auditSecretAccess('huggingfaceToken', 'get');
     return this.secrets!.huggingfaceToken;
   }
 
@@ -124,6 +152,7 @@ class SecretsManager {
    */
   public getPineconeApiKey(): string {
     this.ensureInitialized();
+    this.auditSecretAccess('pineconeApiKey', 'get');
     return this.secrets!.pineconeApiKey;
   }
 
@@ -132,6 +161,7 @@ class SecretsManager {
    */
   public getMinioCredentials(): { accessKey: string; secretKey: string } {
     this.ensureInitialized();
+    this.auditSecretAccess('minioCredentials', 'get');
     return {
       accessKey: this.secrets!.minioAccessKey,
       secretKey: this.secrets!.minioSecretKey,
@@ -143,6 +173,7 @@ class SecretsManager {
    */
   public getDatabasePasswords(): { postgres: string; redis?: string } {
     this.ensureInitialized();
+    this.auditSecretAccess('databasePasswords', 'get');
     return {
       postgres: this.secrets!.postgresPassword,
       redis: this.secrets!.redisPassword,
@@ -154,6 +185,7 @@ class SecretsManager {
    */
   public getSanitizerConfig(): { host?: string; timeout?: number } {
     this.ensureInitialized();
+    this.auditSecretAccess('sanitizerConfig', 'get');
     return {
       host: this.secrets!.sanitizerHost,
       timeout: this.secrets!.sanitizerTimeout,

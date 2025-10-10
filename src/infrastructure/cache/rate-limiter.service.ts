@@ -3,14 +3,22 @@ import { redisPub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
 
 export class RateLimiterService {
-  private generalLimiter!: RateLimiterRedis | RateLimiterMemory;
-  private authLimiter!: RateLimiterRedis | RateLimiterMemory;
-  private fileUploadLimiter!: RateLimiterRedis | RateLimiterMemory;
-  private chatLimiter!: RateLimiterRedis | RateLimiterMemory;
+  private generalLimiter?: RateLimiterRedis | RateLimiterMemory;
+  private authLimiter?: RateLimiterRedis | RateLimiterMemory;
+  private fileUploadLimiter?: RateLimiterRedis | RateLimiterMemory;
+  private chatLimiter?: RateLimiterRedis | RateLimiterMemory;
   private isRedisConnected: boolean = false;
+  private initPromise?: Promise<void>;
 
   constructor() {
-    this.initializeRateLimiters();
+    // Constructor for singleton
+  }
+
+  async initialize(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.initializeRateLimiters();
+    }
+    return this.initPromise;
   }
 
   private async checkRedisConnection(): Promise<boolean> {
@@ -118,18 +126,30 @@ export class RateLimiterService {
   }
 
   async consumeGeneral(key: string): Promise<void> {
+    if (!this.generalLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     await this.generalLimiter.consume(key);
   }
 
   async consumeAuth(key: string): Promise<void> {
+    if (!this.authLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     await this.authLimiter.consume(key);
   }
 
   async consumeFileUpload(key: string): Promise<void> {
+    if (!this.fileUploadLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     await this.fileUploadLimiter.consume(key);
   }
 
   async consumeChat(key: string): Promise<void> {
+    if (!this.chatLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     await this.chatLimiter.consume(key);
   }
 
@@ -138,6 +158,9 @@ export class RateLimiterService {
     type: 'general' | 'auth' | 'upload' | 'chat',
   ): Promise<number> {
     const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     const resConsume = await limiter.get(key);
     return resConsume?.remainingPoints ?? Number(limiter.points);
   }
@@ -147,13 +170,16 @@ export class RateLimiterService {
     type: 'general' | 'auth' | 'upload' | 'chat',
   ): Promise<number> {
     const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     const resConsume = await limiter.get(key);
     return resConsume?.consumedPoints || 0;
   }
 
   private getLimiter(
     type: 'general' | 'auth' | 'upload' | 'chat',
-  ): RateLimiterRedis | RateLimiterMemory {
+  ): RateLimiterRedis | RateLimiterMemory | undefined {
     switch (type) {
       case 'general':
         return this.generalLimiter;
@@ -173,6 +199,9 @@ export class RateLimiterService {
     type: 'general' | 'auth' | 'upload' | 'chat',
   ): Promise<void> {
     const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     await limiter.delete(key);
     logger.info({ key, type }, 'Rate limit reset for key');
   }
@@ -182,8 +211,12 @@ export class RateLimiterService {
     type: 'general' | 'auth' | 'upload' | 'chat',
   ) {
     const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
     const resConsume = await limiter.get(key);
-    const remainingPoints = resConsume?.remainingPoints ?? 0;
+    const remainingPoints =
+      resConsume?.remainingPoints ?? Number(limiter.points);
 
     return {
       remainingPoints: remainingPoints,
@@ -198,4 +231,25 @@ export class RateLimiterService {
   }
 }
 
-export const rateLimiterService = new RateLimiterService();
+// Factory function that ensures initialization
+let rateLimiterInstance: RateLimiterService | null = null;
+let initializationPromise: Promise<RateLimiterService> | null = null;
+
+export async function getRateLimiterService(): Promise<RateLimiterService> {
+  if (rateLimiterInstance) {
+    return rateLimiterInstance;
+  }
+
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = (async () => {
+    const instance = new RateLimiterService();
+    await instance.initialize();
+    rateLimiterInstance = instance;
+    return instance;
+  })();
+
+  return initializationPromise;
+}

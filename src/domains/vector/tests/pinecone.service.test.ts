@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { PineconeVectorStore } from '../services/pinecone.service';
 import { Vector } from '@shared/types';
-
-// Mock the pinecone repository
+// Mock the pinecone repository using common mock
 vi.mock('../repos/pinecone.repo', () => ({
   pinecone: {
     index: vi.fn(),

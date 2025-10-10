@@ -69,21 +69,30 @@ describe('PromptService Performance Tests', () => {
 
   describe('Token Counting Efficiency', () => {
     it('should cache tokenization results', async () => {
-      const text = 'This is a test document for tokenization caching.';
+      const input = {
+        question: 'What is the main point of this document?',
+        context: 'This is a test document for tokenization caching.',
+        chatHistory: [],
+      };
+
+      // Clear any existing cache to ensure clean test
+      const service = promptService as unknown as {
+        tokenCache: Map<string, number>;
+        tokenizationCount: number;
+      };
+      service.tokenCache.clear();
+      service.tokenizationCount = 0;
 
       // First call
-      const start1 = Date.now();
-      const result1 = await promptService.sanitizeText(text);
-      const duration1 = Date.now() - start1;
+      const result1 = await promptService.mainPrompt(input);
 
-      // Second call with same text
-      const start2 = Date.now();
-      const result2 = await promptService.sanitizeText(text);
-      const duration2 = Date.now() - start2;
+      // Second call with same input
+      const result2 = await promptService.mainPrompt(input);
 
       expect(result1).toBe(result2);
-      // Second call should be faster due to caching
-      expect(duration2).toBeLessThanOrEqual(duration1);
+
+      // Verify tokenizer was called only once due to caching
+      expect(mockTokenizer.countTokens).toHaveBeenCalledTimes(1);
     });
 
     it('should handle repeated tokenization efficiently', async () => {
@@ -105,9 +114,29 @@ describe('PromptService Performance Tests', () => {
     });
   });
 
-  describe('Memory Usage Patterns', () => {
-    it('should not leak memory with repeated operations', async () => {
+  describe('Memory Usage Patterns (Experimental)', () => {
+    it('should not leak memory with repeated operations (requires --expose-gc)', async () => {
+      // Skip if global.gc is not available
+      const gc = (global as any).gc;
+      if (typeof gc !== 'function') {
+        console.log(
+          'Skipping memory test: global.gc not available. Run with --expose-gc flag.',
+        );
+        return;
+      }
+      // This test requires Node.js to be run with --expose-gc flag
+      // It's designed for manual performance profiling and CI performance monitoring
       const text = 'This is a test document for memory leak detection.';
+
+      // Warm-up phase to stabilize memory
+      for (let i = 0; i < 100; i++) {
+        await promptService.sanitizeText(text);
+      }
+
+      // Force garbage collection and wait for it to complete
+      gc();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const initialMemory = process.memoryUsage().heapUsed;
 
       // Perform many operations
@@ -116,27 +145,53 @@ describe('PromptService Performance Tests', () => {
         expect(result).toBeDefined();
       }
 
+      // Force garbage collection again and wait
+      gc();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const finalMemory = process.memoryUsage().heapUsed;
       const memoryGrowth = finalMemory - initialMemory;
 
       // Allow some growth, but flag excessive increases
-      expect(memoryGrowth).toBeLessThan(10 * 1024 * 1024); // 10MB threshold
+      expect(memoryGrowth).toBeLessThan(5 * 1024 * 1024); // 5MB threshold (more conservative)
     });
 
-    it('should handle large text without excessive memory usage', async () => {
+    it('should handle large text without excessive memory usage (requires --expose-gc)', async () => {
+      // Skip if global.gc is not available
+      const gc = (global as any).gc;
+      if (typeof gc !== 'function') {
+        console.log(
+          'Skipping memory test: global.gc not available. Run with --expose-gc flag.',
+        );
+        return;
+      }
+      // This test requires Node.js to be run with --expose-gc flag
+      // It's designed for manual performance profiling and CI performance monitoring
       const largeText = 'A'.repeat(LARGE_DOCUMENT_THRESHOLD);
+
+      // Warm-up phase
+      await promptService.sanitizeText(largeText.substring(0, 1000));
+
+      // Force garbage collection and wait
+      gc();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const initialMemory = process.memoryUsage().heapUsed;
 
       const start = Date.now();
       const result = await promptService.sanitizeText(largeText);
       const duration = Date.now() - start;
 
+      // Force garbage collection and wait
+      gc();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const finalMemory = process.memoryUsage().heapUsed;
       const memoryUsed = finalMemory - initialMemory;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(2000); // Should process efficiently
-      expect(memoryUsed).toBeLessThan(50 * 1024 * 1024); // Should not use more than 50MB
+      expect(memoryUsed).toBeLessThan(20 * 1024 * 1024); // More conservative 20MB threshold
     });
   });
 

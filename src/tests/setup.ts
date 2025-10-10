@@ -1,20 +1,30 @@
-import 'dotenv/config';
+// Load test environment variables FIRST, before any other imports
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load test environment variables from env.test file
+config({ path: resolve(process.cwd(), 'env.test') });
+
+// Set NODE_ENV to test to ensure proper config loading
+process.env.NODE_ENV = 'test';
+
 import { vi } from 'vitest';
-import { secretsManager } from '../config/secrets.config';
+import { initializeConfig } from '../config/app.config';
 
-// Set up test environment variables
-process.env.JWT_SECRET = '7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk=';
-process.env.JWT_EXPIRES_IN = '3600';
-process.env.JWT_AUDIENCE = 'test-audience';
-process.env.JWT_ISSUER = 'test-issuer';
-process.env.JWT_MAX_AGE = '86400';
+// Initialize config explicitly for tests
+try {
+  initializeConfig();
+} catch (error) {
+  console.warn('Failed to initialize config in test setup:', error);
+}
 
-// Required secrets for tests
-process.env.HUGGINGFACE_TOKEN = 'test-huggingface-token';
-process.env.PINECONE_API_KEY = 'test-pinecone-api-key';
-process.env.MINIO_ACCESS_KEY = 'test-minio-access-key';
-process.env.MINIO_SECRET_KEY = 'test-minio-secret-key';
-process.env.POSTGRES_PASSWORD = 'test-postgres-password';
+// Initialize secrets for tests
+try {
+  const { secretsManager } = await import('../config/secrets.config');
+  secretsManager.initialize();
+} catch (error) {
+  console.warn('Failed to initialize secrets in test setup:', error);
+}
 
 vi.mock('minio', () => {
   return {
@@ -69,11 +79,5 @@ vi.mock('../service/pinecone', () => ({
   upsertVectors: vi.fn(),
 }));
 
-// Initialize secrets after environment setup
-(async () => {
-  try {
-    await secretsManager.initialize();
-  } catch (error) {
-    console.error('Failed to initialize secrets in test setup:', error);
-  }
-})();
+// Note: secretsManager.initialize() removed to prevent circular dependency
+// Test environment variables are loaded via dotenv above

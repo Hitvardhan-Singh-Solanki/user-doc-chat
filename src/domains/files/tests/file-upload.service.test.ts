@@ -6,17 +6,18 @@ import * as minioService from '@storage/providers/minio.provider';
 import { queueAdapter } from '@queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
+import { createDatabaseMock } from '@tests/mocks';
 
 // Mock external dependencies
 vi.mock('file-type', () => ({
   fileTypeFromBuffer: vi.fn(),
 }));
 
-vi.mock('../../../infrastructure/storage/providers/minio.provider', () => ({
+vi.mock('@storage/providers/minio.provider', () => ({
   uploadFileToMinio: vi.fn(),
 }));
 
-vi.mock('../../../infrastructure/queue/providers/bullmq.provider', () => ({
+vi.mock('@queue/providers/bullmq.provider', () => ({
   queueAdapter: {
     enqueue: vi.fn(),
   },
@@ -40,11 +41,8 @@ describe('FileUploadService', () => {
   };
 
   beforeEach(() => {
-    // Setup mocks
-    mockDb = {
-      query: vi.fn(),
-      withTransaction: vi.fn(),
-    };
+    // Setup mocks using common mock builders
+    mockDb = createDatabaseMock();
 
     mockFileTypeFromBuffer = vi.mocked(fileTypeFromBuffer);
     mockUploadFileToMinio = vi.mocked(minioService.uploadFileToMinio);
@@ -220,7 +218,7 @@ describe('FileUploadService', () => {
     });
 
     it('should reject upload when file-type detection returns null', async () => {
-      const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
+      const mockFile = createMockFile('image/jpeg', 'document.pdf', 1024);
       const userId = 'user123';
 
       mockFileTypeFromBuffer.mockResolvedValue(null);

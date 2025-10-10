@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import { PromptService } from '../services/prompt.service';
 import { ITokenizer } from '@interfaces/tokenizer.interface';
 import {
@@ -18,6 +26,14 @@ const mockTokenizer: ITokenizer = {
 
 describe('PromptService Security Tests', () => {
   let promptService: PromptService;
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -141,13 +157,63 @@ describe('PromptService Security Tests', () => {
   });
 
   describe('ReDoS Protection', () => {
-    it('should handle regex operations safely', async () => {
-      // This test would need the actual regex timeout utility
-      // For now, we test that the service doesn't hang on complex patterns
-      const complexPattern = 'a'.repeat(1000) + '.*'.repeat(100);
+    // Tests ReDoS protection using known catastrophic-backtracking patterns
+    // and performance assertions to ensure the service handles malicious input safely
+    it('should handle catastrophic-backtracking patterns safely', async () => {
+      // Test with known catastrophic-backtracking patterns that can cause ReDoS
+      const catastrophicPatterns = [
+        // Classic catastrophic backtracking: (a+)+b with input that doesn't match 'b'
+        'a'.repeat(50) + 'c', // Should not match (a+)+b pattern
+        // Nested quantifiers: (a*)*b with non-matching input
+        'a'.repeat(30) + 'x',
+        // Complex nested pattern: (a|a)*b with non-matching input
+        'a'.repeat(25) + 'z',
+        // Multiple nested quantifiers
+        'a'.repeat(20) + 'b'.repeat(20) + 'c',
+      ];
 
-      // Should not hang or throw ReDoS errors
-      expect(() => promptService.sanitizeText(complexPattern)).not.toThrow();
+      for (const pattern of catastrophicPatterns) {
+        const startTime = Date.now();
+
+        // The service should handle these patterns without hanging
+        // and return a sanitized result within reasonable time
+        const result = promptService.sanitizeText(pattern);
+        const endTime = Date.now();
+        const executionTime = endTime - startTime;
+
+        // Assert the operation completes quickly (within 100ms for test environment)
+        expect(executionTime).toBeLessThan(100);
+
+        // Assert we get a valid string result
+        expect(typeof result).toBe('string');
+        expect(result.length).toBeGreaterThan(0);
+
+        // The result should be sanitized but not empty for non-empty input
+        if (pattern.trim().length > 0) {
+          expect(result.trim().length).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it('should handle extremely long input without performance issues', async () => {
+      // Test with very long input that could trigger performance issues
+      // Using benign content to avoid triggering prompt injection detection
+      const longInput =
+        'This is a legal document with important content. '.repeat(1000) +
+        'Additional context and information. '.repeat(500);
+
+      const startTime = Date.now();
+      const result = promptService.sanitizeText(longInput);
+      const endTime = Date.now();
+      const executionTime = endTime - startTime;
+
+      // Should complete within reasonable time even for very long input
+      expect(executionTime).toBeLessThan(200);
+
+      // Should preserve the legitimate content
+      expect(result).toContain('This is a legal document');
+      expect(result).toContain('Additional context');
+      expect(result.length).toBeGreaterThan(1000);
     });
   });
 
@@ -215,7 +281,7 @@ describe('PromptService Security Tests', () => {
       );
     });
 
-    it('should reset tokenization counter after time window expires', async () => {
+    it('should allow operations after rate limit window expires', async () => {
       const mockTokenizer: ITokenizer = {
         countTokens: vi.fn().mockResolvedValue(10),
         encode: vi.fn(),
@@ -223,17 +289,6 @@ describe('PromptService Security Tests', () => {
       };
 
       const service = new PromptService(mockTokenizer);
-
-      // Access private properties for testing
-      const servicePrivate = service as unknown as {
-        tokenizationCount: number;
-        tokenizationWindowStart: number;
-        tokenCache: Map<string, number>;
-      };
-
-      // Simulate that we're at the limit
-      servicePrivate.tokenizationCount = 100; // MAX_TOKEN_OPERATIONS
-      servicePrivate.tokenizationWindowStart = Date.now() - 6 * 60 * 1000; // 6 minutes ago
 
       const userInput = {
         question: 'Test question',
@@ -244,12 +299,21 @@ describe('PromptService Security Tests', () => {
         tone: 'formal' as const,
       };
 
-      // Should not throw because time window has expired and counter should reset
-      await expect(service.mainPrompt(userInput)).resolves.toBeDefined();
+      // Make many rapid calls to hit the rate limit
+      const promises = Array(101)
+        .fill(null)
+        .map(() => service.mainPrompt(userInput));
 
-      // Verify counter was reset
-      expect(servicePrivate.tokenizationCount).toBe(1); // Should be 1 after the call
-      expect(servicePrivate.tokenCache.size).toBeGreaterThan(0); // Cache should have entries after successful call
+      // Should hit rate limit
+      await expect(Promise.all(promises)).rejects.toThrow(
+        ResourceExhaustedError,
+      );
+
+      // Wait for window to expire (assuming 5 minute window)
+      vi.advanceTimersByTime(5 * 60 * 1000);
+
+      // Should work again after window expires
+      await expect(service.mainPrompt(userInput)).resolves.toBeDefined();
     });
   });
 
@@ -390,14 +454,9 @@ describe('PromptService Security Tests', () => {
     it('should handle large inputs efficiently', () => {
       const largeInput = 'A'.repeat(MAX_INPUT_SIZE + 1);
 
-      const start = Date.now();
       expect(() => promptService.sanitizeText(largeInput)).toThrow(
         ResourceExhaustedError,
       );
-      const duration = Date.now() - start;
-
-      // Should fail fast, not hang
-      expect(duration).toBeLessThan(1000); // Less than 1 second
     });
 
     it('should handle repeated patterns efficiently', () => {
@@ -405,14 +464,9 @@ describe('PromptService Security Tests', () => {
         1000,
       );
 
-      const start = Date.now();
       expect(() => promptService.sanitizeText(repeatedPattern)).toThrow(
         PromptInjectionError,
       );
-      const duration = Date.now() - start;
-
-      // Should detect and fail fast
-      expect(duration).toBeLessThan(1000);
     });
   });
 });

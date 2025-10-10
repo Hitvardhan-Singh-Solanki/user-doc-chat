@@ -99,7 +99,6 @@ describe('RegexValidator', () => {
     });
   });
 
-
   describe('isSafePattern', () => {
     it('should identify safe patterns', () => {
       const safePatterns = [
@@ -124,11 +123,7 @@ describe('RegexValidator', () => {
 
     it('should identify unsafe patterns', () => {
       // Only patterns that safe-regex2 actually considers unsafe
-      const unsafePatterns = [
-        '(a+)+',
-        '(a*)*',
-        '(a?)?',
-      ];
+      const unsafePatterns = ['(a+)+', '(a*)*', '(a?)?'];
 
       unsafePatterns.forEach((pattern) => {
         expect(RegexValidator.isSafePattern(pattern)).toBe(false);

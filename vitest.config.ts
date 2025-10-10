@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import type { UserConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig(async (): Promise<UserConfig> => {
   const tsconfigPaths = await import('vite-tsconfig-paths');
@@ -13,6 +14,10 @@ export default defineConfig(async (): Promise<UserConfig> => {
         reporter: ['text', 'lcov'],
       },
       setupFiles: ['./src/tests/setup.ts'],
+      env: {
+        NODE_ENV: 'test',
+      },
     },
+    envDir: resolve(process.cwd()),
   };
 });

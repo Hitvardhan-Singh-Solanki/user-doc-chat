@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '@config/logger.config';
-import { rateLimiterService } from '@cache/rate-limiter.service';
+import { getRateLimiterService } from '@cache/rate-limiter.service';
 import { config } from '@config';
 
 /**
@@ -185,6 +185,39 @@ class InMemoryFileUploadLimiter {
     // Increment count
     record.count++;
     return false;
+  }
+
+  getRateLimitInfo(key: string): {
+    limit: number;
+    remaining: number;
+    resetTime: number;
+    retryAfter: number;
+  } {
+    const now = Date.now();
+    const record = this.attempts.get(key);
+
+    if (!record || now > record.resetTime) {
+      // No record or expired - full allowance
+      return {
+        limit: this.maxAttempts,
+        remaining: this.maxAttempts,
+        resetTime: now + this.windowMs,
+        retryAfter: 0,
+      };
+    }
+
+    const remaining = Math.max(0, this.maxAttempts - record.count);
+    const retryAfter =
+      record.count >= this.maxAttempts
+        ? Math.ceil((record.resetTime - now) / 1000)
+        : 0;
+
+    return {
+      limit: this.maxAttempts,
+      remaining,
+      resetTime: record.resetTime,
+      retryAfter,
+    };
   }
 
   // Clean up expired entries periodically
@@ -465,9 +498,9 @@ export function rateLimit(
 ): void {
   const key = req.ip || 'unknown';
 
-  rateLimiterService
-    .consumeGeneral(key)
-    .then(async () => {
+  getRateLimiterService()
+    .then(async (rateLimiterService) => {
+      await rateLimiterService.consumeGeneral(key);
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'general',
@@ -591,9 +624,9 @@ export function authRateLimit(
 ): void {
   const key = req.ip || 'unknown';
 
-  rateLimiterService
-    .consumeAuth(key)
-    .then(async () => {
+  getRateLimiterService()
+    .then(async (rateLimiterService) => {
+      await rateLimiterService.consumeAuth(key);
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'auth',
@@ -721,9 +754,9 @@ export function fileUploadRateLimit(
 ): void {
   const key = req.ip || 'unknown';
 
-  rateLimiterService
-    .consumeFileUpload(key)
-    .then(async () => {
+  getRateLimiterService()
+    .then(async (rateLimiterService) => {
+      await rateLimiterService.consumeFileUpload(key);
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'upload',
@@ -786,6 +819,7 @@ export function fileUploadRateLimit(
 
       // Fail-closed strategy: use in-memory fallback for file uploads
       // File uploads are resource-intensive and need protection even during Redis outages
+      const rateLimitInfo = inMemoryFileUploadLimiter.getRateLimitInfo(key);
       if (inMemoryFileUploadLimiter.isBlocked(key)) {
         logger.warn(
           {
@@ -796,16 +830,19 @@ export function fileUploadRateLimit(
           'File upload blocked by in-memory fallback rate limiter',
         );
 
-        res.setHeader('X-RateLimit-Limit', '10');
-        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader('X-RateLimit-Limit', rateLimitInfo.limit.toString());
+        res.setHeader(
+          'X-RateLimit-Remaining',
+          rateLimitInfo.remaining.toString(),
+        );
         res.setHeader(
           'X-RateLimit-Reset',
-          new Date(Date.now() + 60000).toISOString(), // 1 minute fallback
+          new Date(rateLimitInfo.resetTime).toISOString(),
         );
 
         res.status(429).json({
           error: 'Too many file uploads (fallback protection)',
-          retryAfter: 60,
+          retryAfter: rateLimitInfo.retryAfter,
         });
         return;
       }
@@ -819,11 +856,14 @@ export function fileUploadRateLimit(
         'File upload allowed via in-memory fallback rate limiter',
       );
 
-      res.setHeader('X-RateLimit-Limit', '10');
-      res.setHeader('X-RateLimit-Remaining', '9'); // Conservative estimate
+      res.setHeader('X-RateLimit-Limit', rateLimitInfo.limit.toString());
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remaining.toString(),
+      );
       res.setHeader(
         'X-RateLimit-Reset',
-        new Date(Date.now() + 60000).toISOString(),
+        new Date(rateLimitInfo.resetTime).toISOString(),
       );
 
       next();

@@ -5,6 +5,11 @@ import { VectorStoreService } from '@vector/services/vector-store.service';
 import { LLMService } from '@chat/services/llm.service';
 import { SearchResult, EnrichmentOptions } from './index';
 
+// Re-export types from other test type files
+export * from './mock.types';
+export * from './performance.types';
+export * from './container.types';
+
 export interface MockRequest extends Partial<Request> {
   ip?: string;
   headers: Record<string, string>;
@@ -69,9 +74,11 @@ export class RedisConnectionError extends Error {
 }
 
 export interface MockRateLimiterService {
+  initialize: () => Promise<void>;
   consumeGeneral: (key: string) => Promise<void>;
   consumeAuth: (key: string) => Promise<void>;
   consumeFileUpload: (key: string) => Promise<void>;
+  consumeChat: (key: string) => Promise<void>;
   getRateLimitInfo: (
     key: string,
     type: string,
@@ -79,6 +86,10 @@ export interface MockRateLimiterService {
     remainingPoints: number;
     msBeforeNext: number;
   }>;
+  getRemainingPoints: (key: string, type: string) => Promise<number>;
+  getTotalHits: (key: string, type: string) => Promise<number>;
+  reset: (key: string, type: string) => Promise<void>;
+  isRedisBackend: () => boolean;
 }
 
 export interface TestLogger {

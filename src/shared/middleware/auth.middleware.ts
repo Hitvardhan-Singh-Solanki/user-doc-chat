@@ -76,9 +76,9 @@ export const requireAuth = expressjwt({
   secret: validatedJwtSecret,
   algorithms: ['HS256'], // Only allow HS256 to prevent algorithm confusion attacks
   requestProperty: 'user',
-  // Security: validate audience and issuer if provided
-  audience: undefined, // Not in current config
-  issuer: undefined, // Not in current config
+  // Security: validate audience and issuer for enhanced security
+  audience: secretsManager.getJwtAudience(),
+  issuer: secretsManager.getJwtIssuer(),
   // Security: don't ignore expiration or not-before claims
   ignoreExpiration: false,
   ignoreNotBefore: false,

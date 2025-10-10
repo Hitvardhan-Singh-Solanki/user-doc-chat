@@ -103,8 +103,14 @@ export class FileUploadService {
             'Mimetype mismatch detected - using detected type for security',
           );
         }
+      } else if (acceptedMimeTypes.includes(file.mimetype)) {
+        // Some formats (e.g. text/plain) have no signature; trust declared type
+        log.warn(
+          { claimedMime: file.mimetype },
+          'File signature detection inconclusive - falling back to declared MIME type',
+        );
+        finalMimeType = file.mimetype;
       } else {
-        // Signature detection failed - reject upload for security
         log.warn(
           { claimedMime: file.mimetype },
           'File signature detection inconclusive - rejecting upload for security',
