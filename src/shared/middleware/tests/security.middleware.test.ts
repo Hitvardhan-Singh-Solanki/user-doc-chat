@@ -12,6 +12,7 @@ import {
   MockResponse,
   MockNextFunction,
   RateLimitError,
+  RateLimitErrorImpl,
   RedisConnectionError,
   MockRateLimiterService,
   TestLogger,
@@ -83,10 +84,7 @@ describe('Security Middleware', () => {
     });
 
     it('should return 429 when rate limit is exceeded', async () => {
-      const rateLimitError: RateLimitError = {
-        remainingPoints: 0,
-        msBeforeNext: 5000,
-      };
+      const rateLimitError = new RateLimitErrorImpl(0, 5000);
 
       mockRateLimiterService.consumeGeneral = vi
         .fn()
@@ -113,10 +111,7 @@ describe('Security Middleware', () => {
     });
 
     it('should call next() when Redis connection fails', async () => {
-      const redisError: RedisConnectionError = new Error(
-        'Redis connection failed',
-      );
-      redisError.code = 'ECONNREFUSED';
+      const redisError = new RedisConnectionError('Redis connection failed');
 
       mockRateLimiterService.consumeGeneral = vi
         .fn()
@@ -163,10 +158,7 @@ describe('Security Middleware', () => {
     });
 
     it('should return 429 when auth rate limit is exceeded', async () => {
-      const rateLimitError: RateLimitError = {
-        remainingPoints: 0,
-        msBeforeNext: 300000,
-      };
+      const rateLimitError = new RateLimitErrorImpl(0, 300000);
 
       mockRateLimiterService.consumeAuth = vi
         .fn()
@@ -189,8 +181,7 @@ describe('Security Middleware', () => {
     });
 
     it('should call next() when Redis connection fails for auth', async () => {
-      const redisError: RedisConnectionError = new Error('Redis timeout');
-      redisError.code = 'ETIMEDOUT';
+      const redisError = new RedisConnectionError('Redis timeout');
 
       mockRateLimiterService.consumeAuth = vi
         .fn()
@@ -244,10 +235,7 @@ describe('Security Middleware', () => {
     });
 
     it('should return 429 when file upload rate limit is exceeded', async () => {
-      const rateLimitError: RateLimitError = {
-        remainingPoints: 0,
-        msBeforeNext: 1800000,
-      };
+      const rateLimitError = new RateLimitErrorImpl(0, 1800000);
 
       mockRateLimiterService.consumeFileUpload = vi
         .fn()
@@ -270,10 +258,7 @@ describe('Security Middleware', () => {
     });
 
     it('should call next() when Redis connection fails for file upload', async () => {
-      const redisError: RedisConnectionError = new Error(
-        'Redis server unavailable',
-      );
-      redisError.code = 'ENOTFOUND';
+      const redisError = new RedisConnectionError('Redis server unavailable');
 
       mockRateLimiterService.consumeFileUpload = vi
         .fn()

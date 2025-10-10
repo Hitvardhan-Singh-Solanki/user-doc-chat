@@ -1,4 +1,5 @@
 import { logger } from './logger.config';
+import { Secrets } from '@shared/types/secrets.types';
 
 /**
  * Secrets management module
@@ -12,29 +13,6 @@ import { logger } from './logger.config';
  * - Implement secret rotation capabilities
  * - Audit secret access
  */
-
-interface Secrets {
-  // JWT
-  jwtSecret: string;
-
-  // AI/LLM
-  huggingfaceToken: string;
-
-  // Vector Store
-  pineconeApiKey: string;
-
-  // MinIO/S3
-  minioAccessKey: string;
-  minioSecretKey: string;
-
-  // Database
-  postgresPassword: string;
-  redisPassword?: string;
-
-  // Sanitizer Service
-  sanitizerHost?: string;
-  sanitizerTimeout?: number;
-}
 
 class SecretsManager {
   private secrets: Secrets | null = null;

@@ -24,7 +24,9 @@
     "generate-proto": "grpc_tools_node_protoc   --js_out=import_style=commonjs,binary:./src/infrastructure/external-services/grpc/proto   --grpc_out=grpc_js:./src/infrastructure/external-services/grpc/proto   --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts   --ts_out=grpc_js:./src/infrastructure/external-services/grpc/proto   -I ./proto   ./proto/sanitizer.proto",
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
-    "postinstall": "echo '⚠️  Security Warning: Only install trusted packages. Avoid similarly named untrusted packages like core-pino, pino-final, or other malicious lookalikes.'"
+    "pre-push": "./scripts/pre-push.sh",
+    "postinstall": "echo '⚠️  Security Warning: Only install trusted packages. Avoid similarly named untrusted packages like core-pino, pino-final, or other malicious lookalikes.'",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -47,6 +49,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "grpc-tools": "^1.13.0",
+    "husky": "^9.1.7",
     "nodemon": "^3.1.10",
     "pino-pretty": "^13.1.1",
     "prettier": "^3.6.2",

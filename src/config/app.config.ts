@@ -102,9 +102,7 @@ try {
 }
 
 export { config };
-export type AppConfig = z.infer<typeof envSchema>;
 
-// Export individual config sections for better organization
 export const serverConfig = {
   nodeEnv: config.NODE_ENV,
   port: config.PORT,

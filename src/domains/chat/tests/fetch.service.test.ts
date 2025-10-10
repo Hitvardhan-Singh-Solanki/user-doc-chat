@@ -1,23 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchHTMLService } from '../services/fetch.service';
-
-type FetchHTMLServiceWithPrivateMethods = {
-  fetchPageText: ReturnType<typeof vi.fn>;
-  fetchExtract: ReturnType<typeof vi.fn>;
-  validateUrlForSSRF: ReturnType<typeof vi.fn>;
-  isPublicAddress: ReturnType<typeof vi.fn>;
-  isPrivateAddress: ReturnType<typeof vi.fn>;
-  fetchHTML: (
-    results: SearchResult[],
-    options?: EnrichmentOptions,
-  ) => Promise<(string | undefined)[]>;
-};
-import { SearchResult, EnrichmentOptions } from '@shared/types';
+import { FetchHTMLServiceWithPrivateMethods } from '@shared/types/test.types';
+import { EnrichmentOptions, SearchResult } from '@shared/types';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 
-// Mock external dependencies
-// A simpler p-limit mock that runs tasks immediately
 vi.mock('p-limit', () => ({
   default: vi.fn((/* _concurrency */) => {
     return (fn: () => Promise<unknown>) => fn();
@@ -40,7 +27,6 @@ vi.mock('dns/promises', () => ({
   }),
 }));
 
-// A more robust mock for jsdom and readability
 vi.mock('jsdom', () => ({
   JSDOM: vi.fn((html: string /* _options: unknown */) => ({
     window: {
@@ -58,7 +44,6 @@ vi.mock('jsdom', () => ({
 vi.mock('@mozilla/readability', () => ({
   Readability: vi.fn((/* _dom */) => ({
     parse: () => {
-      // Direct return for successful parsing in the test.
       return {
         title: 'Mock Title',
         content: '<p>Mock Content</p>',
@@ -75,7 +60,6 @@ vi.mock('@mozilla/readability', () => ({
   })),
 }));
 
-// Mock the logger - define everything inline to avoid hoisting issues
 vi.mock('../config/logger', () => {
   const mockLogger = {
     info: vi.fn(),
@@ -92,7 +76,6 @@ vi.mock('../config/logger', () => {
   };
 });
 
-// Helper function to create mock fetch responses
 function makeFetchResponse({
   ok = true,
   status = 200,
@@ -114,7 +97,6 @@ function makeFetchResponse({
     read: vi.fn(),
   };
 
-  // Normalize header keys for case-insensitive lookup
   const lowerHeaders: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
     lowerHeaders[k.toLowerCase()] = v;
@@ -165,7 +147,6 @@ describe('FetchHTMLService', () => {
     svc = new FetchHTMLService();
     originalFetch = global.fetch;
 
-    // Mock global fetch
     global.fetch = vi.fn(async () => makeFetchResponse({}));
   });
 
@@ -188,7 +169,6 @@ describe('FetchHTMLService', () => {
       ];
       const options = { maxPagesToFetch: 3 };
 
-      // Spy on the private method fetchExtract
       const fetchExtractSpy = vi.spyOn(
         svc as unknown as { fetchExtract: (url: string) => Promise<string> },
         'fetchExtract',
@@ -234,14 +214,13 @@ describe('FetchHTMLService', () => {
 
       await svc.fetchHTML(results, {});
 
-      // Updated expectation to include chunkOverlap
       expect(fetchExtractSpy).toHaveBeenCalledWith(expect.any(Object), {
         maxPagesToFetch: 5,
         fetchConcurrency: 2,
         minContentLength: 2000,
         chunkSize: 1000,
         maxResults: 10,
-        chunkOverlap: 100, // Added this missing property
+        chunkOverlap: 100,
       });
     });
 
@@ -263,7 +242,7 @@ describe('FetchHTMLService', () => {
       minContentLength: 2000,
       chunkSize: 1000,
       maxResults: 10,
-      chunkOverlap: 100, // Added this property to match the service
+      chunkOverlap: 100,
     } as Required<EnrichmentOptions>;
 
     beforeEach(() => {
@@ -320,7 +299,6 @@ describe('FetchHTMLService', () => {
 
   describe('fetchPageText', () => {
     beforeEach(() => {
-      // Mock validateUrlForSSRF and isPublicAddress to simplify testing
       vi.spyOn(
         svc as unknown as FetchHTMLServiceWithPrivateMethods,
         'validateUrlForSSRF',
@@ -449,7 +427,6 @@ describe('FetchHTMLService', () => {
     it('should return null on timeout', async () => {
       global.fetch = vi.fn((_url, init?: RequestInit) => {
         return new Promise((_resolve, reject) => {
-          // Create and dispatch an AbortError instead of a generic error.
           const abortError = new DOMException(
             'The operation was aborted.',
             'AbortError',
@@ -457,8 +434,6 @@ describe('FetchHTMLService', () => {
           init?.signal?.addEventListener('abort', () => {
             reject(abortError);
           });
-          // To satisfy the type, we must return a promise that resolves to a Response.
-          // But in this test, we know it will be aborted and rejected.
         }) as Promise<Response>;
       });
 
@@ -467,7 +442,6 @@ describe('FetchHTMLService', () => {
       ).fetchPageText('https://example.com', 100);
       await vi.advanceTimersByTimeAsync(100);
 
-      // Assert that the function returns null after the timeout, as expected by the logic in the main file
       const result = await promise;
       expect(result).toBeNull();
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -508,7 +482,6 @@ describe('FetchHTMLService', () => {
   });
 
   describe('isPrivateAddress', () => {
-    // This part of the test file is correct and doesn't need changes, but it is included for completeness.
     it('should correctly identify private IPv4 addresses', () => {
       const privateAddresses = [
         '10.0.0.1',

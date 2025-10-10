@@ -2,38 +2,9 @@ import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { WebsocketService } from '../services/websocket.service';
 import { redisChatHistory } from '@database/repositories/redis.repo';
 import { serviceFactory } from '@shared/factories/service.factory';
-import { IDBStore } from '@interfaces/db-store.interface';
-import { VectorStoreService } from '../../vector/services/vector-store.service';
+import { WebsocketServiceWithPrivateMethods } from '@shared/types/test.types';
 import { LLMService } from '../services/llm.service';
-
-type WebsocketServiceWithPrivateMethods = {
-  db: IDBStore;
-  llmService: LLMService;
-  pineconeService: VectorStoreService;
-  processQuestion: (
-    question: string,
-    userId: string,
-    fileId: string,
-  ) => Promise<void>;
-  appendChatHistory: (
-    userId: string,
-    fileId: string,
-    message: string,
-  ) => Promise<void>;
-  getChatHistory: (userId: string, fileId: string) => Promise<string[]>;
-  trimChatHistory: (
-    userId: string,
-    fileId: string,
-    maxEntries?: number,
-  ) => Promise<void>;
-  getOrCreateChat: (userId: string, fileId?: string) => Promise<string>;
-  appendChatMessage: (
-    chatId: string,
-    sender: 'user' | 'ai',
-    message: string,
-  ) => Promise<void>;
-  _authMiddleware: unknown;
-};
+import { VectorStoreService } from '@vector/services/vector-store.service';
 
 vi.mock('../../../infrastructure/database/repositories/redis.repo', () => ({
   redisChatHistory: {
