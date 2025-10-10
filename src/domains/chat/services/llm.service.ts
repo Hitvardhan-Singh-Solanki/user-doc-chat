@@ -317,11 +317,12 @@ export class LLMService {
     );
 
     try {
+      const resolvedPrompt = await prompt;
       const stream = withStreamTimeout(
         () =>
           this.inferenceClient.chatCompletionStream({
             model: this.hfChatModel,
-            messages: [{ role: 'user', content: prompt }],
+            messages: [{ role: 'user', content: resolvedPrompt }],
             max_tokens: 1000,
             temperature: 0.1,
           }),
@@ -351,11 +352,12 @@ export class LLMService {
     const prompt = promptService.mainPrompt(userInput, config);
 
     try {
+      const resolvedPrompt = await prompt;
       const stream = withStreamTimeout(
         () =>
           this.inferenceClient.chatCompletionStream({
             model: this.hfChatModel,
-            messages: [{ role: 'user', content: prompt }],
+            messages: [{ role: 'user', content: resolvedPrompt }],
           }),
         this.CHAT_COMPLETION_TIMEOUT_MS,
         'Chat completion stream',
@@ -384,9 +386,10 @@ export class LLMService {
       config,
     );
 
+    const resolvedPrompt = await prompt;
     const chatCompletionPromise = this.inferenceClient.chatCompletion({
       model: this.hfSummaryModel,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: resolvedPrompt }],
     });
 
     const chatCompletionOut = await withTimeout(
