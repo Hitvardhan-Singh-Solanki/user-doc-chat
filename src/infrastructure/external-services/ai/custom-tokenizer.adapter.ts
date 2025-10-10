@@ -8,7 +8,7 @@ export class SimpleTokenizerAdapter implements ITokenizer {
 
   encode(text: string): number[] {
     // Split text into tokens, preserving spaces as separate tokens
-    const tokens = text.split(/(\s+)/).filter(token => token.length > 0);
+    const tokens = text.split(/(\s+)/).filter((token) => token.length > 0);
     return tokens.map((token) => {
       if (!this.vocabulary.has(token)) {
         this.vocabulary.set(token, this.nextId);
