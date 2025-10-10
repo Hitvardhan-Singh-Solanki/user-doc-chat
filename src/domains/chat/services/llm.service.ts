@@ -47,12 +47,10 @@ async function withTimeout<T>(
   } catch (err: any) {
     clearTimeout(timeoutId);
 
-    // If the error is from our timeout, re-throw it
     if (err.message?.includes('timed out after')) {
       throw err;
     }
 
-    // For other errors, check if they're abort-related
     if (controller.signal.aborted || err.name === 'AbortError') {
       throw new Error(
         `${operationName} request timed out after ${timeoutMs}ms`,
@@ -84,7 +82,6 @@ async function* withStreamTimeout<T>(
     const generator = generatorFactory();
 
     for await (const item of generator) {
-      // Check if we've been aborted
       if (controller.signal.aborted) {
         throw new Error(
           `${operationName} request timed out after ${timeoutMs}ms`,
@@ -98,12 +95,10 @@ async function* withStreamTimeout<T>(
   } catch (err: any) {
     clearTimeout(timeoutId);
 
-    // If the error is from our timeout, re-throw it
     if (err.message?.includes('timed out after')) {
       throw err;
     }
 
-    // For other errors, check if they're abort-related
     if (controller.signal.aborted || err.name === 'AbortError') {
       throw new Error(
         `${operationName} request timed out after ${timeoutMs}ms`,
@@ -127,9 +122,8 @@ export class LLMService {
   private readonly tokenizerReady: Promise<void>;
   private readonly circuitBreakerReady: Promise<void>;
 
-  // Timeout configurations
-  private readonly CHAT_COMPLETION_TIMEOUT_MS = 30_000; // 30 seconds
-  private readonly TEXT_GENERATION_TIMEOUT_MS = 30_000; // 30 seconds
+  private readonly CHAT_COMPLETION_TIMEOUT_MS = 30_000;
+  private readonly TEXT_GENERATION_TIMEOUT_MS = 30_000;
 
   constructor() {
     this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || '';
@@ -146,11 +140,9 @@ export class LLMService {
     if (!this.hfSummaryModel)
       throw new Error('HUGGINGFACE_SUMMARY_MODEL is required');
 
-    // Initialize with SimpleTokenizerAdapter for immediate availability
     const simpleTokenizer = new SimpleTokenizerAdapter();
     this.promptService = new PromptService(simpleTokenizer);
 
-    // Initialize Xenova tokenizer asynchronously
     const xenovaAdapter = new XenovaTokenizerAdapter(this.hfChatModel);
 
     this.tokenizerReady = xenovaAdapter
@@ -161,12 +153,11 @@ export class LLMService {
       })
       .catch((err) => {
         logger.error({ err }, 'Failed to initialize Xenova tokenizer');
-        throw err; // Re-throw to reject the ready Promise
+        throw err;
       });
 
     this.inferenceClient = new InferenceClient(this.hfToken);
 
-    // Initialize circuit breaker after tokenizer is ready to ensure it only measures embedding call time
     this.circuitBreakerReady = this.tokenizerReady.then(() => {
       this.embeddingBreaker = createCircuitBreaker(
         this.embeddingHF.bind(this),
@@ -270,7 +261,6 @@ export class LLMService {
     return emb as number[];
   }
 
-  // Private method, protected by the circuit breaker
   private async embeddingHF(text: string): Promise<number[]> {
     if (!this.hfToken || !this.hfEmbeddingModel)
       throw new Error('HuggingFace token or embedding model missing');
@@ -295,10 +285,8 @@ export class LLMService {
     throw new Error('Unexpected HuggingFace embeddings shape');
   }
 
-  // 🚀 Public method to be called by other services
   public async getEmbedding(text: string): Promise<number[]> {
     try {
-      // Ensure circuit breaker is ready before using it
       await this.circuitBreakerReady;
       return await this.embeddingBreaker.fire(text);
     } catch (err) {
@@ -306,6 +294,48 @@ export class LLMService {
         { err, isBreaker: this.embeddingBreaker?.opened },
         'LLM Embedding call failed via circuit breaker',
       );
+      throw err;
+    }
+  }
+
+  async *generateAnswerStreamWithEnrichment(
+    userInput: z.infer<typeof UserInputSchema>,
+    enrichedContext: string,
+    config?: PromptConfig,
+  ) {
+    if (!this.hfToken) throw new Error('HuggingFace token missing');
+
+    const promptService = await this.getPromptService();
+
+    const prompt = promptService.mainPrompt(
+      {
+        question: userInput.question,
+        context: enrichedContext,
+        chatHistory: userInput.chatHistory ?? [],
+      },
+      config,
+    );
+
+    try {
+      const stream = withStreamTimeout(
+        () =>
+          this.inferenceClient.chatCompletionStream({
+            model: this.hfChatModel,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 1000,
+            temperature: 0.1,
+          }),
+        this.CHAT_COMPLETION_TIMEOUT_MS,
+        'chat completion with enrichment',
+      );
+
+      for await (const chunk of stream) {
+        if (chunk.choices?.[0]?.delta?.content) {
+          yield chunk.choices[0].delta.content;
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, 'Error in enriched answer generation');
       throw err;
     }
   }
@@ -318,49 +348,8 @@ export class LLMService {
 
     const promptService = await this.getPromptService();
 
-    // Check for enrichment before any streaming
-    let enrichmentResults: SearchResult[] | null = null;
-    let shouldUseEnrichedPrompt = false;
+    const prompt = promptService.mainPrompt(userInput, config);
 
-    try {
-      if (this._enrichmentService) {
-        // Call enrichment service with just the question to detect if enrichment is needed
-        // Note: The interface expects both question and answer, but we're calling it early
-        // with an empty answer to detect if enrichment should be used
-        enrichmentResults = await this._enrichmentService.enrichIfUnknown(
-          userInput.question,
-          '', // Empty answer since we're checking before generation
-        );
-        shouldUseEnrichedPrompt = (enrichmentResults?.length ?? 0) > 0;
-      }
-    } catch (err) {
-      logger.warn(
-        { err },
-        'Enrichment check failed; proceeding with original prompt',
-      );
-      // Safe fallback: continue with original prompt if enrichment check fails
-    }
-
-    // Build the appropriate prompt based on enrichment results
-    let prompt: string;
-    if (shouldUseEnrichedPrompt && enrichmentResults?.length) {
-      const enrichedContext = enrichmentResults
-        .map((r) => `${r.title}: ${r.snippet}`)
-        .join('\n\n');
-
-      prompt = promptService.mainPrompt(
-        {
-          question: userInput.question,
-          context: enrichedContext,
-          chatHistory: userInput.chatHistory ?? [],
-        },
-        config,
-      );
-    } else {
-      prompt = promptService.mainPrompt(userInput, config);
-    }
-
-    // Stream the response (either enriched or original)
     try {
       const stream = withStreamTimeout(
         () =>
@@ -369,9 +358,7 @@ export class LLMService {
             messages: [{ role: 'user', content: prompt }],
           }),
         this.CHAT_COMPLETION_TIMEOUT_MS,
-        shouldUseEnrichedPrompt
-          ? 'Enriched chat completion stream'
-          : 'Chat completion stream',
+        'Chat completion stream',
       );
 
       for await (const chunk of stream) {
@@ -381,10 +368,7 @@ export class LLMService {
         }
       }
     } catch (err) {
-      logger.error(
-        { err },
-        `Error during ${shouldUseEnrichedPrompt ? 'enriched ' : ''}chat completion stream`,
-      );
+      logger.error({ err }, 'Error during chat completion stream');
       throw err;
     }
   }

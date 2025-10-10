@@ -12,20 +12,26 @@ import { IDBStore } from '../../../shared/interfaces/db-store.interface';
 import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '../../../config/logger.config';
+import { config } from '../../../config/app.config';
 
 export class WebsocketService {
   public io: Server;
-  private static instance: WebsocketService;
   private server: http.Server;
   private db: IDBStore;
-  private llmService!: LLMService;
-  private pineconeService!: VectorStoreService;
-  private fetchHTMLService!: FetchHTMLService;
-  private deepResearchService!: DeepResearchService;
+  private llmService: LLMService;
+  private pineconeService: VectorStoreService;
+  private fetchHTMLService: FetchHTMLService;
+  private deepResearchService: DeepResearchService;
   private logger = logger;
 
-  private constructor(app: Application) {
-    // Runtime validation for production environment
+  constructor(
+    app: Application,
+    llmService: LLMService,
+    pineconeService: VectorStoreService,
+    db: IDBStore,
+    fetchHTMLService?: FetchHTMLService,
+    deepResearchService?: DeepResearchService,
+  ) {
     if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
       this.logger.fatal(
         'FRONTEND_URL environment variable is required in production but is not set',
@@ -36,7 +42,12 @@ export class WebsocketService {
     }
 
     this.server = http.createServer(app);
-    this.db = PostgresService.getInstance();
+    this.db = db;
+    this.llmService = llmService;
+    this.pineconeService = pineconeService;
+    this.fetchHTMLService = fetchHTMLService || new FetchHTMLService();
+    this.deepResearchService =
+      deepResearchService || new DeepResearchService(this.llmService);
 
     this.io = new Server(this.server, {
       cors: {
@@ -54,30 +65,42 @@ export class WebsocketService {
     this.onConnection();
   }
 
-  public static getInstance(app: Application): WebsocketService {
-    if (!WebsocketService.instance) {
-      WebsocketService.instance = new WebsocketService(app);
-    }
-    return WebsocketService.instance;
-  }
-
   authVerification() {
     this.io.use((socket, next) => {
-      const token = socket.handshake.auth?.token;
+      const authHeader = socket.handshake.headers.authorization;
+      let token: string | undefined;
+
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else {
+        token = socket.handshake.auth?.token;
+        if (token) {
+          this.logger.warn(
+            { ip: socket.handshake.address },
+            'Using deprecated auth object for WebSocket token. Please use Authorization header instead.',
+          );
+        }
+      }
+
       if (!token) {
-        this.logger.warn('No token provided in WebSocket handshake');
+        this.logger.warn(
+          { ip: socket.handshake.address },
+          'No token provided in WebSocket handshake',
+        );
         return next(new Error('No token provided'));
       }
 
       const decoded = verifyJwt(token);
       if (!decoded) {
-        this.logger.warn('Invalid token provided in WebSocket handshake');
+        this.logger.warn(
+          { ip: socket.handshake.address },
+          'Invalid token provided in WebSocket handshake',
+        );
         return next(new Error('Invalid token'));
       }
-      // RFC-7519 compliant: prioritize 'sub' claim
+
       let userId = (decoded as any).sub;
 
-      // Migration fallback for legacy tokens (deprecated)
       if (!userId) {
         const legacyId = (decoded as any).id ?? (decoded as any).userId;
         if (legacyId) {
@@ -86,6 +109,7 @@ export class WebsocketService {
               legacyClaim: (decoded as any).id ? 'id' : 'userId',
               tokenIssuedAt: (decoded as any).iat,
               tokenExpiresAt: (decoded as any).exp,
+              ip: socket.handshake.address,
             },
             'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
           );
@@ -94,10 +118,21 @@ export class WebsocketService {
       }
 
       if (!userId) {
-        this.logger.warn('Invalid token: missing subject claim');
+        this.logger.warn(
+          { ip: socket.handshake.address },
+          'Invalid token: missing subject claim',
+        );
         return next(new Error('Invalid token: missing subject claim'));
       }
+
       (socket as any).userId = String(userId);
+      (socket as any).tokenExp = (decoded as any).exp;
+
+      this.logger.info(
+        { userId, ip: socket.handshake.address },
+        'WebSocket authentication successful',
+      );
+
       next();
     });
   }
@@ -152,7 +187,6 @@ export class WebsocketService {
     userId: string,
     fileId: string,
   ) {
-    // Input validation - check before any async operations
     if (!question || typeof question !== 'string' || question.trim() === '') {
       throw new Error('Question cannot be empty');
     }
@@ -168,7 +202,7 @@ export class WebsocketService {
 
       const qEmbedding = await this.llmService.getEmbedding(question);
 
-      const topK = Number(process.env.PINECONE_TOP_K) || 5;
+      const topK = config.PINECONE_TOP_K;
       const results = await this.pineconeService.query(
         qEmbedding,
         userId,
@@ -201,18 +235,85 @@ export class WebsocketService {
       });
 
       let fullAnswer = '';
-      for await (const token of this.llmService.generateAnswerStream(
-        fullPrompt,
-      )) {
-        this.io.to(userId).emit('answer_chunk', { token });
-        fullAnswer += token;
+      let streamSuccessful = false;
+
+      try {
+        for await (const token of this.llmService.generateAnswerStream(
+          fullPrompt,
+        )) {
+          this.io.to(userId).emit('answer_chunk', { token });
+          fullAnswer += token;
+        }
+
+        streamSuccessful = true;
+
+        if (fullAnswer.toLowerCase().includes("i don't know")) {
+          this.io.to(userId).emit('search_status', {
+            message: 'Searching external sources for more information...',
+          });
+
+          try {
+            const enrichedResults =
+              await this.llmService.enrichmentService?.searchAndEmbed(
+                question,
+                {
+                  fileId,
+                  userId,
+                  maxResults: 5,
+                  maxPagesToFetch: 3,
+                  fetchConcurrency: 2,
+                  minContentLength: 200,
+                },
+              );
+
+            if (enrichedResults && enrichedResults.length > 0) {
+              const enrichedContext = enrichedResults
+                .map((r) => `${r.title}: ${r.snippet}`)
+                .join('\n\n');
+
+              this.io.to(userId).emit('search_status', {
+                message:
+                  'Found additional information. Generating enhanced answer...',
+              });
+
+              fullAnswer = '';
+              for await (const token of this.llmService.generateAnswerStreamWithEnrichment(
+                fullPrompt,
+                enrichedContext,
+              )) {
+                this.io.to(userId).emit('answer_chunk', { token });
+                fullAnswer += token;
+              }
+            }
+          } catch (enrichmentError) {
+            this.logger.warn(
+              { enrichmentError },
+              'Enrichment failed, using original answer',
+            );
+          }
+        }
+
+        await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
+        await this.appendChatMessage(chatId, 'ai', fullAnswer);
+        await this.trimChatHistory(userId, fileId);
+
+        this.io.to(userId).emit('answer_complete');
+      } catch (err: unknown) {
+        this.logger.error(
+          { err, partialAnswer: fullAnswer.substring(0, 100) },
+          'Stream error',
+        );
+
+        this.io.to(userId).emit('error', {
+          message: 'Failed to generate complete answer. Please try again.',
+        });
+
+        await this.appendChatMessage(
+          chatId,
+          'ai',
+          `Error: ${(err as Error).message}`,
+        );
       }
-
-      await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
-      await this.appendChatMessage(chatId, 'ai', fullAnswer);
-      await this.trimChatHistory(userId, fileId);
-
-      this.io.to(userId).emit('answer_complete');
     } catch (err: unknown) {
       this.logger.error({ err }, 'Error in processQuestion');
       if (err instanceof Error) {
@@ -227,9 +328,7 @@ export class WebsocketService {
     message: string,
   ) {
     const key = `chat:${userId}:${fileId}`;
-    // append message to redis list
     await redisChatHistory.rPush(key, message);
-    // refresh expiry to 24 hours
     await redisChatHistory.expire(key, 60 * 60 * 24);
   }
 
@@ -258,8 +357,6 @@ export class WebsocketService {
     userId: string,
     fileId?: string,
   ): Promise<string> {
-    // Use atomic upsert to prevent TOCTOU race conditions
-    // This single statement will either return an existing chat ID or create a new one
     const result = await this.db.query<{ id: string }>(
       `INSERT INTO chats(user_id, file_id) 
        VALUES($1, $2) 
@@ -283,13 +380,6 @@ export class WebsocketService {
   }
 
   private initServices() {
-    this.llmService = new LLMService();
-
-    this.fetchHTMLService = new FetchHTMLService();
-    this.deepResearchService = new DeepResearchService(this.llmService);
-
-    this.pineconeService = new VectorStoreService(this.llmService, 'pinecone');
-
     this.llmService.enrichmentService = new EnrichmentService(
       this.llmService,
       this.pineconeService,

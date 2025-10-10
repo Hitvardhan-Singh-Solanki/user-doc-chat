@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../../../shared/middleware/auth.middleware';
+import { fileUploadRateLimit } from '../../../shared/middleware/security.middleware';
 import { FileController } from '../controllers/file.controller';
 
 const router = Router();
@@ -21,6 +22,7 @@ const fileController = new FileController();
 router.post(
   '/upload',
   requireAuth,
+  fileUploadRateLimit,
   upload.single('file'),
   fileController.fileUploadAsync,
 );
