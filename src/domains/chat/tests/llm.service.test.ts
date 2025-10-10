@@ -230,9 +230,8 @@ describe('LLMService (unit)', () => {
     }
 
     expect(got.join('')).toBe('Hello world.');
-    // LLMService calls enrichIfUnknown before streaming to check if enrichment is needed
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(1);
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledWith('Q1', '');
+    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
+    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
     expect(HF.chatCompletionStream).toHaveBeenCalled();
   });
 
@@ -274,10 +273,10 @@ describe('LLMService (unit)', () => {
 
     const joined = tokens.join('');
     expect(joined).toContain("I don't know");
-    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalled();
+    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
+    expect(fakeEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
 
-    // Note: The enrichment logic in the actual service may not be working as expected in tests
-    // This test verifies that enrichment is called, which is the main behavior we want to test
+    // Note: The enrichment logic was moved to WebSocket service for better separation of concerns
   });
 
   it('generateAnswerStream swallows enrichment errors and continues', async () => {
@@ -304,7 +303,8 @@ describe('LLMService (unit)', () => {
     }
 
     expect(tokens.join('')).toContain("I don't know");
-    expect(throwingEnr.enrichIfUnknown).toHaveBeenCalled();
+    // LLMService no longer calls enrichIfUnknown directly - that's handled in WebSocket service
+    expect(throwingEnr.enrichIfUnknown).toHaveBeenCalledTimes(0);
   });
 
   it('buildPrompt and buildLowPrompt call underlying prompt utilities', async () => {

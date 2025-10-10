@@ -1,8 +1,8 @@
 import { Server } from 'http';
 import { connectRedis } from './infrastructure/database/repositories/redis.repo';
-import { WebsocketService } from './domains/chat/services/websocket.service';
 import { logger } from './config/logger.config';
 import { createApp } from './app';
+import { serviceFactory } from './shared/factories/service.factory';
 
 (async () => {
   let server: Server | undefined;
@@ -43,7 +43,7 @@ import { createApp } from './app';
     };
 
     const PORT: number = parsePort(process.env.PORT);
-    const socketService = WebsocketService.getInstance(app);
+    const socketService = serviceFactory.getWebsocketService(app);
     server = socketService.getServer().listen(PORT, () => {
       logger.info({ port: PORT }, `Server is listening on port ${PORT}`);
     });

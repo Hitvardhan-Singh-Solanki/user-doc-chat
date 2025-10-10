@@ -10,7 +10,8 @@ import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
 import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
 import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
 import { parsePositiveInt } from '../../../shared/utils';
-import { logger } from '../../../config/logger.config'; // Assuming you have a configured logger
+import { logger } from '../../../config/logger.config';
+import { circuitBreakerService } from '../../../shared/utils/circuit-breaker';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -88,10 +89,23 @@ export class EnrichmentService implements IEnrichmentService {
     const optimizedQuery = await this.generateOptimizedQuery(query);
     log.info({ optimizedQuery }, 'Generated optimized search query.');
 
-    const results = await this.searchAdapter.search(
-      optimizedQuery,
-      opts.maxResults,
+    const searchBreaker = circuitBreakerService.getBreaker(
+      'search',
+      this.searchAdapter.search.bind(this.searchAdapter),
+      { timeout: 10000, errorThresholdPercentage: 50, resetTimeout: 30000 },
     );
+
+    let results: SearchResult[] = [];
+    try {
+      results = await searchBreaker.fire(optimizedQuery, opts.maxResults);
+    } catch (err: any) {
+      if (err.code === 'EOPENBREAKER') {
+        log.warn('Search service unavailable, skipping enrichment');
+        return [];
+      }
+      throw err;
+    }
+
     if (!results || results.length === 0) {
       log.warn('No search results found. Returning empty array.');
       return [];
@@ -101,11 +115,28 @@ export class EnrichmentService implements IEnrichmentService {
       'Search results retrieved. Starting HTML fetching.',
     );
 
-    const sourceText = await this.fetchHTML.fetchHTML(results, {
-      maxPagesToFetch: opts.maxPagesToFetch,
-      fetchConcurrency: opts.fetchConcurrency,
-      minContentLength: opts.minContentLength,
-    });
+    const fetchBreaker = circuitBreakerService.getBreaker(
+      'fetch',
+      this.fetchHTML.fetchHTML.bind(this.fetchHTML),
+      { timeout: 15000, errorThresholdPercentage: 50, resetTimeout: 30000 },
+    );
+
+    let sourceText: (string | undefined)[] = [];
+    try {
+      sourceText = await fetchBreaker.fire(results, {
+        maxPagesToFetch: opts.maxPagesToFetch,
+        fetchConcurrency: opts.fetchConcurrency,
+        minContentLength: opts.minContentLength,
+      });
+    } catch (err: any) {
+      if (err.code === 'EOPENBREAKER') {
+        log.warn(
+          'HTML fetch service unavailable, returning search results without content',
+        );
+        return results;
+      }
+      throw err;
+    }
 
     if (!sourceText || sourceText.length === 0) {
       log.warn(

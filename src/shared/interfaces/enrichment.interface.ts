@@ -6,4 +6,9 @@ export interface IEnrichmentService {
     llmAnswer: string,
     options?: EnrichmentOptions,
   ): Promise<SearchResult[] | null>;
+
+  searchAndEmbed(
+    query: string,
+    options?: EnrichmentOptions,
+  ): Promise<SearchResult[]>;
 }

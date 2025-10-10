@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../config/logger.config';
+import { rateLimiterService } from '../../infrastructure/cache/rate-limiter.service';
 
 /**
  * Security middleware for Express application
@@ -14,16 +15,12 @@ export function securityHeaders(
   res: Response,
   next: NextFunction,
 ): void {
-  // Prevent clickjacking attacks
   res.setHeader('X-Frame-Options', 'DENY');
 
-  // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
-  // Enable XSS protection
   res.setHeader('X-XSS-Protection', '1; mode=block');
 
-  // Strict Transport Security (HTTPS only)
   if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader(
       'Strict-Transport-Security',
@@ -31,10 +28,9 @@ export function securityHeaders(
     );
   }
 
-  // Content Security Policy
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Note: Consider removing unsafe-inline and unsafe-eval in production
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
@@ -46,16 +42,13 @@ export function securityHeaders(
 
   res.setHeader('Content-Security-Policy', csp);
 
-  // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-  // Permissions Policy (formerly Feature Policy)
   res.setHeader(
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
   );
 
-  // Remove X-Powered-By header to hide Express version
   res.removeHeader('X-Powered-By');
 
   next();
@@ -70,36 +63,65 @@ export function corsSecurity(
   next: NextFunction,
 ): void {
   const origin = req.headers.origin;
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
-    'http://localhost:3000',
-  ];
+  const allowedOrigins =
+    process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()) || [];
 
-  // Check if origin is allowed
+  if (req.method === 'OPTIONS') {
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else if (process.env.NODE_ENV === 'development') {
+      if (
+        origin?.startsWith('http://localhost') ||
+        origin?.startsWith('http://127.0.0.1')
+      ) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else {
+        logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
+        res.status(403).json({ error: 'Origin not allowed' });
+        return;
+      }
+    } else {
+      logger.warn(
+        { origin, ip: req.ip },
+        'Blocked unauthorized origin in OPTIONS',
+      );
+      res.status(403).json({ error: 'Origin not allowed' });
+      return;
+    }
+
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET, POST, PUT, DELETE, OPTIONS',
+    );
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Requested-With',
+    );
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+    return;
+  }
+
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (process.env.NODE_ENV === 'development') {
-    // In development, allow localhost origins
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  }
-
-  // Security: Don't allow credentials with wildcard origin
-  if (res.getHeader('Access-Control-Allow-Origin') !== '*') {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
-
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS',
-  );
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Requested-With',
-  );
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
+  } else if (process.env.NODE_ENV === 'development') {
+    if (
+      origin?.startsWith('http://localhost') ||
+      origin?.startsWith('http://127.0.0.1')
+    ) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
+      res.status(403).json({ error: 'Origin not allowed' });
+      return;
+    }
+  } else {
+    logger.warn({ origin, ip: req.ip }, 'Blocked unauthorized origin');
+    res.status(403).json({ error: 'Origin not allowed' });
     return;
   }
 
@@ -114,7 +136,7 @@ export function requestSizeLimit(
   res: Response,
   next: NextFunction,
 ): void {
-  const maxSize = parseInt(process.env.MAX_REQUEST_SIZE || '10485760', 10); // 10MB default
+  const maxSize = parseInt(process.env.MAX_REQUEST_SIZE || '10485760', 10);
   const contentLength = parseInt(req.headers['content-length'] || '0', 10);
 
   if (contentLength > maxSize) {
@@ -136,31 +158,173 @@ export function requestSizeLimit(
 }
 
 /**
- * Rate limiting middleware using rate-limiter-flexible
+ * Rate limiting middleware using Redis-based rate-limiter-flexible
  */
 export function rateLimit(
   req: Request,
   res: Response,
   next: NextFunction,
 ): void {
-  // This is a basic implementation - in production, use a proper rate limiting library
-  // like express-rate-limit or rate-limiter-flexible with Redis
+  const key = req.ip || 'unknown';
 
-  const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10); // 15 minutes
-  const maxRequests = parseInt(
-    process.env.RATE_LIMIT_MAX_REQUESTS || '100',
-    10,
-  );
+  rateLimiterService
+    .consumeGeneral(key)
+    .then(async () => {
+      // Get rate limit info for headers
+      const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
+        key,
+        'general',
+      );
 
-  // Simple in-memory rate limiting (not suitable for production with multiple instances)
-  const now = Date.now();
+      res.setHeader('X-RateLimit-Limit', '100');
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remainingPoints.toString(),
+      );
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rateLimitInfo.msBeforeNext).toISOString(),
+      );
 
-  // This is a simplified implementation - use proper rate limiting in production
-  res.setHeader('X-RateLimit-Limit', maxRequests.toString());
-  res.setHeader('X-RateLimit-Remaining', (maxRequests - 1).toString());
-  res.setHeader('X-RateLimit-Reset', new Date(now + windowMs).toISOString());
+      next();
+    })
+    .catch((rejRes) => {
+      logger.warn(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          remainingPoints: rejRes.remainingPoints,
+          msBeforeNext: rejRes.msBeforeNext,
+        },
+        'Rate limit exceeded',
+      );
 
-  next();
+      res.setHeader('X-RateLimit-Limit', '100');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
+      );
+
+      res.status(429).json({
+        error: 'Too many requests',
+        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
+      });
+    });
+}
+
+/**
+ * Auth-specific rate limiting middleware (stricter limits)
+ */
+export function authRateLimit(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const key = req.ip || 'unknown';
+
+  rateLimiterService
+    .consumeAuth(key)
+    .then(async () => {
+      // Get rate limit info for headers
+      const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
+        key,
+        'auth',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '5');
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remainingPoints.toString(),
+      );
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rateLimitInfo.msBeforeNext).toISOString(),
+      );
+
+      next();
+    })
+    .catch((rejRes) => {
+      logger.warn(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          endpoint: req.path,
+          remainingPoints: rejRes.remainingPoints,
+          msBeforeNext: rejRes.msBeforeNext,
+        },
+        'Auth rate limit exceeded',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '5');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
+      );
+
+      res.status(429).json({
+        error: 'Too many authentication attempts',
+        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
+      });
+    });
+}
+
+/**
+ * File upload rate limiting middleware
+ */
+export function fileUploadRateLimit(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const key = req.ip || 'unknown';
+
+  rateLimiterService
+    .consumeFileUpload(key)
+    .then(async () => {
+      // Get rate limit info for headers
+      const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
+        key,
+        'upload',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '10');
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remainingPoints.toString(),
+      );
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rateLimitInfo.msBeforeNext).toISOString(),
+      );
+
+      next();
+    })
+    .catch((rejRes) => {
+      logger.warn(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          endpoint: req.path,
+          remainingPoints: rejRes.remainingPoints,
+          msBeforeNext: rejRes.msBeforeNext,
+        },
+        'File upload rate limit exceeded',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '10');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
+      );
+
+      res.status(429).json({
+        error: 'Too many file uploads',
+        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
+      });
+    });
 }
 
 /**
@@ -171,12 +335,10 @@ export function sanitizeInput(
   res: Response,
   next: NextFunction,
 ): void {
-  // Sanitize common XSS patterns in request body
   if (req.body && typeof req.body === 'object') {
     sanitizeObject(req.body);
   }
 
-  // Sanitize query parameters
   if (req.query && typeof req.query === 'object') {
     sanitizeObject(req.query);
   }
@@ -193,7 +355,6 @@ function sanitizeObject(obj: Record<string, unknown>): void {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       if (typeof obj[key] === 'string') {
-        // Remove common XSS patterns
         obj[key] = obj[key]
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
           .replace(/javascript:/gi, '')
@@ -215,7 +376,6 @@ export function securityLogging(
 ): void {
   const startTime = Date.now();
 
-  // Log security-relevant information
   const securityInfo = {
     ip: req.ip,
     userAgent: req.headers['user-agent'],
@@ -224,13 +384,12 @@ export function securityLogging(
     timestamp: new Date().toISOString(),
   };
 
-  // Log suspicious patterns
   const suspiciousPatterns = [
-    /\.\./, // Directory traversal
-    /<script/i, // XSS attempts
-    /union.*select/i, // SQL injection
-    /javascript:/i, // JavaScript injection
-    /eval\(/i, // Code injection
+    /\.\./,
+    /<script/i,
+    /union.*select/i,
+    /javascript:/i,
+    /eval\(/i,
   ];
 
   const requestString = `${req.method} ${req.url} ${JSON.stringify(req.body)}`;
@@ -248,7 +407,6 @@ export function securityLogging(
     );
   }
 
-  // Log response time and status
   res.on('finish', () => {
     const responseTime = Date.now() - startTime;
 
@@ -291,7 +449,6 @@ export function secureErrorHandler(
     'Unhandled error caught by middleware',
   );
 
-  // Don't expose sensitive error information in production
   if (isProduction) {
     res.status(500).json({
       error: 'Internal server error',
