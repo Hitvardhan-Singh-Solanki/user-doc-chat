@@ -6,7 +6,8 @@ export const legalDocumentsQueueName = 'legal-documents';
 
 // Parse and validate Redis port with proper error handling
 const parseRedisPort = (): number => {
-  const portStr = config.REDIS_PORT.toString();
+  const portValue = config.REDIS_PORT;
+  const portStr = portValue != null ? portValue.toString() : '';
 
   if (!portStr) {
     return 6379; // Default port when unset
