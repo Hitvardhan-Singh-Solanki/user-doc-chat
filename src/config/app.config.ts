@@ -23,7 +23,7 @@ const envSchema = z.object({
 
   // JWT
   JWT_EXPIRES_IN: z.string().default('7d'),
-  
+
   // Security
   SALT_ROUNDS: z.coerce.number().default(10),
 
@@ -50,7 +50,7 @@ const envSchema = z.object({
   // File Upload
   MAX_FILE_SIZE: z.coerce.number().default(52428800), // 50MB
   MAX_UPLOAD_BYTES: z.coerce.number().default(10485760), // 10MB
-  
+
   // Crawler/HTML Fetch
   CRAWLER_MAX_BYTES: z.coerce.number().default(2_000_000), // 2MB
   CRAWLER_USER_AGENT: z.string().default('user-doc-chat/1.0 (+enrichment)'),
