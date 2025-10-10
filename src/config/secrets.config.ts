@@ -22,7 +22,7 @@ class SecretsManager {
    * Initialize secrets from environment variables
    * Call this once at application startup
    */
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     try {
       this.secrets = {
         // JWT
@@ -176,6 +176,3 @@ class SecretsManager {
 
 // Export singleton instance
 export const secretsManager = new SecretsManager();
-
-// Initialize secrets at module load
-secretsManager.initialize();

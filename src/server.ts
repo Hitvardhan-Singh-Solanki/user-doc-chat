@@ -4,11 +4,16 @@ import { logger } from './config/logger.config';
 import { createApp } from './app';
 import { serviceFactory } from './shared/factories/service.factory';
 import { config } from './config/app.config';
+import { secretsManager } from './config/secrets.config';
 
 (async () => {
   let server: Server | undefined;
   try {
     logger.info('Starting server initialization...');
+
+    logger.info('Initializing secrets...');
+    await secretsManager.initialize();
+    logger.info('Secrets initialized successfully.');
 
     logger.info('Attempting to connect to Redis...');
     await connectRedis();
