@@ -657,5 +657,116 @@ describe('PromptService', () => {
 
       expect(() => service.mainPrompt(input)).not.toThrow();
     });
+
+    it('should safely replace content with multiple occurrences using index-based replacement', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt exceeds max
+          .mockReturnValueOnce(500) // Content tokens
+          .mockReturnValueOnce(300) // Pre-truncated content tokens
+          .mockReturnValueOnce(200), // Final prompt tokens
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
+      };
+
+      const serviceWithMock = new PromptService(mockTokenizer as ITokenizer);
+
+      // Create content that appears multiple times in the prompt
+      const repeatedContent =
+        'This is important legal text that appears multiple times';
+      const input = {
+        question: 'What does this mean?',
+        context: `${repeatedContent} and some additional context here. ${repeatedContent} appears again.`,
+        chatHistory: [],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+        truncateBuffer: 100,
+      };
+
+      const result = await serviceWithMock.mainPrompt(input, config);
+
+      // Verify that the replacement was safe and didn't affect other parts
+      expect(result).toBeTruthy();
+      expect(result).toContain('=== USER QUESTION ===');
+      expect(result).toContain('What does this mean?');
+
+      // The safe replacement should handle multiple occurrences correctly
+      // without causing partial matches or regex issues
+      expect(mockTokenizer.countTokens).toHaveBeenCalledTimes(4);
+    });
+
+    it('should handle content replacement when content appears at start and end of prompt', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt exceeds max
+          .mockReturnValueOnce(500) // Content tokens
+          .mockReturnValueOnce(300) // Pre-truncated content tokens
+          .mockReturnValueOnce(200), // Final prompt tokens
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
+      };
+
+      const serviceWithMock = new PromptService(mockTokenizer as ITokenizer);
+
+      const boundaryContent = 'Boundary content';
+      const input = {
+        question: 'Test question',
+        context: `${boundaryContent} middle content ${boundaryContent}`,
+        chatHistory: [],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+        truncateBuffer: 100,
+      };
+
+      const result = await serviceWithMock.mainPrompt(input, config);
+
+      expect(result).toBeTruthy();
+      expect(result).toContain('=== USER QUESTION ===');
+      expect(result).toContain('Test question');
+    });
+
+    it('should safely handle content with special regex characters', async () => {
+      const mockTokenizer = {
+        countTokens: vi
+          .fn()
+          .mockReturnValueOnce(2000) // Initial prompt exceeds max
+          .mockReturnValueOnce(500) // Content tokens
+          .mockReturnValueOnce(300) // Pre-truncated content tokens
+          .mockReturnValueOnce(200), // Final prompt tokens
+        encode: vi.fn().mockReturnValue([]),
+        decode: vi.fn().mockReturnValue(''),
+      };
+
+      const serviceWithMock = new PromptService(mockTokenizer as ITokenizer);
+
+      // Content with regex special characters that could cause issues with string.replace()
+      const regexContent =
+        'Content with $pecial ch@rs & symbols (parentheses) [brackets] {braces}';
+      const input = {
+        question: 'What about special characters?',
+        context: `${regexContent} and more text. ${regexContent} appears again.`,
+        chatHistory: [],
+      };
+
+      const config: PromptConfig = {
+        maxLength: 1000,
+        truncateStrategy: 'truncate-context',
+        truncateBuffer: 100,
+      };
+
+      const result = await serviceWithMock.mainPrompt(input, config);
+
+      expect(result).toBeTruthy();
+      expect(result).toContain('=== USER QUESTION ===');
+      expect(result).toContain('What about special characters?');
+    });
   });
 });
