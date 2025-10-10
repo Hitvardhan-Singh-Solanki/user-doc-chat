@@ -128,7 +128,14 @@ describe('Security Middleware', () => {
           ip: '192.168.1.1',
           error: 'Redis connection failed',
         }),
-        'Rate limiter service error, bypassing rate limit',
+        'Rate limiter service error, using in-memory fallback',
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ip: '192.168.1.1',
+          remaining: expect.any(Number),
+        }),
+        'Request allowed via in-memory fallback rate limiter',
       );
     });
   });
@@ -203,7 +210,15 @@ describe('Security Middleware', () => {
           endpoint: '/test',
           error: 'Redis timeout',
         }),
-        'Auth rate limiter service error, bypassing rate limit',
+        'Auth rate limiter service error, using in-memory fallback',
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ip: '192.168.1.1',
+          endpoint: '/test',
+          remaining: expect.any(Number),
+        }),
+        'Auth request allowed via in-memory fallback rate limiter',
       );
     });
   });
