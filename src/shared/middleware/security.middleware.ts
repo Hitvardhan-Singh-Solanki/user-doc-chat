@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../config/logger.config';
 import { rateLimiterService } from '../../infrastructure/cache/rate-limiter.service';
+import { config } from '../../config/app.config';
 
 /**
  * Security middleware for Express application
@@ -63,14 +64,13 @@ export function corsSecurity(
   next: NextFunction,
 ): void {
   const origin = req.headers.origin;
-  const allowedOrigins =
-    process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()) || [];
+  const allowedOrigins = config.CORS_ORIGINS;
 
   if (req.method === 'OPTIONS') {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-    } else if (process.env.NODE_ENV === 'development') {
+    } else if (config.NODE_ENV === 'development') {
       if (
         origin?.startsWith('http://localhost') ||
         origin?.startsWith('http://127.0.0.1')
@@ -136,7 +136,7 @@ export function requestSizeLimit(
   res: Response,
   next: NextFunction,
 ): void {
-  const maxSize = parseInt(process.env.MAX_REQUEST_SIZE || '10485760', 10);
+  const maxSize = config.MAX_UPLOAD_BYTES;
   const contentLength = parseInt(req.headers['content-length'] || '0', 10);
 
   if (contentLength > maxSize) {
@@ -433,7 +433,7 @@ export function secureErrorHandler(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = config.NODE_ENV === 'production';
 
   // Log the full error for debugging
   logger.error(

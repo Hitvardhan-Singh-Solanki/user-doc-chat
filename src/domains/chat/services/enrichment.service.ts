@@ -12,6 +12,7 @@ import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interf
 import { parsePositiveInt } from '../../../shared/utils';
 import { logger } from '../../../config/logger.config';
 import { circuitBreakerService } from '../../../shared/utils/circuit-breaker';
+import { config } from '../../../config/app.config';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -254,8 +255,8 @@ export class EnrichmentService implements IEnrichmentService {
       maxPagesToFetch: 5,
       fetchConcurrency: 3,
       minContentLength: 200,
-      chunkSize: parsePositiveInt(process.env.CHUNK_SIZE, 800),
-      chunkOverlap: parsePositiveInt(process.env.CHUNK_OVERLAP, 100),
+      chunkSize: config.CHUNK_SIZE,
+      chunkOverlap: config.CHUNK_OVERLAP,
     };
   }
 

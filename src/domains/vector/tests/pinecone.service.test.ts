@@ -46,8 +46,9 @@ describe('PineconeVectorStore', () => {
 
   describe('constructor', () => {
     it('should throw error when PINECONE_INDEX_NAME is not set', () => {
-      delete process.env.PINECONE_INDEX_NAME;
-      expect(() => new PineconeVectorStore()).toThrow('index not set');
+      // The service now uses config.PINECONE_INDEX which has a default value
+      // So we need to test with empty string to trigger the error
+      expect(() => new PineconeVectorStore('')).toThrow('index not set');
     });
 
     it('should initialize with custom index name', () => {
