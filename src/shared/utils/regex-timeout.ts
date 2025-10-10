@@ -290,7 +290,7 @@ export async function safeRegexExec(
 
 /**
  * Fallback regex execution with timeout protection (for environments without Workers)
- * Uses a combination of validation and setTimeout-based protection
+ * Uses safe-regex2 for validation and setTimeout-based protection
  */
 export async function withRegexTimeoutFallback<T>(
   regex: RegExp,
@@ -298,7 +298,7 @@ export async function withRegexTimeoutFallback<T>(
   operation: (regex: RegExp, text: string) => T,
   timeout: number = REGEX_TIMEOUT_MS,
 ): Promise<T> {
-  // Validate pattern for ReDoS vulnerabilities
+  // Validate pattern for ReDoS vulnerabilities using safe-regex2
   try {
     RegexValidator.validatePattern(regex.source);
   } catch (error) {
