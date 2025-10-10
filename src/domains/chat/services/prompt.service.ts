@@ -352,7 +352,18 @@ ${content}
         'truncate-context',
       );
       if (content.length > 0) {
-        prompt = prompt.replace(content, truncated);
+        // Safe substring replacement to avoid regex/partial-match problems
+        let startIndex = 0;
+        while (true) {
+          const index = prompt.indexOf(content, startIndex);
+          if (index === -1) break;
+
+          prompt =
+            prompt.slice(0, index) +
+            truncated +
+            prompt.slice(index + content.length);
+          startIndex = index + truncated.length;
+        }
       }
 
       const finalTokens = await this.countTokensCached(prompt);
