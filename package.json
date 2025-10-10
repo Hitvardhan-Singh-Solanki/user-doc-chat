@@ -26,7 +26,7 @@
     "audit:fix": "npm audit fix",
     "pre-push": "./scripts/pre-push.sh",
     "postinstall": "echo '⚠️  Security Warning: Only install trusted packages. Avoid similarly named untrusted packages like core-pino, pino-final, or other malicious lookalikes.'",
-    "prepare": "(command -v husky >/dev/null 2>&1 || [ -f ./node_modules/.bin/husky ]) && husky install || true"
+    "prepare": "node -e \"try { require('husky').install(); } catch (e) { process.exit(0); }\""
   },
   "keywords": [],
   "author": "",

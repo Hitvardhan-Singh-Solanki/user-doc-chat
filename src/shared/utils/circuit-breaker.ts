@@ -43,7 +43,26 @@ export function createCircuitBreaker<
   });
 
   breaker.on('failure', (err) => {
-    logger.warn({ name, error: err.message }, 'Circuit breaker failure');
+    let errorDescription: string;
+
+    if (err instanceof Error) {
+      errorDescription = err.message;
+    } else if (typeof err === 'string') {
+      errorDescription = err;
+    } else if (err && typeof err === 'object') {
+      try {
+        errorDescription = JSON.stringify(err);
+      } catch {
+        errorDescription = 'Unknown error';
+      }
+    } else {
+      errorDescription = String(err) || 'Unknown error';
+    }
+
+    logger.warn(
+      { name, error: errorDescription, originalError: err },
+      'Circuit breaker failure',
+    );
   });
 
   breaker.on('success', () => {
@@ -59,6 +78,10 @@ export function createCircuitBreaker<
 export class CircuitBreakerService {
   private static instance: CircuitBreakerService;
   private breakers: Map<string, CircuitBreaker> = new Map();
+  private breakerFunctions: Map<
+    string,
+    (...args: unknown[]) => Promise<unknown>
+  > = new Map();
 
   static getInstance(): CircuitBreakerService {
     if (!CircuitBreakerService.instance) {
@@ -72,9 +95,16 @@ export class CircuitBreakerService {
     fn: T,
     options: CircuitBreakerOptions = {},
   ): CircuitBreaker<Parameters<T>, ReturnType<T>> {
-    if (!this.breakers.has(name)) {
+    const existingFunction = this.breakerFunctions.get(name);
+    if (existingFunction && existingFunction !== fn) {
+      throw new Error(
+        `Circuit breaker "${name}" already exists with a different function`,
+      );
+    }
+    if (!existingFunction) {
       const breaker = createCircuitBreaker(fn, { ...options, name });
       this.breakers.set(name, breaker);
+      this.breakerFunctions.set(name, fn);
     }
     return this.breakers.get(name) as CircuitBreaker<
       Parameters<T>,
@@ -128,6 +158,15 @@ export class CircuitBreakerService {
       breaker.close();
     }
     logger.info('All circuit breakers reset');
+  }
+
+  /**
+   * Clear all breakers and their function references
+   */
+  clearAllBreakers() {
+    this.breakers.clear();
+    this.breakerFunctions.clear();
+    logger.info('All circuit breakers cleared');
   }
 }
 

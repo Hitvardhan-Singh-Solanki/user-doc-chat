@@ -11,6 +11,7 @@ import { EnrichmentService } from '../services/enrichment.service';
 import { Vector } from '@shared/types';
 import { LLMService } from '../services/llm.service';
 import { VectorStoreService } from '@vector/services/vector-store.service';
+import { CircuitBreakerService } from '@shared/utils/circuit-breaker';
 
 let svc: EnrichmentService;
 
@@ -42,6 +43,8 @@ beforeAll(() => {
 
 describe('EnrichmentService', () => {
   beforeEach(() => {
+    // Clear circuit breakers before each test
+    CircuitBreakerService.getInstance().clearAllBreakers();
     // Mock LLMService with getEmbedding and generateText spy
     mockLLM = {
       getEmbedding: vi.fn(async (text: string) => {

@@ -319,7 +319,7 @@ describe('Security Middleware', () => {
         new Error('Redis server unavailable'),
       );
 
-      // Simulate multiple requests to exceed the in-memory limit (5 attempts)
+      // Simulate multiple requests to exceed the in-memory limit (6 attempts)
       let blockedRequest = false;
       for (let i = 0; i < 6; i++) {
         const mockRes = {
@@ -332,18 +332,16 @@ describe('Security Middleware', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
 
         // Check if this request was blocked
-        if (
-          (mockRes.status as unknown as { mock: { calls: number[][] } }).mock
-            .calls.length > 0 &&
-          (mockRes.status as unknown as { mock: { calls: number[][] } }).mock
-            .calls[0][0] === 429
-        ) {
-          blockedRequest = true;
-          expect(mockRes.json).toHaveBeenCalledWith({
-            error: 'Too many file uploads (fallback protection)',
-            retryAfter: 60,
-          });
-          break;
+        if (vi.mocked(mockRes.status).mock.calls.length > 0) {
+          const statusCall = vi.mocked(mockRes.status).mock.calls[0];
+          if (statusCall[0] === 429) {
+            blockedRequest = true;
+            expect(mockRes.json).toHaveBeenCalledWith({
+              error: 'Too many file uploads (fallback protection)',
+              retryAfter: 60,
+            });
+            break;
+          }
         }
       }
 

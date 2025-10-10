@@ -91,7 +91,7 @@ export class FileUploadService {
       }
 
       const detected = await fileTypeFromBuffer(file.buffer!);
-      let finalMimeType = file.mimetype;
+      let finalMimeType: string;
 
       if (detected) {
         // Signature detection succeeded - use detected MIME type
@@ -104,11 +104,16 @@ export class FileUploadService {
           );
         }
       } else {
-        // Signature detection failed - fall back to claimed MIME type
-        log.info(
+        // Signature detection failed - reject upload for security
+        log.warn(
           { claimedMime: file.mimetype },
-          'File signature detection inconclusive, using claimed MIME type',
+          'File signature detection inconclusive - rejecting upload for security',
         );
+        throw createHttpError({
+          status: 400,
+          message:
+            'Unable to verify file type. File signature detection failed.',
+        });
       }
 
       if (!acceptedMimeTypes.includes(finalMimeType)) {

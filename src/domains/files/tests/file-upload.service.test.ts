@@ -219,31 +219,36 @@ describe('FileUploadService', () => {
       expect(mockUploadFileToMinio).not.toHaveBeenCalled();
     });
 
-    it('should fall back to claimed MIME type when file-type detection returns null', async () => {
+    it('should reject upload when file-type detection returns null', async () => {
       const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
       const userId = 'user123';
-      const mockFileRecord: UserFileRecord = {
-        id: 'file123',
-        file_name: 'document.pdf',
-        file_size: '1024',
-        owner_id: userId,
-        status: 'uploaded',
-        created_at: new Date().toDateString(),
-        updated_at: new Date().toDateString(),
-      };
 
       mockFileTypeFromBuffer.mockResolvedValue(null);
-      mockUploadFileToMinio.mockResolvedValue(undefined);
-      mockDb.query = vi.fn().mockResolvedValue({
-        rows: [mockFileRecord],
-      });
-      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
-      const result = await fileUploadService.upload(mockFile, userId);
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'Unable to verify file type. File signature detection failed.',
+      );
 
-      expect(result).toBeDefined();
-      expect(mockUploadFileToMinio).toHaveBeenCalled();
-      expect(mockQueueAdapter.enqueue).toHaveBeenCalled();
+      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
+      expect(mockDb.query).not.toHaveBeenCalled();
+    });
+
+    it('should reject upload when file-type detection throws an error', async () => {
+      const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
+      const userId = 'user123';
+
+      mockFileTypeFromBuffer.mockRejectedValue(
+        new Error('File type detection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
+      expect(mockDb.query).not.toHaveBeenCalled();
     });
 
     it('should throw error when detected mimetype is unsupported', async () => {

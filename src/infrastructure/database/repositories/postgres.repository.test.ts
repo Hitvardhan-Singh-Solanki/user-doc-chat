@@ -6,6 +6,7 @@ vi.mock('./db.repo', () => ({
   db: {
     query: vi.fn(),
     connect: vi.fn(),
+    end: vi.fn(),
   },
 }));
 
@@ -27,11 +28,7 @@ describe('PostgresService', () => {
 
     // Get the mocked db
     const dbModule = await import('./db.repo');
-    mockDb = dbModule.db as unknown as {
-      query: ReturnType<typeof vi.fn>;
-      connect: ReturnType<typeof vi.fn>;
-      end: ReturnType<typeof vi.fn>;
-    };
+    mockDb = dbModule.db as unknown as typeof mockDb;
 
     // Reset the singleton instance to pick up new environment variables
     (

@@ -1,6 +1,7 @@
 import http from 'http';
 import { Application } from 'express';
 import { Server } from 'socket.io';
+import { z } from 'zod';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
 import { VectorStoreService } from '@vector/services/vector-store.service';
@@ -13,6 +14,15 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
+
+const QuestionPayloadSchema = z.object({
+  fileId: z
+    .string()
+    .min(1, 'fileId is required and must be a non-empty string'),
+  question: z
+    .string()
+    .min(1, 'question is required and must be a non-empty string'),
+});
 
 export class WebsocketService {
   public io: Server;
@@ -167,29 +177,17 @@ export class WebsocketService {
     socket.on('question', async (data: unknown) => {
       const userId = (socket as { userId?: string }).userId;
       try {
-        // Validate payload structure
-        if (!data || typeof data !== 'object') {
-          throw new Error('Invalid payload: expected an object');
+        // Validate payload using Zod schema
+        const validationResult = QuestionPayloadSchema.safeParse(data);
+
+        if (!validationResult.success) {
+          const errorMessages = validationResult.error.issues
+            .map((err) => `${err.path.join('.')}: ${err.message}`)
+            .join(', ');
+          throw new Error(`Invalid payload: ${errorMessages}`);
         }
 
-        const payload = data as Record<string, unknown>;
-
-        if (!payload.fileId || typeof payload.fileId !== 'string') {
-          throw new Error(
-            'Invalid payload: fileId is required and must be a string',
-          );
-        }
-
-        if (!payload.question || typeof payload.question !== 'string') {
-          throw new Error(
-            'Invalid payload: question is required and must be a string',
-          );
-        }
-
-        const { fileId, question } = payload as {
-          fileId: string;
-          question: string;
-        };
+        const { fileId, question } = validationResult.data;
 
         this.logger.info({ userId, question }, 'Incoming message');
 

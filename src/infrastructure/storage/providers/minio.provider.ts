@@ -1,13 +1,13 @@
 import { Readable } from 'stream';
 import { minioClient } from '@database/repositories/minio.repo';
 
-import { config } from '@config';
+import { storageConfig } from '@config';
 
-const bucket = config.MINIO_DEFAULT_BUCKET;
+const bucket = storageConfig.minio.defaultBucket;
 
 if (!bucket || !bucket.trim()) {
   throw new Error(
-    'MINIO_DEFAULT_BUCKET is required (config.MINIO_DEFAULT_BUCKET)',
+    'MINIO_DEFAULT_BUCKET is required (storageConfig.minio.defaultBucket)',
   );
 }
 

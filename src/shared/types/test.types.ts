@@ -42,6 +42,14 @@ export class RateLimitErrorImpl extends Error implements RateLimitError {
     this.name = 'RateLimitError';
     this.remainingPoints = remainingPoints;
     this.msBeforeNext = msBeforeNext;
+
+    // Restore prototype chain
+    Object.setPrototypeOf(this, RateLimitErrorImpl.prototype);
+
+    // Capture stack trace if available
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, RateLimitErrorImpl);
+    }
   }
 }
 
@@ -49,6 +57,14 @@ export class RedisConnectionError extends Error {
   constructor(message: string = 'Redis connection error') {
     super(message);
     this.name = 'RedisConnectionError';
+
+    // Restore prototype chain
+    Object.setPrototypeOf(this, RedisConnectionError.prototype);
+
+    // Capture stack trace if available
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, RedisConnectionError);
+    }
   }
 }
 

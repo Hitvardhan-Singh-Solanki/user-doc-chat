@@ -38,7 +38,7 @@ describe('PromptService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const mockTokenizer = {
-      countTokens: vi.fn().mockReturnValue(100),
+      countTokens: vi.fn().mockResolvedValue(100),
       encode: vi.fn().mockReturnValue([]),
       decode: vi.fn().mockReturnValue(''),
     };
@@ -164,8 +164,8 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) /// First call: high count
-          .mockReturnValue(800), // Subsequent calls: lower count
+          .mockResolvedValueOnce(2000) /// First call: high count
+          .mockResolvedValue(800), // Subsequent calls: lower count
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -193,7 +193,7 @@ describe('PromptService', () => {
     it('should throw error when truncation strategy is "error"', async () => {
       // Mock tokenizer to return high token count
       const mockTokenizer = {
-        countTokens: vi.fn().mockReturnValue(2000),
+        countTokens: vi.fn().mockResolvedValue(2000),
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -251,13 +251,13 @@ describe('PromptService', () => {
       const config: PromptConfig = {
         version: '1.5.0',
         tone: 'professional',
-        jurisdiction: 'INDIA',
+        jurisdiction: 'india',
       };
 
       const result = await service.lowPrompt(input, config);
       expect(result).toContain('Version: 1.5.0');
       expect(result).toContain('professional tone');
-      expect(result).toContain('INDIA law');
+      expect(result).toContain('india law');
     });
   });
 
@@ -290,9 +290,9 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt too long
-          .mockReturnValueOnce(1000) // History tokens
-          .mockReturnValue(800), // Final prompt
+          .mockResolvedValueOnce(2000) // Initial prompt too long
+          .mockResolvedValueOnce(1000) // History tokens
+          .mockResolvedValue(800), // Final prompt
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -321,9 +321,9 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt too long
-          .mockReturnValueOnce(1000) // Context tokens
-          .mockReturnValue(800), // Final prompt
+          .mockResolvedValueOnce(2000) // Initial prompt too long
+          .mockResolvedValueOnce(1000) // Context tokens
+          .mockResolvedValue(800), // Final prompt
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -352,9 +352,9 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt too long
-          .mockReturnValueOnce(1000) // Context tokens
-          .mockReturnValue(1500), // Final prompt still too long
+          .mockResolvedValueOnce(2000) // Initial prompt too long
+          .mockResolvedValueOnce(1000) // Context tokens
+          .mockResolvedValue(1500), // Final prompt still too long
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -384,11 +384,11 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(5000) // Initial prompt too long
-          .mockReturnValueOnce(4000) // Text tokens
-          .mockReturnValueOnce(2000) // Original text tokens
-          .mockReturnValueOnce(1000) // Truncated text tokens
-          .mockReturnValue(3000), // Final prompt
+          .mockResolvedValueOnce(5000) // Initial prompt too long
+          .mockResolvedValueOnce(4000) // Text tokens
+          .mockResolvedValueOnce(2000) // Original text tokens
+          .mockResolvedValueOnce(1000) // Truncated text tokens
+          .mockResolvedValue(3000), // Final prompt
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -407,11 +407,11 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(5000) // Initial prompt too long
-          .mockReturnValueOnce(4000) // Text tokens
-          .mockReturnValueOnce(2000) // Original text tokens
-          .mockReturnValueOnce(1000) // Truncated text tokens
-          .mockReturnValue(5000), // Final prompt still too long
+          .mockResolvedValueOnce(5000) // Initial prompt too long
+          .mockResolvedValueOnce(4000) // Text tokens
+          .mockResolvedValueOnce(2000) // Original text tokens
+          .mockResolvedValueOnce(1000) // Truncated text tokens
+          .mockResolvedValue(5000), // Final prompt still too long
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -435,9 +435,9 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt too long
-          .mockReturnValueOnce(1000) // Content tokens
-          .mockReturnValue(800), // Final prompt
+          .mockResolvedValueOnce(2000) // Initial prompt too long
+          .mockResolvedValueOnce(1000) // Content tokens
+          .mockResolvedValue(800), // Final prompt
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -459,9 +459,9 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt too long
-          .mockReturnValueOnce(1000) // Content tokens
-          .mockReturnValue(1500), // Final prompt still too long
+          .mockResolvedValueOnce(2000) // Initial prompt too long
+          .mockResolvedValueOnce(1000) // Content tokens
+          .mockResolvedValue(1500), // Final prompt still too long
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -484,7 +484,7 @@ describe('PromptService', () => {
   describe('tokenizer integration', () => {
     it('should use tokenizer for all token counting operations', async () => {
       const mockTokenizer = {
-        countTokens: vi.fn().mockReturnValue(100),
+        countTokens: vi.fn().mockResolvedValue(100),
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -560,7 +560,7 @@ describe('PromptService', () => {
       expect(() =>
         service.mainPrompt(input, {
           language: 'english',
-          jurisdiction: 'INDIA',
+          jurisdiction: 'india',
         }),
       ).not.toThrow();
 
@@ -662,10 +662,10 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt exceeds max
-          .mockReturnValueOnce(500) // Content tokens
-          .mockReturnValueOnce(300) // Pre-truncated content tokens
-          .mockReturnValueOnce(200), // Final prompt tokens
+          .mockResolvedValueOnce(2000) // Initial prompt exceeds max
+          .mockResolvedValueOnce(500) // Content tokens
+          .mockResolvedValueOnce(300) // Pre-truncated content tokens
+          .mockResolvedValueOnce(200), // Final prompt tokens
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -703,10 +703,10 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt exceeds max
-          .mockReturnValueOnce(500) // Content tokens
-          .mockReturnValueOnce(300) // Pre-truncated content tokens
-          .mockReturnValueOnce(200), // Final prompt tokens
+          .mockResolvedValueOnce(2000) // Initial prompt exceeds max
+          .mockResolvedValueOnce(500) // Content tokens
+          .mockResolvedValueOnce(300) // Pre-truncated content tokens
+          .mockResolvedValueOnce(200), // Final prompt tokens
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };
@@ -737,10 +737,10 @@ describe('PromptService', () => {
       const mockTokenizer = {
         countTokens: vi
           .fn()
-          .mockReturnValueOnce(2000) // Initial prompt exceeds max
-          .mockReturnValueOnce(500) // Content tokens
-          .mockReturnValueOnce(300) // Pre-truncated content tokens
-          .mockReturnValueOnce(200), // Final prompt tokens
+          .mockResolvedValueOnce(2000) // Initial prompt exceeds max
+          .mockResolvedValueOnce(500) // Content tokens
+          .mockResolvedValueOnce(300) // Pre-truncated content tokens
+          .mockResolvedValueOnce(200), // Final prompt tokens
         encode: vi.fn().mockReturnValue([]),
         decode: vi.fn().mockReturnValue(''),
       };

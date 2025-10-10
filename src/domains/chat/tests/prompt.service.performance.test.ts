@@ -4,15 +4,19 @@ import { ITokenizer } from '@interfaces/tokenizer.interface';
 import {
   MAX_INPUT_SIZE,
   LARGE_DOCUMENT_THRESHOLD,
-} from '../constants/prompt.constants';
+} from '@config/prompt.config';
 
 // Mock tokenizer with realistic performance characteristics
 const mockTokenizer: ITokenizer = {
-  countTokens: vi.fn((text: string) => {
+  countTokens: vi.fn(async (text: string) => {
     // Simulate realistic tokenization time
     const tokens = Math.ceil(text.length / 4);
     // Simulate 1ms per 1000 characters
     const delay = Math.ceil(text.length / 1000);
+
+    // Simulate the delay by awaiting a timeout
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
     return tokens;
   }),
   encode: vi.fn((text: string) => text.split(' ').map((_, i) => i + 1)),
@@ -28,29 +32,29 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('Large Document Processing', () => {
-    it('should process 50MB document within time limit', () => {
+    it('should process 50MB document within time limit', async () => {
       const largeDocument = 'A'.repeat(MAX_INPUT_SIZE + 1);
 
       const start = Date.now();
-      expect(() => promptService.sanitizeText(largeDocument)).toThrow(); // Should throw ResourceExhaustedError
+      await expect(promptService.sanitizeText(largeDocument)).rejects.toThrow(); // Should throw ResourceExhaustedError
       const duration = Date.now() - start;
 
       // Should fail fast due to size limit, not hang
       expect(duration).toBeLessThan(1000); // Less than 1 second
     });
 
-    it('should process 1MB document efficiently', () => {
+    it('should process 1MB document efficiently', async () => {
       const mediumDocument = 'This is a legal document. '.repeat(40000); // ~1MB
 
       const start = Date.now();
-      const result = promptService.sanitizeText(mediumDocument);
+      const result = await promptService.sanitizeText(mediumDocument);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(2000); // Less than 2 seconds
     });
 
-    it('should handle documents with many sentences', () => {
+    it('should handle documents with many sentences', async () => {
       const manySentences = Array(1000)
         .fill(0)
         .map(
@@ -60,7 +64,7 @@ describe('PromptService Performance Tests', () => {
         .join(' ');
 
       const start = Date.now();
-      const result = promptService.sanitizeText(manySentences);
+      const result = await promptService.sanitizeText(manySentences);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
@@ -69,17 +73,17 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('Token Counting Efficiency', () => {
-    it('should cache tokenization results', () => {
+    it('should cache tokenization results', async () => {
       const text = 'This is a test document for tokenization caching.';
 
       // First call
       const start1 = Date.now();
-      const result1 = promptService.sanitizeText(text);
+      const result1 = await promptService.sanitizeText(text);
       const duration1 = Date.now() - start1;
 
       // Second call with same text
       const start2 = Date.now();
-      const result2 = promptService.sanitizeText(text);
+      const result2 = await promptService.sanitizeText(text);
       const duration2 = Date.now() - start2;
 
       expect(result1).toBe(result2);
@@ -87,7 +91,7 @@ describe('PromptService Performance Tests', () => {
       expect(duration2).toBeLessThanOrEqual(duration1);
     });
 
-    it('should handle repeated tokenization efficiently', () => {
+    it('should handle repeated tokenization efficiently', async () => {
       const texts = Array(100)
         .fill(0)
         .map(
@@ -96,7 +100,9 @@ describe('PromptService Performance Tests', () => {
         );
 
       const start = Date.now();
-      const results = texts.map((text) => promptService.sanitizeText(text));
+      const results = await Promise.all(
+        texts.map((text) => promptService.sanitizeText(text)),
+      );
       const duration = Date.now() - start;
 
       expect(results).toHaveLength(100);
@@ -105,48 +111,59 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('Memory Usage Patterns', () => {
-    it('should not leak memory with repeated operations', () => {
+    it('should not leak memory with repeated operations', async () => {
       const text = 'This is a test document for memory leak detection.';
+      const initialMemory = process.memoryUsage().heapUsed;
 
       // Perform many operations
       for (let i = 0; i < 1000; i++) {
-        const result = promptService.sanitizeText(text);
+        const result = await promptService.sanitizeText(text);
         expect(result).toBeDefined();
       }
 
-      // If we get here without memory issues, the test passes
-      expect(true).toBe(true);
+      const finalMemory = process.memoryUsage().heapUsed;
+      const memoryGrowth = finalMemory - initialMemory;
+
+      // Allow some growth, but flag excessive increases
+      expect(memoryGrowth).toBeLessThan(10 * 1024 * 1024); // 10MB threshold
     });
 
-    it('should handle large text without excessive memory usage', () => {
+    it('should handle large text without excessive memory usage', async () => {
       const largeText = 'A'.repeat(LARGE_DOCUMENT_THRESHOLD);
+      const initialMemory = process.memoryUsage().heapUsed;
 
       const start = Date.now();
-      const result = promptService.sanitizeText(largeText);
+      const result = await promptService.sanitizeText(largeText);
       const duration = Date.now() - start;
+
+      const finalMemory = process.memoryUsage().heapUsed;
+      const memoryUsed = finalMemory - initialMemory;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(2000); // Should process efficiently
+      expect(memoryUsed).toBeLessThan(50 * 1024 * 1024); // Should not use more than 50MB
     });
   });
 
   describe('Timeout Enforcement', () => {
-    it('should handle operations within timeout limits', () => {
+    it('should handle operations within timeout limits', async () => {
       const text = 'This is a normal document that should process quickly.';
 
       const start = Date.now();
-      const result = promptService.sanitizeText(text);
+      const result = await promptService.sanitizeText(text);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(100); // Should be very fast
     });
 
-    it('should fail fast on oversized inputs', () => {
+    it('should fail fast on oversized inputs', async () => {
       const oversizedInput = 'A'.repeat(MAX_INPUT_SIZE + 1);
 
       const start = Date.now();
-      expect(() => promptService.sanitizeText(oversizedInput)).toThrow();
+      await expect(
+        promptService.sanitizeText(oversizedInput),
+      ).rejects.toThrow();
       const duration = Date.now() - start;
 
       // Should fail immediately, not after processing
@@ -155,18 +172,18 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('String Operations Performance', () => {
-    it('should handle large string replacements efficiently', () => {
+    it('should handle large string replacements efficiently', async () => {
       const textWithManyReplacements = 'Hello World '.repeat(10000);
 
       const start = Date.now();
-      const result = promptService.sanitizeText(textWithManyReplacements);
+      const result = await promptService.sanitizeText(textWithManyReplacements);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(1000); // Should be fast
     });
 
-    it('should handle complex regex operations efficiently', () => {
+    it('should handle complex regex operations efficiently', async () => {
       const textWithComplexPatterns = Array(1000)
         .fill(0)
         .map(
@@ -176,7 +193,7 @@ describe('PromptService Performance Tests', () => {
         .join(' ');
 
       const start = Date.now();
-      const result = promptService.sanitizeText(textWithComplexPatterns);
+      const result = await promptService.sanitizeText(textWithComplexPatterns);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
@@ -185,21 +202,23 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('Cache Effectiveness', () => {
-    it('should improve performance with repeated similar texts', () => {
+    it('should improve performance with repeated similar texts', async () => {
       const baseText = 'This is a legal document with important content.';
       const texts = Array(50)
         .fill(0)
         .map((_, i) => `${baseText} Version ${i}.`);
 
       const start = Date.now();
-      const results = texts.map((text) => promptService.sanitizeText(text));
+      const results = await Promise.all(
+        texts.map((text) => promptService.sanitizeText(text)),
+      );
       const duration = Date.now() - start;
 
       expect(results).toHaveLength(50);
       expect(duration).toBeLessThan(3000); // Should be efficient with caching
     });
 
-    it('should handle cache size limits gracefully', () => {
+    it('should handle cache size limits gracefully', async () => {
       // Generate many unique texts to test cache limits
       const uniqueTexts = Array(2000)
         .fill(0)
@@ -209,8 +228,8 @@ describe('PromptService Performance Tests', () => {
         );
 
       const start = Date.now();
-      const results = uniqueTexts.map((text) =>
-        promptService.sanitizeText(text),
+      const results = await Promise.all(
+        uniqueTexts.map((text) => promptService.sanitizeText(text)),
       );
       const duration = Date.now() - start;
 
@@ -220,7 +239,7 @@ describe('PromptService Performance Tests', () => {
   });
 
   describe('Realistic Workload Simulation', () => {
-    it('should handle typical legal document processing', () => {
+    it('should handle typical legal document processing', async () => {
       const legalDocument = `
         AGREEMENT
         
@@ -241,26 +260,26 @@ describe('PromptService Performance Tests', () => {
       `.repeat(100); // Simulate a large legal document
 
       const start = Date.now();
-      const result = promptService.sanitizeText(legalDocument);
+      const result = await promptService.sanitizeText(legalDocument);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(2000); // Should process realistic legal documents efficiently
     });
 
-    it('should use character-based pre-truncation for performance', () => {
+    it('should use character-based pre-truncation for performance', async () => {
       // Create a very large document that would benefit from character-based pre-truncation
       const largeDocument = 'This is a legal document section. '.repeat(10000); // ~350KB
 
       const start = Date.now();
-      const result = promptService.sanitizeText(largeDocument);
+      const result = await promptService.sanitizeText(largeDocument);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();
       expect(duration).toBeLessThan(1000); // Should be fast due to character-based pre-truncation
     });
 
-    it('should handle chat history processing efficiently', () => {
+    it('should handle chat history processing efficiently', async () => {
       const chatHistory = Array(100)
         .fill(0)
         .map(
@@ -270,7 +289,7 @@ describe('PromptService Performance Tests', () => {
         .join('\n');
 
       const start = Date.now();
-      const result = promptService.sanitizeText(chatHistory);
+      const result = await promptService.sanitizeText(chatHistory);
       const duration = Date.now() - start;
 
       expect(result).toBeDefined();

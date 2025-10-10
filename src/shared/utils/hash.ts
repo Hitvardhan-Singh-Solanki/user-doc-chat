@@ -1,10 +1,8 @@
 import bcrypt from 'bcrypt';
 // import pino from 'pino';
-import { config } from '@config';
+import { authConfig } from '@config';
 
 // const logger = pino({ name: 'hash-utils' });
-
-const SALT_ROUNDS = config.SALT_ROUNDS;
 
 export async function hashPassword(password: string): Promise<string> {
   // Validate input is not empty
@@ -20,7 +18,7 @@ export async function hashPassword(password: string): Promise<string> {
     );
   }
 
-  return await bcrypt.hash(password, SALT_ROUNDS);
+  return await bcrypt.hash(password, authConfig.saltRounds);
 }
 
 export async function comparePassword(

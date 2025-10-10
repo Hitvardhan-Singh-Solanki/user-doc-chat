@@ -41,6 +41,9 @@ class TokenBucketLimiter {
     const bucket = this.buckets.get(key);
 
     if (!bucket) {
+      // Enforce bucket limit before creating new bucket
+      this.enforceBucketLimit();
+
       // Create new bucket
       this.buckets.set(key, {
         tokens: this.capacity - tokens,
@@ -99,6 +102,34 @@ class TokenBucketLimiter {
       remaining: currentTokens,
       resetTime: bucket.lastRefill + this.windowMs,
     };
+  }
+
+  /**
+   * Enforces bucket limits by cleaning up expired entries and removing oldest buckets
+   * This method is called atomically before creating new buckets to prevent memory exhaustion
+   */
+  private enforceBucketLimit(): void {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+
+    // Remove expired entries
+    for (const [key, bucket] of this.buckets.entries()) {
+      if (now - bucket.lastRefill > this.windowMs * 2) {
+        expiredKeys.push(key);
+      }
+    }
+    expiredKeys.forEach((key) => this.buckets.delete(key));
+
+    // Enforce size limit by removing oldest entries if still over limit
+    if (this.buckets.size >= this.maxBuckets) {
+      const entries = Array.from(this.buckets.entries());
+      entries.sort((a, b) => a[1].lastRefill - b[1].lastRefill);
+      const toRemove = entries.slice(
+        0,
+        this.buckets.size - this.maxBuckets + 1,
+      );
+      toRemove.forEach(([key]) => this.buckets.delete(key));
+    }
   }
 
   /**

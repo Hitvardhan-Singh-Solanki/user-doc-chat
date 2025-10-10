@@ -69,9 +69,18 @@ class SecretsManager {
 
         // Sanitizer Service
         sanitizerHost: process.env.SANITIZER_HOST, // Optional
-        sanitizerTimeout: process.env.SANITIZER_TIMEOUT
-          ? parseInt(process.env.SANITIZER_TIMEOUT, 10)
-          : undefined, // Optional
+        sanitizerTimeout: (() => {
+          if (!process.env.SANITIZER_TIMEOUT) {
+            return undefined;
+          }
+          const parsed = parseInt(process.env.SANITIZER_TIMEOUT, 10);
+          if (Number.isNaN(parsed)) {
+            throw new Error(
+              `Invalid SANITIZER_TIMEOUT value: "${process.env.SANITIZER_TIMEOUT}". Must be a valid number.`,
+            );
+          }
+          return parsed;
+        })(), // Optional
       };
 
       this.initialized = true;

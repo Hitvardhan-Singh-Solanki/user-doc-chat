@@ -58,7 +58,16 @@ $(if [ -s reports/hardcoded-secrets.txt ]; then echo "❌ Hardcoded secrets foun
 $(if [ -s reports/eval-usage.txt ]; then echo "❌ eval() usage found"; else echo "✅ No eval() usage"; fi)
 
 ## Dependency Vulnerabilities:
-$(if [ -s reports/npm-audit.json ]; then echo "❌ NPM vulnerabilities found - check npm-audit.json"; else echo "✅ No NPM vulnerabilities"; fi)
+$(if [ -f reports/npm-audit.json ]; then
+    VULN_COUNT=$(jq -r '.metadata.vulnerabilities.total // .vulnerabilities.total // 0' reports/npm-audit.json 2>/dev/null || echo "0")
+    if [ "$VULN_COUNT" = "0" ] || [ "$VULN_COUNT" = "null" ]; then
+        echo "✅ No NPM vulnerabilities"
+    else
+        echo "❌ NPM vulnerabilities found - check npm-audit.json"
+    fi
+else
+    echo "❌ NPM audit report not found"
+fi)
 
 ## Code Quality Issues:
 $(if [ -s reports/console-statements.txt ]; then echo "⚠️ Console statements found - potential data leakage"; else echo "✅ No console statements"; fi)
@@ -94,7 +103,10 @@ echo ""
 echo "🚨 CRITICAL: Review the following files immediately:"
 if [ -s reports/hardcoded-secrets.txt ]; then echo "   - reports/hardcoded-secrets.txt"; fi
 if [ -s reports/eval-usage.txt ]; then echo "   - reports/eval-usage.txt"; fi
-if [ -s reports/npm-audit.json ]; then echo "   - reports/npm-audit.json"; fi
+if [ -f reports/npm-audit.json ]; then
+    VULN_COUNT=$(jq -r '.metadata.vulnerabilities.total // .vulnerabilities.total // 0' reports/npm-audit.json 2>/dev/null || echo "0")
+    if [ "$VULN_COUNT" != "0" ] && [ "$VULN_COUNT" != "null" ]; then echo "   - reports/npm-audit.json"; fi
+fi
 
 echo ""
 echo "📋 Security Summary:"
