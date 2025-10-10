@@ -207,6 +207,7 @@ export function rateLimit(
       next();
     })
     .catch((error) => {
+      // Handle rate limit exceeded (RateLimitError)
       if (
         error.remainingPoints !== undefined &&
         error.msBeforeNext !== undefined
@@ -232,17 +233,22 @@ export function rateLimit(
           error: 'Too many requests',
           retryAfter: Math.ceil(error.msBeforeNext / 1000),
         });
-      } else {
-        logger.error(
-          {
-            ip: req.ip,
-            userAgent: req.headers['user-agent'],
-            error: error.message,
-          },
-          'Rate limiter Redis error, bypassing rate limit',
-        );
-        next();
+        return;
       }
+
+      // Handle Redis connection errors or other service failures
+      logger.error(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          error: error.message,
+          errorName: error.name,
+        },
+        'Rate limiter service error, bypassing rate limit',
+      );
+
+      // Fail-open strategy: allow access when rate limiter is unavailable
+      next();
     });
 }
 
@@ -277,6 +283,7 @@ export function authRateLimit(
       next();
     })
     .catch((error) => {
+      // Handle rate limit exceeded (RateLimitError)
       if (
         error.remainingPoints !== undefined &&
         error.msBeforeNext !== undefined
@@ -303,18 +310,23 @@ export function authRateLimit(
           error: 'Too many authentication attempts',
           retryAfter: Math.ceil(error.msBeforeNext / 1000),
         });
-      } else {
-        logger.error(
-          {
-            ip: req.ip,
-            userAgent: req.headers['user-agent'],
-            endpoint: req.path,
-            error: error.message,
-          },
-          'Auth rate limiter Redis error, bypassing rate limit',
-        );
-        next();
+        return;
       }
+
+      // Handle Redis connection errors or other service failures
+      logger.error(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          endpoint: req.path,
+          error: error.message,
+          errorName: error.name,
+        },
+        'Auth rate limiter service error, bypassing rate limit',
+      );
+
+      // Fail-open strategy: allow access when rate limiter is unavailable
+      next();
     });
 }
 
@@ -349,6 +361,7 @@ export function fileUploadRateLimit(
       next();
     })
     .catch((error) => {
+      // Handle rate limit exceeded (RateLimitError)
       if (
         error.remainingPoints !== undefined &&
         error.msBeforeNext !== undefined
@@ -375,18 +388,23 @@ export function fileUploadRateLimit(
           error: 'Too many file uploads',
           retryAfter: Math.ceil(error.msBeforeNext / 1000),
         });
-      } else {
-        logger.error(
-          {
-            ip: req.ip,
-            userAgent: req.headers['user-agent'],
-            endpoint: req.path,
-            error: error.message,
-          },
-          'File upload rate limiter Redis error, bypassing rate limit',
-        );
-        next();
+        return;
       }
+
+      // Handle Redis connection errors or other service failures
+      logger.error(
+        {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          endpoint: req.path,
+          error: error.message,
+          errorName: error.name,
+        },
+        'File upload rate limiter service error, bypassing rate limit',
+      );
+
+      // Fail-open strategy: allow access when rate limiter is unavailable
+      next();
     });
 }
 
