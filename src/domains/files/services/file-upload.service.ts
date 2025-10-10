@@ -1,10 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type';
 import { uploadFileToMinio } from '@storage/providers/minio.provider';
 import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
-import {
-  queueAdapter,
-  fileQueueName,
-} from '@queue/providers/bullmq.provider';
+import { queueAdapter, fileQueueName } from '@queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
 import { IDBStore } from '@interfaces/db-store.interface';
