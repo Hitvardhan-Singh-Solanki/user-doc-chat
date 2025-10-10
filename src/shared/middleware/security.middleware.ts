@@ -56,6 +56,21 @@ export function securityHeaders(
 }
 
 /**
+ * Helper function to set Vary: Origin header
+ */
+function setVaryOrigin(res: Response): void {
+  const existingVary = res.getHeader('Vary');
+  if (existingVary) {
+    const varyArray = Array.isArray(existingVary) ? existingVary : [existingVary];
+    if (!varyArray.includes('Origin')) {
+      res.setHeader('Vary', [...varyArray, 'Origin'].join(', '));
+    }
+  } else {
+    res.setHeader('Vary', 'Origin');
+  }
+}
+
+/**
  * CORS configuration with security considerations
  */
 export function corsSecurity(
@@ -78,6 +93,7 @@ export function corsSecurity(
         'Content-Type, Authorization, X-Requested-With',
       );
       res.setHeader('Access-Control-Max-Age', '86400');
+      setVaryOrigin(res);
       res.status(204).end();
       return;
     }
@@ -119,6 +135,7 @@ export function corsSecurity(
       'Content-Type, Authorization, X-Requested-With',
     );
     res.setHeader('Access-Control-Max-Age', '86400');
+    setVaryOrigin(res);
     res.status(204).end();
     return;
   }
@@ -126,6 +143,7 @@ export function corsSecurity(
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    setVaryOrigin(res);
   } else if (config.NODE_ENV === 'development') {
     if (
       origin?.startsWith('http://localhost') ||
@@ -133,6 +151,7 @@ export function corsSecurity(
     ) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
+      setVaryOrigin(res);
     } else {
       logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
       res.status(403).json({ error: 'Origin not allowed' });
