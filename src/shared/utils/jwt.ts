@@ -72,6 +72,7 @@ function validateJwtSecret(): string {
 
 /**
  * Validates and returns JWT expiration time from environment variables
+ * Supports formats: "7d", "1h", "30m", "3600s", or plain numbers
  * @throws {Error} When JWT_EXPIRES_IN is missing or invalid
  */
 function validateJwtExpiresIn(): number {
@@ -84,14 +85,48 @@ function validateJwtExpiresIn(): number {
     );
   }
 
-  const expiresIn = Number(jwtExpiresIn.trim());
-  if (isNaN(expiresIn) || expiresIn <= 0) {
-    throw new Error(
-      `JWT_EXPIRES_IN must be a positive number, got: ${jwtExpiresIn}`,
-    );
+  const trimmed = jwtExpiresIn.trim();
+
+  // Try to parse as a plain number first
+  const numericValue = Number(trimmed);
+  if (!isNaN(numericValue) && numericValue > 0) {
+    return numericValue;
   }
 
-  return expiresIn;
+  // Parse time units (7d, 1h, 30m, 3600s)
+  const timeUnitRegex = /^(\d+(?:\.\d+)?)([dhms])$/i;
+  const match = trimmed.match(timeUnitRegex);
+
+  if (match) {
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+
+    if (value <= 0) {
+      throw new Error(
+        `JWT_EXPIRES_IN must be a positive number, got: ${jwtExpiresIn}`,
+      );
+    }
+
+    // Convert to seconds
+    switch (unit) {
+      case 'd':
+        return value * 24 * 60 * 60; // days to seconds
+      case 'h':
+        return value * 60 * 60; // hours to seconds
+      case 'm':
+        return value * 60; // minutes to seconds
+      case 's':
+        return value; // already in seconds
+      default:
+        throw new Error(
+          `JWT_EXPIRES_IN unit must be d, h, m, or s, got: ${jwtExpiresIn}`,
+        );
+    }
+  }
+
+  throw new Error(
+    `JWT_EXPIRES_IN must be a positive number or time unit (e.g., "7d", "1h", "30m"), got: ${jwtExpiresIn}`,
+  );
 }
 
 // Validate JWT configuration at module load time
