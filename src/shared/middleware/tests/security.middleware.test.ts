@@ -128,7 +128,7 @@ describe('Security Middleware', () => {
           ip: '192.168.1.1',
           error: 'Redis connection failed',
         }),
-        'Rate limiter Redis error, bypassing rate limit',
+        'Rate limiter service error, bypassing rate limit',
       );
     });
   });
@@ -203,7 +203,7 @@ describe('Security Middleware', () => {
           endpoint: '/test',
           error: 'Redis timeout',
         }),
-        'Auth rate limiter Redis error, bypassing rate limit',
+        'Auth rate limiter service error, bypassing rate limit',
       );
     });
   });
@@ -280,7 +280,7 @@ describe('Security Middleware', () => {
           endpoint: '/test',
           error: 'Redis server unavailable',
         }),
-        'File upload rate limiter Redis error, bypassing rate limit',
+        'File upload rate limiter service error, bypassing rate limit',
       );
     });
   });
