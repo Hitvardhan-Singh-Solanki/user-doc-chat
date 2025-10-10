@@ -1,10 +1,10 @@
 import { Application } from 'express';
-import { PostgresService } from '../../infrastructure/database/repositories/postgres.repository';
-import { LLMService } from '../../domains/chat/services/llm.service';
-import { VectorStoreService } from '../../domains/vector/services/vector-store.service';
-import { FetchHTMLService } from '../../domains/chat/services/fetch.service';
-import { DeepResearchService } from '../../domains/chat/services/deep-research.service';
-import { WebsocketService } from '../../domains/chat/services/websocket.service';
+import { PostgresService } from '@database/repositories/postgres.repository';
+import { LLMService } from '@chat/services/llm.service';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { FetchHTMLService } from '@chat/services/fetch.service';
+import { DeepResearchService } from '@chat/services/deep-research.service';
+import { WebsocketService } from '@chat/services/websocket.service';
 // import { config } from '@config';
 
 export class ServiceFactory {

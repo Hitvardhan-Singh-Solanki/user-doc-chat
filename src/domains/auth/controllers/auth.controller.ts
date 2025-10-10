@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import { signJwt } from '../../../shared/utils/jwt';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+import { signJwt } from '@utils/jwt';
+import { PostgresService } from '@database/repositories/postgres.repository';
 
 export class AuthController {
   private authService: AuthService;

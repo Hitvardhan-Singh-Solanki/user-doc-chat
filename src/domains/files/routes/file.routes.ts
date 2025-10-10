@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { requireAuth } from '../../../shared/middleware/auth.middleware';
-import { fileUploadRateLimit } from '../../../shared/middleware/security.middleware';
+import { requireAuth } from '@middleware/auth.middleware';
+import { fileUploadRateLimit } from '@middleware/security.middleware';
 import { FileController } from '../controllers/file.controller';
 import { config } from '@config';
 

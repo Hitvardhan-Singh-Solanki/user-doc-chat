@@ -1,13 +1,13 @@
 import { logger } from '@config/logger.config';
-import { DeepResearchService } from '../../../domains/chat/services/deep-research.service';
-import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
-import { FetchHTMLService } from '../../../domains/chat/services/fetch.service';
-import { LLMService } from '../../../domains/chat/services/llm.service';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+import { DeepResearchService } from '@chat/services/deep-research.service';
+import { EnrichmentService } from '@chat/services/enrichment.service';
+import { FetchHTMLService } from '@chat/services/fetch.service';
+import { LLMService } from '@chat/services/llm.service';
+import { PostgresService } from '@database/repositories/postgres.repository';
 import { FileWorkerService } from '../services/process-file.service';
-import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
-import { db } from '../../../infrastructure/database/repositories/db.repo';
-import { getVectorStoreProviderWithLogging } from '../../../shared/utils';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { db } from '@database/repositories/db.repo';
+import { getVectorStoreProviderWithLogging } from '@shared/utils';
 
 // Global state for cleanup tracking
 let fileWorkerService: FileWorkerService | null = null;

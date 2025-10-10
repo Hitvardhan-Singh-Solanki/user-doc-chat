@@ -1,5 +1,5 @@
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { SearchResult } from '../../../shared/types';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { SearchResult } from '@shared/types';
 import { config } from '@config';
 
 export class DuckDuckGoAdapter implements ISearchAdapter {

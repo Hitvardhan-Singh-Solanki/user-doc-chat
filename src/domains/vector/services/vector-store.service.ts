@@ -1,11 +1,11 @@
-import { Vector, VectorStoreType } from '../../../shared/types';
-import { LLMService } from '../../../domains/chat/services/llm.service';
+import { Vector, VectorStoreType } from '@shared/types';
+import { LLMService } from '@chat/services/llm.service';
 import { PineconeVectorStore } from './pinecone.service';
 import {
   IVectorStore,
   VectorQueryResult,
-} from '../../../shared/interfaces/vector-store.interface';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+} from '@interfaces/vector-store.interface';
+import { PostgresService } from '@database/repositories/postgres.repository';
 import { config } from '@config';
 
 export class VectorStoreService {

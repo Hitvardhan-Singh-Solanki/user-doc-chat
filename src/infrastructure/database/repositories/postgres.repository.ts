@@ -1,12 +1,12 @@
 import { QueryResult } from 'pg';
 import { db } from './db.repo';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { Vector } from '../../../shared/types';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { Vector } from '@shared/types';
 import {
   IVectorStore,
   VectorQueryResult,
   QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
+} from '@interfaces/vector-store.interface';
 import { config } from '@config';
 
 export class PostgresService implements IDBStore, IVectorStore {

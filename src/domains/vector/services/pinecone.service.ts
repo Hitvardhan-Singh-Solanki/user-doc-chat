@@ -2,8 +2,8 @@ import {
   IVectorStore,
   VectorQueryResult,
   QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
-import { Vector } from '../../../shared/types';
+} from '@interfaces/vector-store.interface';
+import { Vector } from '@shared/types';
 import { pinecone } from '../repos/pinecone.repo';
 import { config } from '@config';
 

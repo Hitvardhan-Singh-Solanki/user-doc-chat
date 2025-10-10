@@ -1,7 +1,7 @@
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { User } from '../../../shared/types';
-import { hashPassword, comparePassword } from '../../../shared/utils/hash';
-import { normalizeEmail } from '../../../shared/utils/email';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { User } from '@shared/types';
+import { hashPassword, comparePassword } from '@utils/hash';
+import { normalizeEmail } from '@utils/email';
 
 export class AuthService {
   private db: IDBStore;

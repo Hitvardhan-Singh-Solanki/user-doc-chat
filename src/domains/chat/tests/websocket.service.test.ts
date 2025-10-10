@@ -1,8 +1,8 @@
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { WebsocketService } from '../services/websocket.service';
-import { redisChatHistory } from '../../../infrastructure/database/repositories/redis.repo';
-import { serviceFactory } from '../../../shared/factories/service.factory';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
+import { redisChatHistory } from '@database/repositories/redis.repo';
+import { serviceFactory } from '@shared/factories/service.factory';
+import { IDBStore } from '@interfaces/db-store.interface';
 import { VectorStoreService } from '../../vector/services/vector-store.service';
 import { LLMService } from '../services/llm.service';
 

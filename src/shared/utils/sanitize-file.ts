@@ -1,5 +1,5 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { getSanitizer } from '../../domains/files/services/sanitization/file-sanitizer.factory';
+import { getSanitizer } from '@files/services/sanitization/file-sanitizer.factory';
 
 export async function sanitizeFile(fileBuffer: Buffer<ArrayBufferLike>) {
   const type = await fileTypeFromBuffer(fileBuffer);

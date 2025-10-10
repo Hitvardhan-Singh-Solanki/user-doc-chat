@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PromptService } from '../services/prompt.service';
-import { PromptConfig } from '../../../shared/types';
-import { ITokenizer } from '../../../shared/interfaces/tokenizer.interface';
-// import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { PromptConfig } from '@shared/types';
+import { ITokenizer } from '@interfaces/tokenizer.interface';
+// import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('@xenova/transformers', () => ({

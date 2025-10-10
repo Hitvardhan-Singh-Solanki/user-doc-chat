@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DeepResearchService } from '../services/deep-research.service';
 import { PromptService } from '../services/prompt.service';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
 
 // Mock the dependencies
 vi.mock('../services/prompt.service');

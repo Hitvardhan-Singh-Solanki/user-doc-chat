@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FileUploadService } from '../services/file-upload.service';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { MulterFile, UserFileRecord } from '../../../shared/types';
-import * as minioService from '../../../infrastructure/storage/providers/minio.provider';
-import { queueAdapter } from '../../../infrastructure/queue/providers/bullmq.provider';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { MulterFile, UserFileRecord } from '@shared/types';
+import * as minioService from '@storage/providers/minio.provider';
+import { queueAdapter } from '@queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
 

@@ -5,7 +5,7 @@ import {
   authRateLimit,
   fileUploadRateLimit,
 } from '../security.middleware';
-import { rateLimiterService } from '../../../infrastructure/cache/rate-limiter.service';
+import { rateLimiterService } from '@cache/rate-limiter.service';
 import { logger } from '@config/logger.config';
 import {
   MockRequest,
@@ -15,9 +15,9 @@ import {
   RedisConnectionError,
   MockRateLimiterService,
   TestLogger,
-} from '../../types/test.types';
+} from '@shared/types/test.types';
 
-vi.mock('../../../infrastructure/cache/rate-limiter.service');
+vi.mock('@cache/rate-limiter.service');
 vi.mock('@config/logger.config', () => ({
   logger: {
     warn: vi.fn(),

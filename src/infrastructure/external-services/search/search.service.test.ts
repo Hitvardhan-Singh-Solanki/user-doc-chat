@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SearchService } from './search.service';
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { SearchResult } from '../../../shared/types';
-import { mockSearchResults } from '../../../tests/fixtures';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { SearchResult } from '@shared/types';
+import { mockSearchResults } from '@tests/fixtures';
 
 describe('SearchService', () => {
   let searchService: SearchService;

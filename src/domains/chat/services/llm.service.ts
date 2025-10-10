@@ -1,15 +1,15 @@
 import { InferenceClient } from '@huggingface/inference';
 import { z } from 'zod';
 import CircuitBreaker from 'opossum';
-import { PromptConfig } from '../../../shared/types';
+import { PromptConfig } from '@shared/types';
 import { PromptService } from './prompt.service';
-import { UserInputSchema } from '../../../domains/auth/validators/user-input.validator';
-import { LowContentSchema } from '../../../domains/files/validators/file-input.validator';
-import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
+import { UserInputSchema } from '@auth/validators/user-input.validator';
+import { LowContentSchema } from '@files/validators/file-input.validator';
+import { IEnrichmentService } from '@interfaces/enrichment.interface';
 import { logger } from '@config/logger.config';
-import { createCircuitBreaker } from '../../../shared/utils/circuit-breaker';
-import { XenovaTokenizerAdapter } from '../../../infrastructure/external-services/ai/xenova.adapter';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { createCircuitBreaker } from '@utils/circuit-breaker';
+import { XenovaTokenizerAdapter } from '@ai/xenova.adapter';
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
 import { config } from '@config';
 import { secretsManager } from '@secrets';
 

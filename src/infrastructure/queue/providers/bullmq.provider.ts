@@ -7,7 +7,7 @@ import {
   fileQueueName,
   legalDocumentsQueueName,
 } from '../../database/repositories/bullmq.repo';
-import { IQueueAdapter } from '../../../shared/interfaces/queue-adapter.interface';
+import { IQueueAdapter } from '@interfaces/queue-adapter.interface';
 
 /**
  * BullMQ Queue Adapter

@@ -3,7 +3,7 @@ import { VectorStoreService } from '../services/vector-store.service';
 import {
   VectorQueryResult,
   // QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
+} from '@interfaces/vector-store.interface';
 import { LLMService } from '../../chat/services/llm.service';
 
 describe('VectorStoreService', () => {
