@@ -86,16 +86,44 @@ jobs:
           NODE_ENV: test
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: test-secret-jwt-key-for-development-only
+          # FAKE JWT SECRET FOR TESTING ONLY - DO NOT USE IN PRODUCTION
+          JWT_SECRET: e0TOvk20tSMFdV0VDzRbtYkn5o0Cr+xJ0Kg2QV31X64=
+          JWT_AUDIENCE: test-audience
+          JWT_ISSUER: test-issuer
+          JWT_EXPIRES_IN: 3600
+          JWT_MAX_AGE: 86400
           SANITIZER_HOST: 127.0.0.1:50051
-          # Toy tokens for testing (replace with real secrets in production)
-          HUGGINGFACE_HUB_TOKEN: some-fake-token-for-testing-only
-          PINECONE_API_KEY: some-fake-key-for-testing-only
-          HUGGINGFACE_CHAT_MODEL: some-fake-model-for-testing-only
-          HUGGINGFACE_SUMMARY_MODEL: some-fake-model-for-testing-only
-          HUGGINGFACE_EMBEDDING_MODEL: some-fake-model-for-testing-only
-          PINECONE_INDEX_NAME: test-index
-          DATABASE_URL: some-test-url
+          # FAKE TEST VALUES - DO NOT USE IN PRODUCTION
+          HUGGINGFACE_HUB_TOKEN: FAKE_TEST_TOKEN_DO_NOT_USE_IN_PRODUCTION
+          PINECONE_API_KEY: FAKE_TEST_KEY_DO_NOT_USE_IN_PRODUCTION
+          SERP_API_KEY: FAKE_TEST_SERP_KEY_DO_NOT_USE_IN_PRODUCTION
+          BING_SEARCH_API_KEY: FAKE_TEST_BING_KEY_DO_NOT_USE_IN_PRODUCTION
+          BING_SEARCH_ENDPOINT: https://fake-test-endpoint.example.com
+          HUGGINGFACE_API_KEY: FAKE_TEST_HF_API_KEY_DO_NOT_USE_IN_PRODUCTION
+          PINECONE_ENVIRONMENT: fake-test-environment
+          PINECONE_INDEX_NAME: fake-test-index
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          # FAKE STORAGE CREDENTIALS - DO NOT USE IN PRODUCTION
+          MINIO_ACCESS_KEY: FAKE_TEST_ACCESS_KEY_DO_NOT_USE_IN_PRODUCTION
+          MINIO_SECRET_KEY: FAKE_TEST_SECRET_KEY_DO_NOT_USE_IN_PRODUCTION
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: 9000
+          MINIO_USE_SSL: false
+          S3_BUCKET: fake-test-bucket
+          POSTGRES_PASSWORD: postgres
+          REDIS_PASSWORD: FAKE_TEST_REDIS_PASSWORD_DO_NOT_USE_IN_PRODUCTION
+          # Application Configuration
+          PORT: 3001
+          LOG_LEVEL: error
+          # Security Configuration
+          CORS_ORIGIN: http://localhost:3001
+          CORS_ORIGINS: http://localhost:3001
+          RATE_LIMIT_WINDOW_MS: 900000
+          RATE_LIMIT_MAX_REQUESTS: 1000
+          MAX_REQUEST_SIZE: 10485760
+          # Test-specific overrides
+          DEV_SSL_ALLOW: true
+          PG_SSL: false
         run: npm test
 
       - name: Upload test coverage

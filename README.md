@@ -180,16 +180,28 @@ The project includes comprehensive testing:
 - **E2E Tests**: Full user workflow testing
 - **Mock Services**: External service mocking for reliable testing
 
-```bash
-# Run all tests
-npm test
+### Test Environment Setup
 
-# Run tests in watch mode
-npm run test:watch
+1. **Copy Test Environment Template**:
+   ```bash
+   cp env.test.example env.test
+   ```
 
-# Generate coverage report
-npm run coverage
-```
+2. **Configure Test Secrets**: Edit `env.test` with your test-specific credentials and API keys
+
+3. **Run Tests**:
+   ```bash
+   # Run all tests
+   npm test
+
+   # Run tests in watch mode
+   npm run test:watch
+
+   # Generate coverage report
+   npm run coverage
+   ```
+
+> 📖 **See [Setup Guide](./docs/SETUP.md#testing-setup) for detailed test environment configuration**
 
 ## 🚀 Deployment Options
 
