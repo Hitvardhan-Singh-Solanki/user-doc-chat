@@ -5,7 +5,7 @@ import { VectorStoreService } from '@vector/services/vector-store.service';
 import { FetchHTMLService } from '@chat/services/fetch.service';
 import { DeepResearchService } from '@chat/services/deep-research.service';
 import { WebsocketService } from '@chat/services/websocket.service';
-// import { config } from '@config';
+import { config } from '@config';
 
 export class ServiceFactory {
   private static instance: ServiceFactory;
@@ -36,7 +36,7 @@ export class ServiceFactory {
   getVectorStoreService() {
     return this.getService('vectorStore', () => {
       const llmService = this.getLLMService();
-      return new VectorStoreService(llmService, 'pinecone');
+      return new VectorStoreService(llmService, config.VECTOR_STORE_PROVIDER);
     });
   }
 
