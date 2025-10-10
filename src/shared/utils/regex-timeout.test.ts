@@ -197,17 +197,19 @@ describe('RegexTimeout Protection', () => {
 
       // Mock setTimeout to make the timeout trigger immediately
       const originalSetTimeout = global.setTimeout;
-      // @ts-ignore - Mock function doesn't need all setTimeout properties
-      global.setTimeout = vi.fn((callback: Function, delay: number) => {
-        if (delay === 1) {
-          // For our test timeout, trigger immediately
-          callback();
-        } else {
-          // For other timeouts, use original behavior
-          return originalSetTimeout(callback, delay);
-        }
-        return {} as any;
-      });
+      // @ts-expect-error - Mock function doesn't need all setTimeout properties
+      global.setTimeout = vi.fn(
+        (callback: (...args: unknown[]) => void, delay: number) => {
+          if (delay === 1) {
+            // For our test timeout, trigger immediately
+            callback();
+          } else {
+            // For other timeouts, use original behavior
+            return originalSetTimeout(callback, delay);
+          }
+          return {} as NodeJS.Timeout;
+        },
+      );
 
       try {
         await expect(

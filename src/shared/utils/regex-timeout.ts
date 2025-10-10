@@ -29,7 +29,7 @@ interface RegexWorkerData {
 
 interface RegexWorkerResult {
   success: boolean;
-  result?: any;
+  result?: string | RegExpExecArray | RegExpExecArray[] | null;
   error?: string;
 }
 

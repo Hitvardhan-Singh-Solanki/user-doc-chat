@@ -3,7 +3,8 @@
  * Ensures proper cleanup of test resources
  */
 
-import { vi } from 'vitest';
+// import { vi } from 'vitest';
+import { logger } from '../../config/logger.config';
 
 export class ResourceCleanup {
   private resources: Set<{
@@ -56,7 +57,10 @@ export class ResourceCleanup {
       try {
         await resource.cleanup();
       } catch (error) {
-        console.warn(`Failed to cleanup resource ${resource.type}:`, error);
+        logger.warn(
+          { error, resourceType: resource.type },
+          'Failed to cleanup resource',
+        );
       }
     }
     this.resources.clear();

@@ -1,4 +1,5 @@
 import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { logger } from '../../../config/logger.config';
 import { SearchResult } from '@shared/types';
 
 export class SerpApiAdapter implements ISearchAdapter {
@@ -32,7 +33,8 @@ export class SerpApiAdapter implements ISearchAdapter {
       let errorBody: string;
       try {
         errorBody = await res.text();
-      } catch {
+      } catch (parseError) {
+        logger.debug({ parseError }, 'Failed to parse error response body');
         errorBody = 'Unable to read response body';
       }
       throw new Error(

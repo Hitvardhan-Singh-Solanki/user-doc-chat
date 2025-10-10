@@ -8,7 +8,7 @@ import type {
   AuthMiddlewareMock,
   RateLimitMock,
   MockFactory,
-} from '@types/mock.types';
+} from '../../shared/types/mock.types';
 
 // Auth Middleware Mock Factory
 export const createAuthMiddlewareMock = (): AuthMiddlewareMock => ({
@@ -79,8 +79,8 @@ export class MiddlewareMockFactory<T> implements MockFactory<T> {
 
     // Apply mock functions
     for (const [key, mockFn] of Object.entries(this.mockFunctions)) {
-      if (mockFn) {
-        (result as any)[key] = mockFn();
+      if (mockFn && typeof mockFn === 'function') {
+        (result as Record<string, unknown>)[key] = mockFn();
       }
     }
 
@@ -151,19 +151,21 @@ export const createMockResponse = () => {
 
 export const createMockNext = () => {
   const next = vi.fn();
-  next.called = false;
-  next.error = null;
+  const mockNext = Object.assign(next, {
+    called: false,
+    error: null as Error | null,
+  });
 
   // Wrap the mock to track calls
   const wrappedNext = (...args: unknown[]) => {
-    next.called = true;
+    mockNext.called = true;
     if (args.length > 0 && args[0] instanceof Error) {
-      next.error = args[0] as Error;
+      mockNext.error = args[0] as Error;
     }
     return next(...args);
   };
 
-  return Object.assign(wrappedNext, next);
+  return Object.assign(wrappedNext, mockNext);
 };
 
 // Mock middleware error scenarios

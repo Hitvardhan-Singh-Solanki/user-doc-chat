@@ -8,10 +8,14 @@ import { redisContainerManager } from './redis.container';
 import type {
   ContainerManager,
   ContainerTestEnvironment,
-} from '@types/container.types';
+  DatabaseContainer,
+  RedisContainer,
+} from '../../../shared/types/container.types';
+import { logger } from '../../../config/logger.config';
 
 export class TestContainerManager implements ContainerManager {
-  private containers: Map<string, any> = new Map();
+  private containers: Map<string, DatabaseContainer | RedisContainer> =
+    new Map();
   private isStarted = false;
 
   async startAll(): Promise<void> {
@@ -40,7 +44,7 @@ export class TestContainerManager implements ContainerManager {
       this.containers.clear();
       this.isStarted = false;
     } catch (error) {
-      console.warn('Error stopping containers:', error);
+      logger.warn({ error }, 'Error stopping containers');
     }
   }
 
@@ -73,8 +77,8 @@ export class TestContainerManager implements ContainerManager {
   }
 
   getTestEnvironment(): ContainerTestEnvironment {
-    const postgres = this.containers.get('postgres');
-    const redis = this.containers.get('redis');
+    const postgres = this.containers.get('postgres') as DatabaseContainer;
+    const redis = this.containers.get('redis') as RedisContainer;
 
     if (!postgres || !redis) {
       throw new Error('Containers not started');
@@ -92,7 +96,7 @@ export class TestContainerManager implements ContainerManager {
       redis: {
         host: redis.host,
         port: redis.port,
-        password: redis.password,
+        password: redis.password || '',
         connectionString: redis.connectionString,
       },
       minio: {

@@ -3,8 +3,8 @@
  * Prevents ReDoS attacks by running regex operations in isolated workers
  */
 
-import { parentPort, workerData } from 'worker_threads';
-import { RegexTimeoutError } from './regex-timeout';
+import { parentPort } from 'worker_threads';
+// import { RegexTimeoutError } from './regex-timeout';
 
 interface RegexWorkerData {
   operation: 'test' | 'match' | 'replace' | 'exec';
@@ -17,7 +17,7 @@ interface RegexWorkerData {
 
 interface RegexWorkerResult {
   success: boolean;
-  result?: any;
+  result?: string | RegExpExecArray | RegExpExecArray[] | null;
   error?: string;
 }
 
@@ -28,7 +28,13 @@ if (parentPort) {
   parentPort.on('message', (data: RegexWorkerData) => {
     try {
       const regex = new RegExp(data.pattern, data.flags);
-      let result: any;
+      let result:
+        | string
+        | RegExpExecArray
+        | RegExpExecArray[]
+        | RegExpMatchArray
+        | boolean
+        | null;
 
       switch (data.operation) {
         case 'test':
@@ -40,7 +46,7 @@ if (parentPort) {
         case 'replace':
           result = data.text.replace(regex, data.replacement || '');
           break;
-        case 'exec':
+        case 'exec': {
           const results: RegExpExecArray[] = [];
           let match: RegExpExecArray | null;
           let iterations = 0;
@@ -60,6 +66,7 @@ if (parentPort) {
           }
           result = results;
           break;
+        }
         default:
           throw new Error(`Unknown operation: ${data.operation}`);
       }

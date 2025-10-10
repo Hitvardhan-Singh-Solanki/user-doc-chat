@@ -45,14 +45,14 @@ describe('AuthService', () => {
         rows: [mockUser],
       });
 
-      const result = await authService.signUp(email, password);
+      const _result = await authService.signUp(email, password);
 
       expect(mockHashPassword).toHaveBeenCalledWith(password);
       expect(mockDb.query).toHaveBeenCalledWith(
         'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
         ['test@example.com', hashedPassword],
       );
-      expect(result).toEqual(mockUser);
+      expect(_result).toEqual(mockUser);
     });
 
     it('should normalize email to lowercase and trim', async () => {
@@ -134,7 +134,7 @@ describe('AuthService', () => {
       });
       mockComparePassword.mockResolvedValue(true);
 
-      const result = await authService.login(email, password);
+      const _result = await authService.login(email, password);
 
       expect(mockDb.query).toHaveBeenCalledWith(
         'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
@@ -144,7 +144,7 @@ describe('AuthService', () => {
         password,
         mockUser.password_hash,
       );
-      expect(result).toEqual({
+      expect(_result).toEqual({
         id: mockUser.id,
         email: mockUser.email,
       });
@@ -298,7 +298,7 @@ describe('AuthService', () => {
         rows: [{ id: 'user1', email: '', created_at: new Date() }],
       });
 
-      const result = await authService.signUp(email, password);
+      const _result = await authService.signUp(email, password);
 
       expect(mockDb.query).toHaveBeenCalledWith(
         'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',

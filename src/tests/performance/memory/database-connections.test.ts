@@ -12,6 +12,7 @@ import {
   beforeEach,
   afterEach,
 } from 'vitest';
+import { logger } from '../../../config/logger.config';
 import { memoryTracker } from '../../utils/memory-tracker';
 import { resourceCleanup } from '../../utils/cleanup';
 
@@ -95,7 +96,7 @@ describe('Database Connection Memory Tests', () => {
     const leakResult = memoryTracker.detectLeak(1024 * 1024); // 1MB threshold
 
     if (leakResult.leakDetected) {
-      console.warn('Memory leak detected:', leakResult);
+      logger.warn({ leakResult }, 'Memory leak detected');
     }
   });
 });

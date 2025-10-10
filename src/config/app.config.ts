@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logger } from './logger.config';
 
 const booleanPreprocess = (val: unknown) => {
   if (typeof val === 'string') {
@@ -104,18 +105,24 @@ const envSchema = z.object({
 
 // Parse and validate environment variables
 let configInitialized = false;
+let configProxy: z.infer<typeof envSchema> | null = null;
 
 function parseConfig() {
   try {
     return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      // eslint-disable-next-line no-console
-      console.error('❌ Configuration validation failed:');
-      error.issues.forEach((err) => {
-        // eslint-disable-next-line no-console
-        console.error(`  - ${err.path.join('.')}: ${err.message}`);
-      });
+      logger.error(
+        {
+          issues: error.issues.map((err) => ({
+            path: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+          })),
+          errorCount: error.issues.length,
+        },
+        'Configuration validation failed',
+      );
       process.exit(1);
     }
     throw error;
@@ -149,9 +156,14 @@ if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
     !parsedConfig.POSTGRES_PASSWORD ||
     parsedConfig.POSTGRES_PASSWORD === 'password'
   ) {
-    // eslint-disable-next-line no-console
-    console.error(
-      '❌ Security Error: POSTGRES_PASSWORD is required and cannot be the default "password" in non-development environments',
+    logger.error(
+      {
+        environment: parsedConfig.NODE_ENV,
+        issue:
+          'POSTGRES_PASSWORD is required and cannot be the default "password" in non-development environments',
+        securityRisk: 'default_password_detected',
+      },
+      'Security configuration error',
     );
     process.exit(1);
   }
@@ -168,14 +180,13 @@ export function reparseConfig() {
 export { initializeConfig };
 
 // Export config with lazy initialization for test mode
-let configProxy: z.infer<typeof envSchema> | null = null;
 
 export const config = new Proxy({} as z.infer<typeof envSchema>, {
   get(target, prop) {
     if (!configInitialized || !configProxy) {
       configProxy = initializeConfig();
     }
-    return configProxy[prop as keyof typeof configProxy];
+    return configProxy![prop as keyof typeof configProxy];
   },
 });
 

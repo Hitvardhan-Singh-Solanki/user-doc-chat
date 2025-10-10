@@ -4,11 +4,12 @@ import { IDBStore } from '@interfaces/db-store.interface';
 import { VectorStoreService } from '@vector/services/vector-store.service';
 import { LLMService } from '@chat/services/llm.service';
 import { SearchResult, EnrichmentOptions } from './index';
+import type { RateLimiterService } from '../../infrastructure/cache/rate-limiter.service';
 
-// Re-export types from other test type files
-export * from './mock.types';
-export * from './performance.types';
-export * from './container.types';
+// Import types from other test type files for internal use
+// import type { ContainerConfig, ContainerManager } from './mock.types';
+// import type { MemoryMetrics, MemoryLeakResult } from './performance.types';
+// import type { DatabaseContainer, RedisContainer } from './container.types';
 
 export interface MockRequest extends Partial<Request> {
   ip?: string;
@@ -73,7 +74,7 @@ export class RedisConnectionError extends Error {
   }
 }
 
-export interface MockRateLimiterService {
+export interface MockRateLimiterService extends RateLimiterService {
   initialize: () => Promise<void>;
   consumeGeneral: (key: string) => Promise<void>;
   consumeAuth: (key: string) => Promise<void>;
@@ -81,14 +82,25 @@ export interface MockRateLimiterService {
   consumeChat: (key: string) => Promise<void>;
   getRateLimitInfo: (
     key: string,
-    type: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
   ) => Promise<{
     remainingPoints: number;
+    totalHits: number;
     msBeforeNext: number;
+    isBlocked: boolean;
   }>;
-  getRemainingPoints: (key: string, type: string) => Promise<number>;
-  getTotalHits: (key: string, type: string) => Promise<number>;
-  reset: (key: string, type: string) => Promise<void>;
+  getRemainingPoints: (
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ) => Promise<number>;
+  getTotalHits: (
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ) => Promise<number>;
+  reset: (
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ) => Promise<void>;
   isRedisBackend: () => boolean;
 }
 

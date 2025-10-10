@@ -5,7 +5,7 @@ describe('CircuitBreakerService', () => {
   let service: CircuitBreakerService;
 
   beforeEach(() => {
-    service = new CircuitBreakerService();
+    service = CircuitBreakerService.getInstance();
     // Clear any existing breakers
     service.clearAllBreakers();
   });

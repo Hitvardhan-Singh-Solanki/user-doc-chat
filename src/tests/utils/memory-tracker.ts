@@ -3,7 +3,10 @@
  * Provides comprehensive memory tracking for tests
  */
 
-import type { MemoryMetrics, MemoryLeakResult } from '@types/performance.types';
+import type {
+  MemoryMetrics,
+  MemoryLeakResult,
+} from '../../shared/types/performance.types';
 
 export class MemoryTracker {
   private snapshots: Array<{
@@ -20,7 +23,7 @@ export class MemoryTracker {
       memory: {
         heapUsed: memory.heapUsed,
         heapTotal: memory.heapTotal,
-        heapLimit: memory.heapLimit || 0,
+        heapLimit: 0, // heapLimit is not available in NodeJS.MemoryUsage
         external: memory.external,
         rss: memory.rss,
         arrayBuffers: memory.arrayBuffers,
@@ -95,7 +98,7 @@ export class MemoryTracker {
     return {
       heapUsed: memory.heapUsed,
       heapTotal: memory.heapTotal,
-      heapLimit: memory.heapLimit || 0,
+      heapLimit: 0, // heapLimit is not available in NodeJS.MemoryUsage
       external: memory.external,
       rss: memory.rss,
       arrayBuffers: memory.arrayBuffers,

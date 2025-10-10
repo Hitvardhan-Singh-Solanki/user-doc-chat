@@ -176,7 +176,7 @@ describe('DeepResearchService', () => {
     it('should use correct parameters for generateLowSummary', async () => {
       const inputText = 'Legal document text';
       const sanitizedText = 'Legal document text';
-      const prompt = 'Extract clauses...';
+      const _prompt = 'Extract clauses...';
       const expectedSummary = 'Document summary';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
@@ -194,7 +194,7 @@ describe('DeepResearchService', () => {
     it('should pass through LLM generateLowSummary result unchanged', async () => {
       const inputText = 'Test text';
       const sanitizedText = 'Test text';
-      const prompt = 'Test prompt';
+      const _prompt = 'Test prompt';
       const llmResult = 'Complex object result';
 
       mockPromptService.sanitizeText.mockReturnValue(sanitizedText);
@@ -217,7 +217,7 @@ describe('DeepResearchService', () => {
         Party A shall...
       `;
       const sanitizedText = inputText.trim();
-      const prompt = 'Extract legal clauses...';
+      const _prompt = 'Extract legal clauses...';
       const expectedSummary =
         'Contains 2 articles with definitions and obligations.';
 
@@ -244,7 +244,7 @@ describe('DeepResearchService', () => {
     it('should handle async operations correctly', async () => {
       const inputText = 'Test async behavior';
       const sanitizedText = 'Test async behavior';
-      const prompt = 'Async prompt';
+      const _prompt = 'Async prompt';
       let resolvePromise: (value: string) => void;
 
       const summaryPromise = new Promise<string>((resolve) => {
