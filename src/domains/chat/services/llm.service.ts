@@ -10,6 +10,8 @@ import { logger } from '../../../config/logger.config';
 import { createCircuitBreaker } from '../../../shared/utils/cb';
 import { XenovaTokenizerAdapter } from '../../../infrastructure/external-services/ai/xenova.adapter';
 import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { config } from '../../../config/app.config';
+import { secretsManager } from '../../../config/secrets.config';
 
 /**
  * Wraps a promise with timeout handling using AbortController
@@ -126,19 +128,11 @@ export class LLMService {
   private readonly TEXT_GENERATION_TIMEOUT_MS = 30_000;
 
   constructor() {
-    this.hfToken = process.env.HUGGINGFACE_HUB_TOKEN || '';
-    this.hfChatModel = process.env.HUGGINGFACE_CHAT_MODEL || '';
-    this.hfEmbeddingModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || '';
-    this.pythonUrl = process.env.PYTHON_LLM_URL;
-    this.hfSummaryModel = process.env.HUGGINGFACE_SUMMARY_MODEL || '';
-
-    if (!this.hfToken) throw new Error('HUGGINGFACE_HUB_TOKEN is required');
-    if (!this.hfChatModel)
-      throw new Error('HUGGINGFACE_CHAT_MODEL is required');
-    if (!this.hfEmbeddingModel)
-      throw new Error('HUGGINGFACE_EMBEDDING_MODEL is required');
-    if (!this.hfSummaryModel)
-      throw new Error('HUGGINGFACE_SUMMARY_MODEL is required');
+    this.hfToken = secretsManager.getHuggingfaceToken();
+    this.hfChatModel = config.HUGGINGFACE_CHAT_MODEL;
+    this.hfEmbeddingModel = config.HUGGINGFACE_EMBEDDING_MODEL;
+    this.pythonUrl = config.PYTHON_LLM_URL;
+    this.hfSummaryModel = config.HUGGINGFACE_SUMMARY_MODEL;
 
     const simpleTokenizer = new SimpleTokenizerAdapter();
     this.promptService = new PromptService(simpleTokenizer);
@@ -196,8 +190,8 @@ export class LLMService {
 
   chunkText(
     text: string,
-    chunkSize: number = Number(process.env.CHUNK_SIZE) || 500,
-    overlap: number = Number(process.env.CHUNK_OVERLAP) || 50,
+    chunkSize: number = config.CHUNK_SIZE,
+    overlap: number = config.CHUNK_OVERLAP,
   ): string[] {
     const chunks: string[] = [];
     const size = Math.max(1, Math.floor(chunkSize));

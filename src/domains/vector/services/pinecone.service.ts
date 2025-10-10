@@ -5,11 +5,12 @@ import {
 } from '../../../shared/interfaces/vector-store.interface';
 import { Vector } from '../../../shared/types';
 import { pinecone } from '../repos/pinecone.repo';
+import { config } from '../../../config/app.config';
 
 export class PineconeVectorStore implements IVectorStore {
   private indexName: string;
 
-  constructor(indexName: string | undefined = process.env.PINECONE_INDEX_NAME) {
+  constructor(indexName: string | undefined = config.PINECONE_INDEX) {
     if (!indexName) throw new Error('index not set');
     this.indexName = indexName;
   }

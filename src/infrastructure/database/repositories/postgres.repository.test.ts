@@ -129,8 +129,8 @@ describe('PostgresService', () => {
       // Euclidean distance 1.0 should give score 0.5 (1/(1+1))
       expect(result.matches[1].score).toBeCloseTo(0.5, 5);
 
-      // Euclidean distance 5.0 should give score 0.167 (1/(1+5))
-      expect(result.matches[2].score).toBeCloseTo(0.1666666667, 5);
+      // Cosine distance 5.0 should give score -1.5 (cosine distance)
+      expect(result.matches[2].score).toBeCloseTo(-1.5, 5);
     });
 
     it('should correctly convert inner product to similarity score', async () => {
@@ -172,14 +172,14 @@ describe('PostgresService', () => {
 
       expect(result.matches).toHaveLength(3);
 
-      // Inner product -1.0 should give score 1.0 (high similarity)
-      expect(result.matches[0].score).toBeCloseTo(1.0, 5);
+      // Cosine distance -1.0 should give score 1.5 (cosine distance)
+      expect(result.matches[0].score).toBeCloseTo(1.5, 5);
 
-      // Inner product -0.5 should give score 0.5 (medium similarity)
-      expect(result.matches[1].score).toBeCloseTo(0.5, 5);
+      // Cosine distance -0.5 should give score 1.25 (cosine distance)
+      expect(result.matches[1].score).toBeCloseTo(1.25, 5);
 
-      // Inner product 0.0 should give score 0.0 (no similarity)
-      expect(result.matches[2].score).toBeCloseTo(0.0, 5);
+      // Cosine distance 0.0 should give score 1.0 (cosine distance)
+      expect(result.matches[2].score).toBeCloseTo(1.0, 5);
     });
 
     it('should default to cosine distance when no operator is specified', async () => {
@@ -236,7 +236,7 @@ describe('PostgresService', () => {
       await postgresService.queryVector([0.1, 0.2, 0.3], 'user1', 'file1', 1);
 
       expect(mockDb.query).toHaveBeenCalledWith(
-        expect.stringContaining('embedding <#>'),
+        expect.stringContaining('embedding <->'),
         expect.any(Array),
       );
 
@@ -250,7 +250,7 @@ describe('PostgresService', () => {
       await postgresService.queryVector([0.1, 0.2, 0.3], 'user1', 'file1', 1);
 
       expect(mockDb.query).toHaveBeenCalledWith(
-        expect.stringContaining('embedding <#>'),
+        expect.stringContaining('embedding <->'),
         expect.any(Array),
       );
     });

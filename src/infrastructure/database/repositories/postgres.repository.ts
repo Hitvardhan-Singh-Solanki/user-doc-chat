@@ -7,6 +7,7 @@ import {
   VectorQueryResult,
   QueryMatch,
 } from '../../../shared/interfaces/vector-store.interface';
+import { config } from '../../../config/app.config';
 
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
@@ -16,7 +17,7 @@ export class PostgresService implements IDBStore, IVectorStore {
   private constructor() {
     this.pool = db;
     // Default to cosine distance if not specified
-    this.distanceOperator = process.env.VECTOR_DISTANCE_OPERATOR || 'cosine';
+    this.distanceOperator = 'cosine'; // Default to cosine distance
   }
 
   public static getInstance(): PostgresService {

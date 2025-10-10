@@ -32,7 +32,7 @@ export class WebsocketService {
     fetchHTMLService?: FetchHTMLService,
     deepResearchService?: DeepResearchService,
   ) {
-    if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+    if (config.NODE_ENV === 'production' && !config.FRONTEND_URL) {
       this.logger.fatal(
         'FRONTEND_URL environment variable is required in production but is not set',
       );
@@ -52,8 +52,8 @@ export class WebsocketService {
     this.io = new Server(this.server, {
       cors: {
         origin:
-          process.env.NODE_ENV === 'production'
-            ? process.env.FRONTEND_URL
+          config.NODE_ENV === 'production'
+            ? config.FRONTEND_URL
             : '*',
         methods: ['GET', 'POST'],
       },
