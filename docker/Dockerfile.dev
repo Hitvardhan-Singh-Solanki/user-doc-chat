@@ -14,8 +14,10 @@ RUN npm install
 
 COPY . .
 
-# Create non-root user for security with dynamic UID/GID
-RUN groupadd -g $GID appuser && useradd -u $UID -g appuser appuser
+# Copy and run user creation script
+COPY docker/create-user.sh /usr/local/bin/create-user.sh
+RUN chmod +x /usr/local/bin/create-user.sh
+RUN /usr/local/bin/create-user.sh $UID $GID
 RUN chown -R appuser:appuser /app
 USER appuser
 

@@ -1,0 +1,364 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  # Run all checks in parallel for faster feedback
+  test:
+    runs-on: ubuntu-latest
+    needs: []
+
+    services:
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: python-deps-${{ hashFiles('python_service/requirements.txt') }}
+          restore-keys: |
+            python-deps-
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r python_service/requirements.txt
+
+      - name: Start gRPC sanitizer (background)
+        run: |
+          python python_service/main_grpc_server.py &
+          set -euo pipefail
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/50051) >/dev/null 2>&1; then
+              echo "Sanitizer is up"
+              break
+            fi
+            sleep 1
+          done
+          if ! (echo > /dev/tcp/127.0.0.1/50051) >/dev/null 2>&1; then
+            echo "Sanitizer did not start within 60s" >&2
+            exit 1
+          fi
+
+      - name: Run tests
+        env:
+          NODE_ENV: test
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: e0TOvk20tSMFdV0VDzRbtYkn5o0Cr+xJ0Kg2QV31X64=
+          JWT_AUDIENCE: test-audience
+          JWT_ISSUER: test-issuer
+          JWT_EXPIRES_IN: 3600
+          JWT_MAX_AGE: 86400
+          SANITIZER_HOST: 127.0.0.1:50051
+          HUGGINGFACE_HUB_TOKEN: FAKE_TEST_TOKEN_DO_NOT_USE_IN_PRODUCTION
+          PINECONE_API_KEY: FAKE_TEST_KEY_DO_NOT_USE_IN_PRODUCTION
+          SERP_API_KEY: FAKE_TEST_SERP_KEY_DO_NOT_USE_IN_PRODUCTION
+          BING_SEARCH_API_KEY: FAKE_TEST_BING_KEY_DO_NOT_USE_IN_PRODUCTION
+          BING_SEARCH_ENDPOINT: https://fake-test-endpoint.example.com
+          HUGGINGFACE_API_KEY: FAKE_TEST_HF_API_KEY_DO_NOT_USE_IN_PRODUCTION
+          PINECONE_ENVIRONMENT: fake-test-environment
+          PINECONE_INDEX_NAME: fake-test-index
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          MINIO_ACCESS_KEY: FAKE_TEST_ACCESS_KEY_DO_NOT_USE_IN_PRODUCTION
+          MINIO_SECRET_KEY: FAKE_TEST_SECRET_KEY_DO_NOT_USE_IN_PRODUCTION
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: 9000
+          MINIO_USE_SSL: false
+          S3_BUCKET: fake-test-bucket
+          POSTGRES_PASSWORD: postgres
+          REDIS_PASSWORD: FAKE_TEST_REDIS_PASSWORD_DO_NOT_USE_IN_PRODUCTION
+          PORT: 3001
+          LOG_LEVEL: error
+          CORS_ORIGIN: http://localhost:3001
+          CORS_ORIGINS: http://localhost:3001
+          RATE_LIMIT_WINDOW_MS: 900000
+          RATE_LIMIT_MAX_REQUESTS: 1000
+          MAX_REQUEST_SIZE: 10485760
+          DEV_SSL_ALLOW: true
+          PG_SSL: false
+        run: npm test
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  security:
+    runs-on: ubuntu-latest
+    needs: []
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Security Scan
+        run: |
+          npm ci
+          ./security-scan.sh
+
+      - name: Security Gate Check
+        id: security-gate
+        run: |
+          echo "## 🚪 Security Gate Analysis" >> $GITHUB_STEP_SUMMARY
+
+          CRITICAL_ISSUES=0
+
+          if [ -f "reports/npm-audit.json" ]; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' reports/npm-audit.json 2>/dev/null || echo "0")
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              HIGH_VULNS=$(jq '.vulnerabilities | to_entries | map(.value) | map(select(.severity == "high" or .severity == "critical")) | length' reports/npm-audit.json 2>/dev/null || echo "0")
+              if [ "$HIGH_VULNS" -gt 0 ]; then
+                echo "❌ **BLOCKING**: $HIGH_VULNS high/critical NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + HIGH_VULNS))
+              else
+                echo "⚠️ **WARNING**: $VULN_COUNT low/medium NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "✅ No NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          if [ -f "reports/hardcoded-secrets.txt" ] && [ -s "reports/hardcoded-secrets.txt" ]; then
+            SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
+            REAL_SECRETS=$(grep -E -v "test|spec|mock|TODO|comment" reports/hardcoded-secrets.txt | wc -l || echo "0")
+            if [ "$REAL_SECRETS" -gt 0 ]; then
+              echo "❌ **BLOCKING**: $REAL_SECRETS potential hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+              CRITICAL_ISSUES=$((CRITICAL_ISSUES + REAL_SECRETS))
+            else
+              echo "✅ No real hardcoded secrets found (only test files)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "✅ No hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f "reports/eval-usage.txt" ] && [ -s "reports/eval-usage.txt" ]; then
+            echo "❌ **BLOCKING**: eval() usage found" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+          else
+            echo "✅ No eval() usage found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f "reports/sql-patterns.txt" ] && [ -s "reports/sql-patterns.txt" ]; then
+            SQL_COUNT=$(wc -l < reports/sql-patterns.txt)
+            echo "⚠️ **WARNING**: $SQL_COUNT SQL patterns found (review for injection)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No SQL injection patterns found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$CRITICAL_ISSUES" -gt 0 ]; then
+            echo "🚫 **SECURITY GATE FAILED**: $CRITICAL_ISSUES critical issues found" >> $GITHUB_STEP_SUMMARY
+            echo "blocked=true" >> $GITHUB_OUTPUT
+            echo "critical_issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          else
+            echo "✅ **SECURITY GATE PASSED**: No critical issues found" >> $GITHUB_STEP_SUMMARY
+            echo "blocked=false" >> $GITHUB_OUTPUT
+            echo "critical_issues=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail on Security Gate
+        if: steps.security-gate.outputs.blocked == 'true'
+        run: |
+          echo "🚫 Security gate failed - PR blocked"
+          echo "Critical issues found: ${{ steps.security-gate.outputs.critical_issues }}"
+          echo "Please fix all critical security issues before merging"
+          exit 1
+
+  build:
+    runs-on: ubuntu-latest
+    needs: []
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images
+        run: |
+          echo "🔨 Building Docker images..."
+
+          # Build backend image
+          echo "Building backend image..."
+          docker build -f docker/Dockerfile.dev -t user-doc-chat-backend:test .
+
+          # Build database image
+          echo "Building database image..."
+          docker build -f docker/Dockerfile.pg -t user-doc-chat-db:test .
+
+          # Build Python APIs image
+          echo "Building Python APIs image..."
+          docker build -f docker/Dockerfile.python -t user-doc-chat-python:test .
+
+      - name: Test Docker Compose Build
+        run: |
+          echo "🧪 Testing Docker Compose build..."
+
+          # Create a test environment file
+          cat > .env.test << EOF
+          DATABASE_URL=postgresql://postgres:postgres@db:5432/user_doc_chat
+          DB_HOST=db
+          DB_PORT=5432
+          DB_NAME=user_doc_chat
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          POSTGRES_PASSWORD=postgres
+
+          REDIS_URL=redis://redis:6379
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+
+          JWT_SECRET=test-jwt-secret-key-for-ci-pipeline-only
+          JWT_EXPIRES_IN=3600
+          JWT_AUDIENCE=user-doc-chat-test
+          JWT_ISSUER=user-doc-chat-test
+          JWT_MAX_AGE=86400
+
+          NODE_ENV=development
+          PORT=3000
+          LOG_LEVEL=debug
+
+          MINIO_ENDPOINT=minio
+          MINIO_PORT=9000
+          MINIO_ACCESS_KEY=minioadmin
+          MINIO_SECRET_KEY=minioadmin
+          MINIO_USE_SSL=false
+          S3_BUCKET=user-doc-chat-test
+
+          CORS_ORIGIN=http://localhost:3000
+          CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+
+          SANITIZER_HOST=python_apis:50051
+          SANITIZER_TIMEOUT=30000
+
+          HUGGINGFACE_HUB_TOKEN=test-token-for-ci
+          PINECONE_API_KEY=test-key-for-ci
+          EOF
+
+          # Test docker-compose build
+          docker-compose -f docker-compose.dev.yml config
+          docker-compose -f docker-compose.dev.yml build
+
+      - name: Test Container Startup
+        run: |
+          echo "🚀 Testing container startup..."
+
+          # Start services in background
+          docker-compose -f docker-compose.dev.yml up -d db redis minio
+
+          # Wait for services to be ready
+          echo "Waiting for database to be ready..."
+          timeout 60 bash -c 'until docker-compose -f docker-compose.dev.yml exec -T db pg_isready -U postgres -d user_doc_chat; do sleep 2; done'
+
+          echo "Waiting for Redis to be ready..."
+          timeout 30 bash -c 'until docker-compose -f docker-compose.dev.yml exec -T redis redis-cli ping; do sleep 2; done'
+
+          echo "Waiting for MinIO to be ready..."
+          timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+
+          # Test backend container startup (without running the app)
+          echo "Testing backend container startup..."
+          docker-compose -f docker-compose.dev.yml run --rm backend node --version
+          docker-compose -f docker-compose.dev.yml run --rm backend npm --version
+
+          # Test Python APIs container startup
+          echo "Testing Python APIs container startup..."
+          docker-compose -f docker-compose.dev.yml run --rm python_apis python --version
+          docker-compose -f docker-compose.dev.yml run --rm python_apis pip --version
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up test containers..."
+          docker-compose -f docker-compose.dev.yml down -v
+          docker system prune -f
+
+  # Final status check - all jobs must pass
+  ci-status:
+    runs-on: ubuntu-latest
+    needs: [test, security, build]
+    if: always()
+
+    steps:
+      - name: Check CI Status
+        run: |
+          echo "## 🎯 CI Pipeline Status" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.test.result }}" == "success" ]; then
+            echo "✅ **Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.security.result }}" == "success" ]; then
+            echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "✅ **Build**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Overall status
+          if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.security.result }}" == "success" ] && [ "${{ needs.build.result }}" == "success" ]; then
+            echo "🎉 **Overall Status**: ALL CHECKS PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "✅ This PR is ready for merge!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚫 **Overall Status**: SOME CHECKS FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ This PR cannot be merged until all checks pass." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if any job failed
+        if: needs.test.result != 'success' || needs.security.result != 'success' || needs.build.result != 'success'
+        run: |
+          echo "🚫 CI Pipeline failed - one or more checks did not pass"
+          echo "Please fix the failing checks before merging"
+          exit 1

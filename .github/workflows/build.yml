@@ -1,0 +1,124 @@
+name: Build Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images
+        run: |
+          echo "🔨 Building Docker images..."
+
+          # Build backend image
+          echo "Building backend image..."
+          docker build -f docker/Dockerfile.dev -t user-doc-chat-backend:test .
+
+          # Build database image
+          echo "Building database image..."
+          docker build -f docker/Dockerfile.pg -t user-doc-chat-db:test .
+
+          # Build Python APIs image
+          echo "Building Python APIs image..."
+          docker build -f docker/Dockerfile.python -t user-doc-chat-python:test .
+
+      - name: Test Docker Compose Build
+        run: |
+          echo "🧪 Testing Docker Compose build..."
+
+          # Create a test environment file
+          cat > .env.test << EOF
+          # Test Environment Configuration
+          DATABASE_URL=postgresql://postgres:postgres@db:5432/user_doc_chat
+          DB_HOST=db
+          DB_PORT=5432
+          DB_NAME=user_doc_chat
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          POSTGRES_PASSWORD=postgres
+
+          REDIS_URL=redis://redis:6379
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+
+          JWT_SECRET=test-jwt-secret-key-for-ci-pipeline-only
+          JWT_EXPIRES_IN=3600
+          JWT_AUDIENCE=user-doc-chat-test
+          JWT_ISSUER=user-doc-chat-test
+          JWT_MAX_AGE=86400
+
+          NODE_ENV=development
+          PORT=3000
+          LOG_LEVEL=debug
+
+          MINIO_ENDPOINT=minio
+          MINIO_PORT=9000
+          MINIO_ACCESS_KEY=minioadmin
+          MINIO_SECRET_KEY=minioadmin
+          MINIO_USE_SSL=false
+          S3_BUCKET=user-doc-chat-test
+
+          CORS_ORIGIN=http://localhost:3000
+          CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+
+          SANITIZER_HOST=python_apis:50051
+          SANITIZER_TIMEOUT=30000
+
+          HUGGINGFACE_HUB_TOKEN=test-token-for-ci
+          PINECONE_API_KEY=test-key-for-ci
+          EOF
+
+          # Test docker-compose build
+          docker-compose -f docker-compose.dev.yml config
+          docker-compose -f docker-compose.dev.yml build
+
+      - name: Test Container Startup
+        run: |
+          echo "🚀 Testing container startup..."
+
+          # Start services in background
+          docker-compose -f docker-compose.dev.yml up -d db redis minio
+
+          # Wait for services to be ready
+          echo "Waiting for database to be ready..."
+          timeout 60 bash -c 'until docker-compose -f docker-compose.dev.yml exec -T db pg_isready -U postgres -d user_doc_chat; do sleep 2; done'
+
+          echo "Waiting for Redis to be ready..."
+          timeout 30 bash -c 'until docker-compose -f docker-compose.dev.yml exec -T redis redis-cli ping; do sleep 2; done'
+
+          echo "Waiting for MinIO to be ready..."
+          timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+
+          # Test backend container startup (without running the app)
+          echo "Testing backend container startup..."
+          docker-compose -f docker-compose.dev.yml run --rm backend node --version
+          docker-compose -f docker-compose.dev.yml run --rm backend npm --version
+
+          # Test Python APIs container startup
+          echo "Testing Python APIs container startup..."
+          docker-compose -f docker-compose.dev.yml run --rm python_apis python --version
+          docker-compose -f docker-compose.dev.yml run --rm python_apis pip --version
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up test containers..."
+          docker-compose -f docker-compose.dev.yml down -v
+          docker system prune -f
+
+      - name: Build Status
+        run: |
+          echo "✅ All Docker builds completed successfully!"
+          echo "✅ All containers can start properly!"
+          echo "✅ Docker Compose configuration is valid!"

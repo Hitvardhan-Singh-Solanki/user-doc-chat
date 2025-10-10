@@ -146,7 +146,8 @@ if (process.env.NODE_ENV !== 'test') {
   const parsedConfig = parseConfig();
   configInitialized = true;
   configProxy = parsedConfig;
-  rebuildConfigs(parsedConfig);
+  // Don't call rebuildConfigs here to avoid circular dependency
+  // rebuildConfigs will be called when the config objects are first accessed
 }
 
 // Runtime security validation for production environments
@@ -387,12 +388,6 @@ function rebuildConfigs(configData: z.infer<typeof envSchema>) {
   loggingConfig = {
     level: configData.LOG_LEVEL,
   };
-}
-
-// Initialize config objects (only for non-test environments)
-if (process.env.NODE_ENV !== 'test') {
-  const parsedConfig = parseConfig();
-  rebuildConfigs(parsedConfig);
 }
 
 // Export the config objects

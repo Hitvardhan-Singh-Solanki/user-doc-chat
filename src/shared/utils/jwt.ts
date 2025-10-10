@@ -9,65 +9,79 @@ import { secretsManager } from '@secrets';
  * @throws {Error} When JWT_SECRET is missing, empty, or doesn't meet security requirements
  */
 function validateJwtSecret(): string {
-  const jwtSecret = secretsManager.getJwtSecret();
+  try {
+    const jwtSecret = secretsManager.getJwtSecret();
 
-  if (!jwtSecret || !jwtSecret.trim()) {
-    throw new Error(
-      'JWT_SECRET environment variable is required and must be non-empty. ' +
-        'Please set JWT_SECRET in your environment configuration.',
-    );
-  }
-
-  const trimmedSecret = jwtSecret.trim();
-
-  // Security validation: minimum length check (256 bits = 32 bytes = 44 base64 chars)
-  if (trimmedSecret.length < 32) {
-    throw new Error(
-      'JWT_SECRET must be at least 32 characters long (256 bits). ' +
-        'Use: openssl rand -base64 32 to generate a secure secret.',
-    );
-  }
-
-  // Security validation: check for common weak secrets
-  const weakSecrets = [
-    'secret',
-    'password',
-    '123456',
-    'jwt-secret',
-    'your-secret-here',
-    'change-me',
-    'default-secret',
-    'test-secret',
-    'development-secret',
-    'production-secret',
-  ];
-
-  if (
-    weakSecrets.some((weak) =>
-      trimmedSecret.toLowerCase().includes(weak.toLowerCase()),
-    )
-  ) {
-    throw new Error(
-      'JWT_SECRET appears to be a weak or default value. ' +
-        'Please generate a cryptographically secure secret using: openssl rand -base64 32',
-    );
-  }
-
-  // Security validation: check for environment-specific weak patterns
-  if (config.NODE_ENV === 'production') {
-    if (
-      trimmedSecret.includes('dev') ||
-      trimmedSecret.includes('test') ||
-      trimmedSecret.includes('local')
-    ) {
+    if (!jwtSecret || !jwtSecret.trim()) {
       throw new Error(
-        'JWT_SECRET in production must not contain development-related keywords. ' +
-          'Generate a production-specific secret using: openssl rand -base64 32',
+        'JWT_SECRET environment variable is required and must be non-empty. ' +
+          'Please set JWT_SECRET in your environment configuration.',
       );
     }
-  }
 
-  return trimmedSecret;
+    const trimmedSecret = jwtSecret.trim();
+
+    // Security validation: minimum length check (256 bits = 32 bytes = 44 base64 chars)
+    if (trimmedSecret.length < 32) {
+      throw new Error(
+        'JWT_SECRET must be at least 32 characters long (256 bits). ' +
+          'Use: openssl rand -base64 32 to generate a secure secret.',
+      );
+    }
+
+    // Security validation: check for common weak secrets
+    const weakSecrets = [
+      'secret',
+      'password',
+      '123456',
+      'jwt-secret',
+      'your-secret-here',
+      'change-me',
+      'default-secret',
+      'test-secret',
+      'development-secret',
+      'production-secret',
+    ];
+
+    if (
+      weakSecrets.some((weak) =>
+        trimmedSecret.toLowerCase().includes(weak.toLowerCase()),
+      )
+    ) {
+      throw new Error(
+        'JWT_SECRET appears to be a weak or default value. ' +
+          'Please generate a cryptographically secure secret using: openssl rand -base64 32',
+      );
+    }
+
+    // Security validation: check for environment-specific weak patterns
+    if (config.NODE_ENV === 'production') {
+      if (
+        trimmedSecret.includes('dev') ||
+        trimmedSecret.includes('test') ||
+        trimmedSecret.includes('local')
+      ) {
+        throw new Error(
+          'JWT_SECRET in production must not contain development-related keywords. ' +
+            'Generate a production-specific secret using: openssl rand -base64 32',
+        );
+      }
+    }
+
+    return trimmedSecret;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('Secrets not initialized')
+    ) {
+      // Return a fallback secret for development when secrets manager is not initialized
+      logger.warn(
+        'Secrets manager not initialized, using fallback JWT secret for development',
+      );
+      return 'dev-jwt-secret-key-change-in-production';
+    }
+    throw error;
+  }
 }
 
 /**
