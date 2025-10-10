@@ -117,7 +117,7 @@ export class RateLimiterService {
       remainingPoints: resConsume?.remainingPoints || 0,
       totalHits: resConsume?.consumedPoints || 0,
       msBeforeNext: resConsume?.msBeforeNext || 0,
-      isBlocked: resConsume?.msBeforeNext > 0,
+      isBlocked: (resConsume?.msBeforeNext ?? 0) > 0,
     };
   }
 }
