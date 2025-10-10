@@ -70,7 +70,14 @@ const envSchema = z.object({
   // MinIO/S3
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.coerce.number().default(9000),
-  MINIO_USE_SSL: z.coerce.boolean().default(false),
+  MINIO_USE_SSL: z
+    .preprocess((val) => {
+      if (typeof val === 'string') {
+        return val.toLowerCase() === 'true';
+      }
+      return val;
+    }, z.coerce.boolean())
+    .default(false),
   MINIO_BUCKET_NAME: z.string().default('user-doc-chat'),
   MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
 

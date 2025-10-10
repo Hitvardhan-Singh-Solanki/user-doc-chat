@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { vi } from 'vitest';
+import { secretsManager } from '../config/secrets.config';
 
 // Set up test environment variables
 process.env.JWT_SECRET = '7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk=';
@@ -68,24 +69,11 @@ vi.mock('../service/pinecone', () => ({
   upsertVectors: vi.fn(),
 }));
 
-// Mock secrets manager to prevent initialization errors in tests
-vi.mock('@config/secrets.config', () => ({
-  secretsManager: {
-    initialize: vi.fn(),
-    getJwtSecret: vi
-      .fn()
-      .mockReturnValue('7v56BQvL5hcwyvGqYbKlpzFieI6ofF0Bo+FqbyAW7yk='),
-    getHuggingfaceToken: vi.fn().mockReturnValue('test-huggingface-token'),
-    getPineconeApiKey: vi.fn().mockReturnValue('test-pinecone-api-key'),
-    getMinioAccessKey: vi.fn().mockReturnValue('test-minio-access-key'),
-    getMinioSecretKey: vi.fn().mockReturnValue('test-minio-secret-key'),
-    getPostgresPassword: vi.fn().mockReturnValue('test-postgres-password'),
-    getRedisPassword: vi.fn().mockReturnValue(undefined),
-    getSanitizerHost: vi.fn().mockReturnValue(undefined),
-    getSanitizerTimeout: vi.fn().mockReturnValue(undefined),
-    getSanitizerConfig: vi.fn().mockReturnValue({
-      host: 'localhost:50051',
-      timeout: 5000,
-    }),
-  },
-}));
+// Initialize secrets after environment setup
+(async () => {
+  try {
+    await secretsManager.initialize();
+  } catch (error) {
+    console.error('Failed to initialize secrets in test setup:', error);
+  }
+})();
