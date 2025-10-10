@@ -368,6 +368,47 @@ kubectl apply -f k8s/
 
 ## 🧪 Testing Setup
 
+### Test Environment Configuration
+
+1. **Copy Test Environment Template**:
+   ```bash
+   cp env.test.example env.test
+   ```
+
+2. **Configure Test Environment Variables**:
+   Edit `env.test` with your test-specific values:
+   ```bash
+   # Database (Test)
+   DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_user_doc_chat
+   DB_PASSWORD=your_test_db_password
+   
+   # Redis (Test)
+   REDIS_PASSWORD=your_test_redis_password
+   
+   # JWT Secret (Test)
+   JWT_SECRET=your_test_jwt_secret
+   
+   # External APIs (Test)
+   HUGGINGFACE_HUB_TOKEN=your_test_hf_token
+   PINECONE_API_KEY=your_test_pinecone_key
+   SERP_API_KEY=your_test_serp_key
+   BING_SEARCH_API_KEY=your_test_bing_key
+   
+   # Storage (Test)
+   MINIO_ACCESS_KEY=your_test_minio_access_key
+   MINIO_SECRET_KEY=your_test_minio_secret_key
+   S3_BUCKET=your_test_bucket_name
+   ```
+
+3. **Create Test Database**:
+   ```bash
+   # Create test database
+   createdb test_user_doc_chat
+   
+   # Run migrations for test database
+   NODE_ENV=test npm run migrate:up
+   ```
+
 ### Unit Tests
 
 ```bash
@@ -398,7 +439,7 @@ npm run test:e2e
 
 ```bash
 # Create test database
-createdb user_doc_chat_test
+createdb test_user_doc_chat
 
 # Run tests with test database
 NODE_ENV=test npm test
