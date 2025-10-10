@@ -91,38 +91,39 @@ export class FileUploadService {
       }
 
       const detected = await fileTypeFromBuffer(file.buffer!);
-      if (!detected) {
-        log.warn('Unable to detect file type');
-        throw createHttpError({
-          status: 400,
-          message: 'Invalid file type',
-        });
+      let finalMimeType = file.mimetype;
+
+      if (detected) {
+        // Signature detection succeeded - use detected MIME type
+        finalMimeType = detected.mime;
+
+        if (detected.mime !== file.mimetype) {
+          log.warn(
+            { detected: detected.mime, claimed: file.mimetype },
+            'Mimetype mismatch detected - using detected type for security',
+          );
+        }
+      } else {
+        // Signature detection failed - fall back to claimed MIME type
+        log.info(
+          { claimedMime: file.mimetype },
+          'File signature detection inconclusive, using claimed MIME type',
+        );
       }
 
-      if (!acceptedMimeTypes.includes(detected.mime)) {
+      if (!acceptedMimeTypes.includes(finalMimeType)) {
         log.warn(
-          { detectedMime: detected.mime },
-          'Unsupported file type detected',
+          { finalMimeType, claimedMime: file.mimetype },
+          'Unsupported file type',
         );
         throw createHttpError({
           status: 400,
-          message: `File type ${detected.mime} not supported`,
-        });
-      }
-
-      if (detected.mime !== file.mimetype) {
-        log.warn(
-          { detected: detected.mime, claimed: file.mimetype },
-          'Mimetype mismatch detected - potential security issue',
-        );
-        throw createHttpError({
-          status: 400,
-          message: 'File type mismatch detected',
+          message: `File type ${finalMimeType} not supported`,
         });
       }
 
       log.info(
-        { mime: detected.mime, size: file.size },
+        { mime: finalMimeType, size: file.size },
         'File type and size are valid',
       );
 

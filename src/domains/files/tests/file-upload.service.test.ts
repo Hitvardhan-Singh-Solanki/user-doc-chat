@@ -219,17 +219,31 @@ describe('FileUploadService', () => {
       expect(mockUploadFileToMinio).not.toHaveBeenCalled();
     });
 
-    it('should throw error when file-type detection returns null', async () => {
+    it('should fall back to claimed MIME type when file-type detection returns null', async () => {
       const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
       const userId = 'user123';
+      const mockFileRecord: UserFileRecord = {
+        id: 'file123',
+        file_name: 'document.pdf',
+        file_size: '1024',
+        owner_id: userId,
+        status: 'uploaded',
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
+      };
 
       mockFileTypeFromBuffer.mockResolvedValue(null);
+      mockUploadFileToMinio.mockResolvedValue(undefined);
+      mockDb.query = vi.fn().mockResolvedValue({
+        rows: [mockFileRecord],
+      });
+      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
-      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
-        'Invalid file type',
-      );
+      const result = await fileUploadService.upload(mockFile, userId);
 
-      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
+      expect(result).toBeDefined();
+      expect(mockUploadFileToMinio).toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).toHaveBeenCalled();
     });
 
     it('should throw error when detected mimetype is unsupported', async () => {
