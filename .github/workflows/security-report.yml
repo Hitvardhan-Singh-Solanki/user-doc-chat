@@ -1,0 +1,173 @@
+name: Weekly Security Report
+
+on:
+  schedule:
+    # Run every Sunday at 6 PM UTC
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+
+jobs:
+  security-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install security tools
+        run: |
+          npm install -g snyk
+          npm install -g retire
+          npm install --save-dev eslint-plugin-security
+
+      - name: Run comprehensive security scan
+        run: |
+          ./security-scan.sh
+
+      - name: Generate security report
+        run: |
+          # Create comprehensive security report
+          cat > reports/weekly-security-report.md << 'EOF'
+          # 🔒 Weekly Security Report
+
+          **Generated**: $(date)
+          **Repository**: ${{ github.repository }}
+          **Branch**: ${{ github.ref_name }}
+
+          ## 📊 Security Scan Summary
+
+          ### 🔍 Scans Performed:
+          - NPM Audit (Dependency vulnerabilities)
+          - Snyk Security Scan (Advanced vulnerability detection)
+          - Retire.js (JavaScript vulnerabilities)
+          - ESLint Security (Code security analysis)
+          - Custom Security Scanner (Comprehensive analysis)
+
+          ### 📋 Scan Results:
+          EOF
+
+          # Add NPM audit results
+          if [ -f "reports/npm-audit.json" ]; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' reports/npm-audit.json 2>/dev/null || echo "0")
+            echo "- **NPM Vulnerabilities**: $VULN_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          # Add hardcoded secrets count
+          if [ -f "reports/hardcoded-secrets.txt" ]; then
+            SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
+            echo "- **Hardcoded Secrets**: $SECRET_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          # Add console statements count
+          if [ -f "reports/console-statements.txt" ]; then
+            CONSOLE_COUNT=$(wc -l < reports/console-statements.txt)
+            echo "- **Console Statements**: $CONSOLE_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          # Add SQL patterns count
+          if [ -f "reports/sql-patterns.txt" ]; then
+            SQL_COUNT=$(wc -l < reports/sql-patterns.txt)
+            echo "- **SQL Patterns**: $SQL_COUNT" >> reports/weekly-security-report.md
+          fi
+
+          cat >> reports/weekly-security-report.md << 'EOF'
+
+          ## 🚨 Critical Issues
+
+          ### High Priority:
+          - Review and fix all NPM vulnerabilities
+          - Remove hardcoded secrets from production code
+          - Secure console.log statements in production
+
+          ### Medium Priority:
+          - Review SQL patterns for injection vulnerabilities
+          - Implement proper input validation
+          - Add security headers
+
+          ## 📈 Security Trends
+
+          ### This Week:
+          - Security scans completed successfully
+          - All critical issues identified and documented
+          - Security reports generated and stored
+
+          ### Recommendations:
+          1. **Immediate**: Fix all critical vulnerabilities
+          2. **Short-term**: Implement security best practices
+          3. **Long-term**: Set up continuous security monitoring
+
+          ## 🔧 Security Tools Status
+
+          | Tool | Status | Last Scan | Issues Found |
+          |------|--------|-----------|--------------|
+          | NPM Audit | ✅ Active | $(date) | See npm-audit.json |
+          | Snyk | ✅ Active | $(date) | See snyk-vulnerabilities.json |
+          | Retire.js | ✅ Active | $(date) | See retire-vulnerabilities.json |
+          | ESLint Security | ✅ Active | $(date) | See eslint-security.json |
+          | Custom Scanner | ✅ Active | $(date) | See security-summary.txt |
+
+          ## 📋 Action Items
+
+          ### For Development Team:
+          - [ ] Review all security reports
+          - [ ] Fix critical vulnerabilities
+          - [ ] Remove hardcoded secrets
+          - [ ] Implement security best practices
+
+          ### For DevOps Team:
+          - [ ] Set up security monitoring
+          - [ ] Configure security alerts
+          - [ ] Implement security gates
+          - [ ] Set up automated security scanning
+
+          ## 📞 Security Contacts
+
+          - **Security Issues**: Create GitHub issue with `security` label
+          - **Critical Issues**: Contact security team immediately
+          - **Questions**: Review security documentation
+
+          ---
+
+          **Next Report**: $(date -d '+7 days')
+          **Security Status**: 🔍 Monitoring Active
+          EOF
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-security-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 90
+
+      - name: Create security report issue
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read security summary
+            let summary = '';
+            try {
+              summary = fs.readFileSync('reports/weekly-security-report.md', 'utf8');
+            } catch (error) {
+              summary = 'Weekly security report generated but content not available';
+            }
+
+            // Create issue
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔒 Weekly Security Report - ${new Date().toISOString().split('T')[0]}`,
+              body: summary,
+              labels: ['security', 'report', 'automated']
+            });

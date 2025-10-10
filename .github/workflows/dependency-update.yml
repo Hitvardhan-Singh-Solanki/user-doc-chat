@@ -1,0 +1,89 @@
+name: Dependency Security Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  dependency-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated packages
+        run: |
+          npm outdated --json > reports/outdated-packages.json || echo "No outdated packages found"
+
+      - name: Check for security vulnerabilities
+        run: |
+          npm audit --json > reports/security-audit.json || echo "Security audit completed"
+
+      - name: Update dependencies
+        run: |
+          # Update patch and minor versions
+          npm update
+
+          # Check if any updates were made
+          if git diff --quiet package-lock.json; then
+            echo "No dependency updates available"
+          else
+            echo "Dependencies updated successfully"
+          fi
+
+      - name: Run security scan after updates
+        run: |
+          ./security-scan.sh
+
+      - name: Create Pull Request for Updates
+        if: github.event_name == 'schedule'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies for security'
+          title: '🔒 Security: Update Dependencies'
+          body: |
+            ## 🔒 Automatic Dependency Security Updates
+
+            This PR contains automatic dependency updates for security purposes.
+
+            ### 📦 Updated Dependencies:
+            - Check the changes in package-lock.json
+            - All updates are patch/minor versions only
+            - No breaking changes expected
+
+            ### 🔍 Security Scan Results:
+            - Security scan results are available in the workflow artifacts
+            - Review all changes before merging
+            - Test thoroughly in development environment
+
+            ### 📋 Next Steps:
+            1. Review the updated dependencies
+            2. Run tests to ensure compatibility
+            3. Deploy to staging for testing
+            4. Merge if all tests pass
+
+            ---
+            *This PR was automatically created by the dependency update workflow*
+          branch: dependency-updates-${{ github.run_number }}
+          delete-branch: true
+
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-security-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 30

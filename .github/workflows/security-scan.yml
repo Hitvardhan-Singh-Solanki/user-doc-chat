@@ -1,0 +1,173 @@
+name: Security Analysis
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install security tools
+        run: |
+          npm install -g snyk
+          npm install -g retire
+          npm install --save-dev eslint-plugin-security
+
+      - name: Run NPM Audit
+        run: |
+          mkdir -p reports
+          npm audit --json > reports/npm-audit.json || echo "npm audit completed with issues"
+
+      - name: Run Snyk Security Scan
+        run: |
+          # Authenticate with Snyk (requires SNYK_TOKEN in secrets)
+          if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then
+            snyk auth ${{ secrets.SNYK_TOKEN }}
+            snyk test --json > reports/snyk-vulnerabilities.json || echo "Snyk scan completed with issues"
+          else
+            echo "Snyk token not provided, skipping Snyk scan"
+          fi
+
+      - name: Run Retire.js Scan
+        run: |
+          retire --path . --outputformat json --outputpath reports/retire-vulnerabilities.json || echo "Retire.js scan completed"
+
+      - name: Run ESLint Security Analysis
+        run: |
+          npx eslint . --ext .js,.ts --format json > reports/eslint-security.json || echo "ESLint security scan completed"
+
+      - name: Run Custom Security Scanner
+        run: |
+          chmod +x security-scan.sh
+          ./security-scan.sh
+
+      - name: Check for Critical Issues
+        id: security-check
+        run: |
+          echo "## 🔍 Security Analysis Results" >> $GITHUB_STEP_SUMMARY
+
+          # Check for critical vulnerabilities
+          if [ -s reports/npm-audit.json ]; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' reports/npm-audit.json 2>/dev/null || echo "0")
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              echo "❌ **CRITICAL**: $VULN_COUNT NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              echo "critical=true" >> $GITHUB_OUTPUT
+            else
+              echo "✅ No NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          # Check for hardcoded secrets
+          if [ -s reports/hardcoded-secrets.txt ]; then
+            SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
+            echo "⚠️ **WARNING**: $SECRET_COUNT potential hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+            echo "secrets=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for console statements
+          if [ -s reports/console-statements.txt ]; then
+            CONSOLE_COUNT=$(wc -l < reports/console-statements.txt)
+            echo "⚠️ **WARNING**: $CONSOLE_COUNT console statements found (potential data leakage)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No console statements found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for eval usage
+          if [ -s reports/eval-usage.txt ]; then
+            echo "❌ **CRITICAL**: eval() usage found" >> $GITHUB_STEP_SUMMARY
+            echo "eval=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No eval() usage found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Security Reports Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- NPM Audit: \`reports/npm-audit.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Snyk Scan: \`reports/snyk-vulnerabilities.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Retire.js: \`reports/retire-vulnerabilities.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "- ESLint Security: \`reports/eslint-security.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Hardcoded Secrets: \`reports/hardcoded-secrets.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Console Statements: \`reports/console-statements.txt\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
+
+      - name: Comment on PR with Security Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read security summary
+            let summary = '';
+            try {
+              summary = fs.readFileSync('reports/security-summary.txt', 'utf8');
+            } catch (error) {
+              summary = 'Security scan completed but summary not available';
+            }
+
+            // Create comment body
+            const commentBody = `## 🔒 Security Analysis Results
+
+            ${summary}
+
+            ### 📋 Action Items:
+            ${steps.security-check.outputs.critical === 'true' ? '❌ **CRITICAL**: Fix NPM vulnerabilities immediately' : ''}
+            ${steps.security-check.outputs.secrets === 'true' ? '⚠️ **WARNING**: Review hardcoded secrets' : ''}
+            ${steps.security-check.outputs.eval === 'true' ? '❌ **CRITICAL**: Remove eval() usage' : ''}
+
+            ### 📊 Reports Available:
+            - Security reports are available in the workflow artifacts
+            - Download and review all security reports
+            - Fix critical issues before merging
+
+            ---
+            *This comment was automatically generated by the security analysis workflow*`;
+
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+      - name: Fail on Critical Issues
+        if: steps.security-check.outputs.critical == 'true' || steps.security-check.outputs.eval == 'true'
+        run: |
+          echo "❌ Security scan failed due to critical issues"
+          echo "Please fix the following issues before merging:"
+          if [ "${{ steps.security-check.outputs.critical }}" == "true" ]; then
+            echo "- Fix NPM vulnerabilities"
+          fi
+          if [ "${{ steps.security-check.outputs.eval }}" == "true" ]; then
+            echo "- Remove eval() usage"
+          fi
+          exit 1
