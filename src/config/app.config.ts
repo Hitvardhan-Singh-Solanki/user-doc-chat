@@ -74,8 +74,8 @@ const envSchema = z.object({
   // CORS
   CORS_ORIGINS: z
     .string()
-    .transform((s) => s.split(',').map((o) => o.trim()))
-    .default(() => ['http://localhost:3000']),
+    .default('http://localhost:3000')
+    .transform((s) => s.split(',').map((o) => o.trim())),
 
   // MinIO/S3
   MINIO_ENDPOINT: z.string().default('localhost'),
