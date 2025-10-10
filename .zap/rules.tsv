@@ -1,0 +1,109 @@
+# OWASP ZAP Rules Configuration
+# This file defines which ZAP rules to include/exclude during scanning
+# Format: Rule_ID	Rule_Name	Enabled	Risk_Level	Confidence
+
+# High Risk Rules - Always enabled
+10021	XSS (Cross Site Scripting)	TRUE	HIGH	MEDIUM
+10020	SQL Injection	TRUE	HIGH	MEDIUM
+10023	Remote File Inclusion	TRUE	HIGH	MEDIUM
+10024	Path Traversal	TRUE	HIGH	MEDIUM
+10025	Remote Code Execution	TRUE	HIGH	MEDIUM
+10026	LDAP Injection	TRUE	HIGH	MEDIUM
+10027	NoSQL Injection	TRUE	HIGH	MEDIUM
+10028	Command Injection	TRUE	HIGH	MEDIUM
+10029	Server Side Template Injection	TRUE	HIGH	MEDIUM
+10030	Server Side Request Forgery	TRUE	HIGH	MEDIUM
+
+# Medium Risk Rules - Enabled for comprehensive scanning
+10000	Insecure JSF ViewState	TRUE	MEDIUM	MEDIUM
+10001	SQL Injection - Hypersonic	TRUE	MEDIUM	MEDIUM
+10002	SQL Injection - MsSQL	TRUE	MEDIUM	MEDIUM
+10003	SQL Injection - MySQL	TRUE	MEDIUM	MEDIUM
+10004	SQL Injection - Oracle	TRUE	MEDIUM	MEDIUM
+10005	SQL Injection - PostgreSQL	TRUE	MEDIUM	MEDIUM
+10006	SQL Injection - SQLite	TRUE	MEDIUM	MEDIUM
+10007	SQL Injection - HSQLDB	TRUE	MEDIUM	MEDIUM
+10008	SQL Injection - DB2	TRUE	MEDIUM	MEDIUM
+10009	SQL Injection - Informix	TRUE	MEDIUM	MEDIUM
+10010	SQL Injection - Sybase	TRUE	MEDIUM	MEDIUM
+10011	SQL Injection - SAP MaxDB	TRUE	MEDIUM	MEDIUM
+10012	SQL Injection - H2	TRUE	MEDIUM	MEDIUM
+10013	SQL Injection - Derby	TRUE	MEDIUM	MEDIUM
+10014	SQL Injection - Vertica	TRUE	MEDIUM	MEDIUM
+10015	SQL Injection - Mckoi	TRUE	MEDIUM	MEDIUM
+10016	SQL Injection - Presto	TRUE	MEDIUM	MEDIUM
+10017	SQL Injection - Altibase	TRUE	MEDIUM	MEDIUM
+10018	SQL Injection - FrontBase	TRUE	MEDIUM	MEDIUM
+10019	SQL Injection - Firebird	TRUE	MEDIUM	MEDIUM
+10022	XSS (Cross Site Scripting) - Reflected	TRUE	MEDIUM	MEDIUM
+10031	XSS (Cross Site Scripting) - Stored	TRUE	MEDIUM	MEDIUM
+10032	XSS (Cross Site Scripting) - DOM Based	TRUE	MEDIUM	MEDIUM
+10033	XSS (Cross Site Scripting) - Reflected (via AJAX)	TRUE	MEDIUM	MEDIUM
+10034	XSS (Cross Site Scripting) - Stored (via AJAX)	TRUE	MEDIUM	MEDIUM
+10035	XSS (Cross Site Scripting) - DOM Based (via AJAX)	TRUE	MEDIUM	MEDIUM
+10036	XSS (Cross Site Scripting) - Reflected (via WebSocket)	TRUE	MEDIUM	MEDIUM
+10037	XSS (Cross Site Scripting) - Stored (via WebSocket)	TRUE	MEDIUM	MEDIUM
+10038	XSS (Cross Site Scripting) - DOM Based (via WebSocket)	TRUE	MEDIUM	MEDIUM
+10039	XSS (Cross Site Scripting) - Reflected (via Server-Sent Events)	TRUE	MEDIUM	MEDIUM
+10040	XSS (Cross Site Scripting) - Stored (via Server-Sent Events)	TRUE	MEDIUM	MEDIUM
+10041	XSS (Cross Site Scripting) - DOM Based (via Server-Sent Events)	TRUE	MEDIUM	MEDIUM
+10042	XSS (Cross Site Scripting) - Reflected (via WebRTC)	TRUE	MEDIUM	MEDIUM
+10043	XSS (Cross Site Scripting) - Stored (via WebRTC)	TRUE	MEDIUM	MEDIUM
+10044	XSS (Cross Site Scripting) - DOM Based (via WebRTC)	TRUE	MEDIUM	MEDIUM
+10045	XSS (Cross Site Scripting) - Reflected (via WebGL)	TRUE	MEDIUM	MEDIUM
+10046	XSS (Cross Site Scripting) - Stored (via WebGL)	TRUE	MEDIUM	MEDIUM
+10047	XSS (Cross Site Scripting) - DOM Based (via WebGL)	TRUE	MEDIUM	MEDIUM
+10048	XSS (Cross Site Scripting) - Reflected (via WebAssembly)	TRUE	MEDIUM	MEDIUM
+10049	XSS (Cross Site Scripting) - Stored (via WebAssembly)	TRUE	MEDIUM	MEDIUM
+10050	XSS (Cross Site Scripting) - DOM Based (via WebAssembly)	TRUE	MEDIUM	MEDIUM
+
+# Low Risk Rules - Enabled for comprehensive scanning
+10051	Information Disclosure - Debug Error Messages	TRUE	LOW	MEDIUM
+10052	Information Disclosure - Sensitive Information in URL	TRUE	LOW	MEDIUM
+10053	Information Disclosure - Sensitive Information in HTTP Headers	TRUE	LOW	MEDIUM
+10054	Information Disclosure - Sensitive Information in HTTP Response Body	TRUE	LOW	MEDIUM
+10055	Information Disclosure - Sensitive Information in HTTP Response Headers	TRUE	LOW	MEDIUM
+10056	Information Disclosure - Sensitive Information in HTTP Response Cookies	TRUE	LOW	MEDIUM
+10057	Information Disclosure - Sensitive Information in HTTP Response Redirects	TRUE	LOW	MEDIUM
+10058	Information Disclosure - Sensitive Information in HTTP Response Status Codes	TRUE	LOW	MEDIUM
+10059	Information Disclosure - Sensitive Information in HTTP Response Timing	TRUE	LOW	MEDIUM
+10060	Information Disclosure - Sensitive Information in HTTP Response Content-Type	TRUE	LOW	MEDIUM
+10061	Information Disclosure - Sensitive Information in HTTP Response Content-Type	TRUE	LOW	MEDIUM
+10062	Information Disclosure - Sensitive Information in HTTP Response Content-Length	TRUE	LOW	MEDIUM
+10063	Information Disclosure - Sensitive Information in HTTP Response Content-Encoding	TRUE	LOW	MEDIUM
+10064	Information Disclosure - Sensitive Information in HTTP Response Content-Language	TRUE	LOW	MEDIUM
+10065	Information Disclosure - Sensitive Information in HTTP Response Content-Location	TRUE	LOW	MEDIUM
+10066	Information Disclosure - Sensitive Information in HTTP Response Content-MD5	TRUE	LOW	MEDIUM
+10067	Information Disclosure - Sensitive Information in HTTP Response Content-Range	TRUE	LOW	MEDIUM
+10068	Information Disclosure - Sensitive Information in HTTP Response Content-Security-Policy	TRUE	LOW	MEDIUM
+10069	Information Disclosure - Sensitive Information in HTTP Response Content-Security-Policy-Report-Only	TRUE	LOW	MEDIUM
+10070	Information Disclosure - Sensitive Information in HTTP Response Cross-Origin-Embedder-Policy	TRUE	LOW	MEDIUM
+10071	Information Disclosure - Sensitive Information in HTTP Response Cross-Origin-Opener-Policy	TRUE	LOW	MEDIUM
+10072	Information Disclosure - Sensitive Information in HTTP Response Cross-Origin-Resource-Policy	TRUE	LOW	MEDIUM
+10073	Information Disclosure - Sensitive Information in HTTP Response Permissions-Policy	TRUE	LOW	MEDIUM
+10074	Information Disclosure - Sensitive Information in HTTP Response Referrer-Policy	TRUE	LOW	MEDIUM
+10075	Information Disclosure - Sensitive Information in HTTP Response Strict-Transport-Security	TRUE	LOW	MEDIUM
+10076	Information Disclosure - Sensitive Information in HTTP Response X-Content-Type-Options	TRUE	LOW	MEDIUM
+10077	Information Disclosure - Sensitive Information in HTTP Response X-Frame-Options	TRUE	LOW	MEDIUM
+10078	Information Disclosure - Sensitive Information in HTTP Response X-XSS-Protection	TRUE	LOW	MEDIUM
+10079	Information Disclosure - Sensitive Information in HTTP Response X-Permitted-Cross-Domain-Policies	TRUE	LOW	MEDIUM
+10080	Information Disclosure - Sensitive Information in HTTP Response X-Download-Options	TRUE	LOW	MEDIUM
+10081	Information Disclosure - Sensitive Information in HTTP Response X-DNS-Prefetch-Control	TRUE	LOW	MEDIUM
+10082	Information Disclosure - Sensitive Information in HTTP Response X-Powered-By	TRUE	LOW	MEDIUM
+10083	Information Disclosure - Sensitive Information in HTTP Response X-Robots-Tag	TRUE	LOW	MEDIUM
+10084	Information Disclosure - Sensitive Information in HTTP Response X-UA-Compatible	TRUE	LOW	MEDIUM
+10085	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP	TRUE	LOW	MEDIUM
+10086	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10087	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10088	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10089	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10090	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10091	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10092	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10093	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10094	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10095	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10096	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10097	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10098	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
+10099	Information Disclosure - Sensitive Information in HTTP Response X-WebKit-CSP-Report-Only	TRUE	LOW	MEDIUM
