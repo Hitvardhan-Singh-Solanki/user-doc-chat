@@ -138,7 +138,7 @@ describe('LLMService (unit)', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    vi.resetAllMocks();
+    vi.clearAllMocks();
   });
 
   async function createInitializedService(): Promise<LLMServiceType> {
