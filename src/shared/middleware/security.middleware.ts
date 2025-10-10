@@ -170,7 +170,6 @@ export function rateLimit(
   rateLimiterService
     .consumeGeneral(key)
     .then(async () => {
-      // Get rate limit info for headers
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'general',
@@ -188,28 +187,43 @@ export function rateLimit(
 
       next();
     })
-    .catch((rejRes) => {
-      logger.warn(
-        {
-          ip: req.ip,
-          userAgent: req.headers['user-agent'],
-          remainingPoints: rejRes.remainingPoints,
-          msBeforeNext: rejRes.msBeforeNext,
-        },
-        'Rate limit exceeded',
-      );
+    .catch((error) => {
+      if (
+        error.remainingPoints !== undefined &&
+        error.msBeforeNext !== undefined
+      ) {
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            remainingPoints: error.remainingPoints,
+            msBeforeNext: error.msBeforeNext,
+          },
+          'Rate limit exceeded',
+        );
 
-      res.setHeader('X-RateLimit-Limit', '100');
-      res.setHeader('X-RateLimit-Remaining', '0');
-      res.setHeader(
-        'X-RateLimit-Reset',
-        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
-      );
+        res.setHeader('X-RateLimit-Limit', '100');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(Date.now() + error.msBeforeNext).toISOString(),
+        );
 
-      res.status(429).json({
-        error: 'Too many requests',
-        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
-      });
+        res.status(429).json({
+          error: 'Too many requests',
+          retryAfter: Math.ceil(error.msBeforeNext / 1000),
+        });
+      } else {
+        logger.error(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            error: error.message,
+          },
+          'Rate limiter Redis error, bypassing rate limit',
+        );
+        next();
+      }
     });
 }
 
@@ -226,7 +240,6 @@ export function authRateLimit(
   rateLimiterService
     .consumeAuth(key)
     .then(async () => {
-      // Get rate limit info for headers
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'auth',
@@ -244,29 +257,45 @@ export function authRateLimit(
 
       next();
     })
-    .catch((rejRes) => {
-      logger.warn(
-        {
-          ip: req.ip,
-          userAgent: req.headers['user-agent'],
-          endpoint: req.path,
-          remainingPoints: rejRes.remainingPoints,
-          msBeforeNext: rejRes.msBeforeNext,
-        },
-        'Auth rate limit exceeded',
-      );
+    .catch((error) => {
+      if (
+        error.remainingPoints !== undefined &&
+        error.msBeforeNext !== undefined
+      ) {
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+            remainingPoints: error.remainingPoints,
+            msBeforeNext: error.msBeforeNext,
+          },
+          'Auth rate limit exceeded',
+        );
 
-      res.setHeader('X-RateLimit-Limit', '5');
-      res.setHeader('X-RateLimit-Remaining', '0');
-      res.setHeader(
-        'X-RateLimit-Reset',
-        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
-      );
+        res.setHeader('X-RateLimit-Limit', '5');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(Date.now() + error.msBeforeNext).toISOString(),
+        );
 
-      res.status(429).json({
-        error: 'Too many authentication attempts',
-        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
-      });
+        res.status(429).json({
+          error: 'Too many authentication attempts',
+          retryAfter: Math.ceil(error.msBeforeNext / 1000),
+        });
+      } else {
+        logger.error(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+            error: error.message,
+          },
+          'Auth rate limiter Redis error, bypassing rate limit',
+        );
+        next();
+      }
     });
 }
 
@@ -283,7 +312,6 @@ export function fileUploadRateLimit(
   rateLimiterService
     .consumeFileUpload(key)
     .then(async () => {
-      // Get rate limit info for headers
       const rateLimitInfo = await rateLimiterService.getRateLimitInfo(
         key,
         'upload',
@@ -301,29 +329,45 @@ export function fileUploadRateLimit(
 
       next();
     })
-    .catch((rejRes) => {
-      logger.warn(
-        {
-          ip: req.ip,
-          userAgent: req.headers['user-agent'],
-          endpoint: req.path,
-          remainingPoints: rejRes.remainingPoints,
-          msBeforeNext: rejRes.msBeforeNext,
-        },
-        'File upload rate limit exceeded',
-      );
+    .catch((error) => {
+      if (
+        error.remainingPoints !== undefined &&
+        error.msBeforeNext !== undefined
+      ) {
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+            remainingPoints: error.remainingPoints,
+            msBeforeNext: error.msBeforeNext,
+          },
+          'File upload rate limit exceeded',
+        );
 
-      res.setHeader('X-RateLimit-Limit', '10');
-      res.setHeader('X-RateLimit-Remaining', '0');
-      res.setHeader(
-        'X-RateLimit-Reset',
-        new Date(Date.now() + rejRes.msBeforeNext).toISOString(),
-      );
+        res.setHeader('X-RateLimit-Limit', '10');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(Date.now() + error.msBeforeNext).toISOString(),
+        );
 
-      res.status(429).json({
-        error: 'Too many file uploads',
-        retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
-      });
+        res.status(429).json({
+          error: 'Too many file uploads',
+          retryAfter: Math.ceil(error.msBeforeNext / 1000),
+        });
+      } else {
+        logger.error(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+            error: error.message,
+          },
+          'File upload rate limiter Redis error, bypassing rate limit',
+        );
+        next();
+      }
     });
 }
 

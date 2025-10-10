@@ -301,4 +301,67 @@ describe('WebsocketService', () => {
       ['chat-1', 'user', 'hi'],
     );
   });
+
+  describe('Redis failure scenarios', () => {
+    it('should handle Redis connection failure in appendChatHistory', async () => {
+      const redisError = new Error('Redis connection failed');
+      vi.mocked(redisChatHistory.rPush).mockRejectedValue(redisError);
+
+      await expect(
+        (ws as unknown as WebsocketServiceWithPrivateMethods).appendChatHistory(
+          'u1',
+          'f1',
+          'msg',
+        ),
+      ).rejects.toThrow('Redis connection failed');
+    });
+
+    it('should handle Redis connection failure in getChatHistory', async () => {
+      const redisError = new Error('Redis timeout');
+      vi.mocked(redisChatHistory.lRange).mockRejectedValue(redisError);
+
+      await expect(
+        (ws as unknown as WebsocketServiceWithPrivateMethods).getChatHistory(
+          'u1',
+          'f1',
+        ),
+      ).rejects.toThrow('Redis timeout');
+    });
+
+    it('should handle Redis connection failure in trimChatHistory', async () => {
+      const redisError = new Error('Redis unavailable');
+      vi.mocked(redisChatHistory.lTrim).mockRejectedValue(redisError);
+
+      await expect(
+        (ws as unknown as WebsocketServiceWithPrivateMethods).trimChatHistory(
+          'u1',
+          'f1',
+          50,
+        ),
+      ).rejects.toThrow('Redis unavailable');
+    });
+
+    it('should handle Redis failure during processQuestion gracefully', async () => {
+      const dbMock = (ws as unknown as WebsocketServiceWithPrivateMethods).db;
+      dbMock.query = vi.fn().mockResolvedValue({ rows: [{ id: 'chat-1' }] });
+
+      const redisError = new Error('Redis connection lost');
+      vi.mocked(redisChatHistory.rPush).mockRejectedValue(redisError);
+
+      const emitMock = vi.fn();
+      vi.spyOn(ws.io, 'to').mockReturnValue({
+        emit: emitMock,
+      } as unknown as ReturnType<typeof ws.io.to>);
+
+      // The processQuestion method handles Redis errors internally and doesn't throw
+      // We just verify that the method completes without throwing
+      await expect(
+        (ws as unknown as WebsocketServiceWithPrivateMethods).processQuestion(
+          'hi',
+          'user-123',
+          'file-1',
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
 });
