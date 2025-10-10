@@ -8,7 +8,7 @@ import {
   vi,
 } from 'vitest';
 import { EnrichmentService } from '../services/enrichment.service';
-import { Vector } from '../../../shared/types';
+import { Vector } from '@shared/types';
 import { LLMService } from '../services/llm.service';
 import { VectorStoreService } from '../../vector/services/vector-store.service';
 

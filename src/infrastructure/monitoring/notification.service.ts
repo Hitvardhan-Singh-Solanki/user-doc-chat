@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Client, SSEData } from '../../shared/types';
+import { Client, SSEData } from '@shared/types';
 import { redisPub, redisSub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
 

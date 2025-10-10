@@ -1,16 +1,16 @@
 import { v4 as uuid } from 'uuid';
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { EnrichmentOptions, SearchResult } from '../../../shared/types';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { EnrichmentOptions, SearchResult } from '@shared/types';
 import { LLMService } from './llm.service';
-import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
-import { DuckDuckGoAdapter } from '../../../infrastructure/external-services/search/duckduckgo.adapter';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { DuckDuckGoAdapter } from '@search/duckduckgo.adapter';
 import { PromptService } from './prompt.service';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
-import { IHTMLFetch } from '../../../shared/interfaces/html-fetch.interface';
-import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
-import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
+import { IHTMLFetch } from '@interfaces/html-fetch.interface';
+import { IDeepResearch } from '@interfaces/deep-research.interface';
+import { IEnrichmentService } from '@interfaces/enrichment.interface';
 import { logger } from '@config/logger.config';
-import { circuitBreakerService } from '../../../shared/utils/circuit-breaker';
+import { circuitBreakerService } from '@utils/circuit-breaker';
 import { config } from '@config';
 
 export class EnrichmentService implements IEnrichmentService {

@@ -1,4 +1,4 @@
-import { ITokenizer } from '../../../shared/interfaces/tokenizer.interface';
+import { ITokenizer } from '@interfaces/tokenizer.interface';
 
 export class SimpleTokenizerAdapter implements ITokenizer {
   // Add vocabulary maps and ID counter to the class

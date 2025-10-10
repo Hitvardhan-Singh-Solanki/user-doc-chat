@@ -1,8 +1,8 @@
-import { sseEmitter } from '../../../infrastructure/monitoring/notification.service';
+import { sseEmitter } from '@monitoring/notification.service';
 import {
   queueAdapter,
   fileQueueName,
-} from '../../../infrastructure/queue/providers/bullmq.provider';
+} from '@queue/providers/bullmq.provider';
 import { logger } from '@config/logger.config';
 
 const eventLogger = logger.child({ component: 'QueueEvents' });

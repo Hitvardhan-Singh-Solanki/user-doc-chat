@@ -8,7 +8,7 @@ import {
   vi,
 } from 'vitest';
 import { PromptService } from '../services/prompt.service';
-import { SearchResult } from '../../../shared/types';
+import { SearchResult } from '@shared/types';
 
 // helper to create async iterables from arrays
 function asyncIterableFromArray(items: unknown[]) {

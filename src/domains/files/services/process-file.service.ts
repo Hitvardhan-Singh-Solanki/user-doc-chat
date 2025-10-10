@@ -1,17 +1,17 @@
 import 'dotenv/config';
 import { Job, Worker } from 'bullmq';
 import { v4 as uuid } from 'uuid';
-import { downloadFile } from '../../../infrastructure/storage/providers/minio.provider';
-import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
-import { FileJob, Vector } from '../../../shared/types';
-import { sanitizeFile } from '../../../shared/utils/sanitize-file';
+import { downloadFile } from '@storage/providers/minio.provider';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { FileJob, Vector } from '@shared/types';
+import { sanitizeFile } from '@utils/sanitize-file';
 import {
   connectionOptions,
   fileQueueName,
-} from '../../../infrastructure/queue/providers/bullmq.provider';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { LLMService } from '../../../domains/chat/services/llm.service';
-import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
+} from '@queue/providers/bullmq.provider';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { LLMService } from '@chat/services/llm.service';
+import { EnrichmentService } from '@chat/services/enrichment.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
 import retry from 'async-retry';

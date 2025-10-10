@@ -12,7 +12,7 @@ type FetchHTMLServiceWithPrivateMethods = {
     options?: EnrichmentOptions,
   ) => Promise<(string | undefined)[]>;
 };
-import { SearchResult, EnrichmentOptions } from '../../../shared/types';
+import { SearchResult, EnrichmentOptions } from '@shared/types';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 

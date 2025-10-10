@@ -1,13 +1,13 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { uploadFileToMinio } from '../../../infrastructure/storage/providers/minio.provider';
-import { FileJob, MulterFile, UserFileRecord } from '../../../shared/types';
+import { uploadFileToMinio } from '@storage/providers/minio.provider';
+import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
 import {
   queueAdapter,
   fileQueueName,
-} from '../../../infrastructure/queue/providers/bullmq.provider';
+} from '@queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
+import { IDBStore } from '@interfaces/db-store.interface';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
 

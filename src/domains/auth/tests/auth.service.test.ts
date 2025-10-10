@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthService } from '../services/auth.service';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import * as hashUtils from '../../../shared/utils/hash';
-import { mockUser } from '../../../tests/fixtures';
+import { IDBStore } from '@interfaces/db-store.interface';
+import * as hashUtils from '@utils/hash';
+import { mockUser } from '@tests/fixtures';
 
 // Mock the hash utilities
 vi.mock('../../../shared/utils/hash', () => ({
