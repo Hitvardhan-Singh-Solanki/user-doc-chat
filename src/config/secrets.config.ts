@@ -84,8 +84,8 @@ class SecretsManager {
 
         // Sanitizer Service
         sanitizerHost: process.env.SANITIZER_HOST, // Optional
-        sanitizerTimeout: process.env.SANITIZER_TIMEOUT 
-          ? parseInt(process.env.SANITIZER_TIMEOUT, 10) 
+        sanitizerTimeout: process.env.SANITIZER_TIMEOUT
+          ? parseInt(process.env.SANITIZER_TIMEOUT, 10)
           : undefined, // Optional
       };
 
