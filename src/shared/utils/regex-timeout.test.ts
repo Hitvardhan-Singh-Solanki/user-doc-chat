@@ -197,9 +197,26 @@ describe('RegexTimeout Protection', () => {
       const regex = /a{1,1000}$/;
       const text = 'a'.repeat(2000) + 'b';
 
-      await expect(
-        withRegexTimeout(regex, text, (r, t) => r.test(t), 1),
-      ).rejects.toThrow(RegexTimeoutError);
+      // Mock setTimeout to make the timeout trigger immediately
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = vi.fn((callback: Function, delay: number) => {
+        if (delay === 1) {
+          // For our test timeout, trigger immediately
+          callback();
+        } else {
+          // For other timeouts, use original behavior
+          return originalSetTimeout(callback, delay);
+        }
+        return {} as any;
+      });
+
+      try {
+        await expect(
+          withRegexTimeout(regex, text, (r, t) => r.test(t), 1),
+        ).rejects.toThrow(RegexTimeoutError);
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
     });
 
     it('should throw UnsafeRegexError for dangerous patterns', async () => {

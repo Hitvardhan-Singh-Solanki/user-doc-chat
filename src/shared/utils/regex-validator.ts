@@ -72,8 +72,15 @@ export class RegexValidator {
    */
   private static hasNestedQuantifiers(pattern: string): boolean {
     // Look for patterns like (a+)+ or (a*)*
-    const nestedQuantifierRegex = /\([^)]*[+*?]\{?[^}]*\}?[^)]*\)[+*?\{]/;
-    return nestedQuantifierRegex.test(pattern);
+    // Match closing paren followed by quantifier
+    if (/\)[+*?]/.test(pattern)) {
+      return true;
+    }
+    // Match closing paren followed by {n,m}
+    if (/\)\{/.test(pattern)) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -90,8 +97,22 @@ export class RegexValidator {
    */
   private static hasExponentialBacktracking(pattern: string): boolean {
     // Check for patterns like (a|a)* or (a|a)+
-    const exponentialPattern = /\([^|]*\|[^|]*\)[+*]/;
-    return exponentialPattern.test(pattern);
+    // Match (x|x) patterns followed by quantifiers
+    const exponentialPattern = /\([^)]*\|[^)]*\)[+*?]?/;
+    if (exponentialPattern.test(pattern)) {
+      // Check if there are duplicate alternatives
+      const alternationMatch = pattern.match(/\(([^)]*)\)/g);
+      if (alternationMatch) {
+        for (const group of alternationMatch) {
+          const alternatives = group.slice(1, -1).split('|');
+          const uniqueAlts = new Set(alternatives);
+          if (uniqueAlts.size < alternatives.length) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -99,8 +120,16 @@ export class RegexValidator {
    */
   private static hasExcessiveRepetition(pattern: string): boolean {
     // Check for patterns with very high repetition counts
-    const highRepetition = /\{[0-9]{3,}\}/; // 3+ digits in {}
-    return highRepetition.test(pattern);
+    const highRepetition = /\{[0-9]{3,}/; // 3+ digits in {}
+    if (highRepetition.test(pattern)) {
+      return true;
+    }
+    // Also check for malformed patterns like {1,2,3}
+    const malformedRepetition = /\{[^}]*,[^}]*,[^}]*\}/;
+    if (malformedRepetition.test(pattern)) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -112,15 +141,24 @@ export class RegexValidator {
     // Base complexity
     complexity += pattern.length;
 
-    // Add complexity for quantifiers
-    complexity += (pattern.match(/[+*?]/g) || []).length * 2;
-    complexity += (pattern.match(/\{[^}]+\}/g) || []).length * 3;
+    // Add complexity for lookahead/lookbehind first (to exclude from quantifier counting)
+    const lookaheadCount = (pattern.match(/\(\?[=!]/g) || []).length;
+    complexity += lookaheadCount * 10;
+
+    // Add complexity for quantifiers (excluding the ? in lookahead)
+    // Remove lookahead syntax before counting quantifiers
+    const patternWithoutLookahead = pattern.replace(/\(\?[=!]/g, '');
+    complexity += (patternWithoutLookahead.match(/\+/g) || []).length * 5;
+    complexity += (patternWithoutLookahead.match(/[*?]/g) || []).length * 4;
+    complexity += (pattern.match(/\{[^}]+\}/g) || []).length * 2;
 
     // Add complexity for alternation
     complexity += (pattern.match(/\|/g) || []).length * 5;
 
-    // Add complexity for lookahead/lookbehind
-    complexity += (pattern.match(/\(\?\?[=!]/g) || []).length * 10;
+    // Add complexity for capturing groups (excluding lookahead)
+    const totalGroups = (pattern.match(/\(/g) || []).length;
+    const capturingGroups = totalGroups - lookaheadCount;
+    complexity += capturingGroups * 2;
 
     // Add complexity for nested groups
     const nestedGroups = pattern.match(/\([^)]*\(/g) || [];
