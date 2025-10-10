@@ -136,7 +136,7 @@ export function requestSizeLimit(
   res: Response,
   next: NextFunction,
 ): void {
-  const maxSize = config.MAX_UPLOAD_BYTES;
+  const maxSize = config.MAX_FILE_SIZE;
   const contentLength = parseInt(req.headers['content-length'] || '0', 10);
 
   if (contentLength > maxSize) {

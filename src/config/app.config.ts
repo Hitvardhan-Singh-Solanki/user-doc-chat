@@ -53,7 +53,6 @@ const envSchema = z.object({
 
   // File Upload
   MAX_FILE_SIZE: z.coerce.number().default(52428800), // 50MB
-  MAX_UPLOAD_BYTES: z.coerce.number().default(10485760), // 10MB
 
   // Crawler/HTML Fetch
   CRAWLER_MAX_BYTES: z.coerce.number().default(2_000_000), // 2MB
@@ -171,7 +170,6 @@ export const rateLimitConfig = {
 
 export const fileConfig = {
   maxFileSize: config.MAX_FILE_SIZE,
-  maxUploadBytes: config.MAX_UPLOAD_BYTES,
 };
 
 export const corsConfig = {

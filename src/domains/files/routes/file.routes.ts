@@ -9,7 +9,7 @@ const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: config.MAX_UPLOAD_BYTES,
+    fileSize: config.MAX_FILE_SIZE,
   },
   fileFilter: (_req, file, cb) => {
     const allowed = new Set(['application/pdf', 'text/plain', 'text/markdown']);
