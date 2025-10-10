@@ -99,24 +99,6 @@ describe('RegexValidator', () => {
     });
   });
 
-  describe('estimateComplexity', () => {
-    it('should estimate complexity correctly', () => {
-      expect(RegexValidator.estimateComplexity('hello')).toBe(5);
-      expect(RegexValidator.estimateComplexity('a+')).toBe(4); // 2 + 2*1
-      expect(RegexValidator.estimateComplexity('a*')).toBe(4); // 2 + 2*1
-      expect(RegexValidator.estimateComplexity('a?')).toBe(4); // 2 + 2*1
-      expect(RegexValidator.estimateComplexity('a{1,5}')).toBe(9); // 6 + 3*1
-      expect(RegexValidator.estimateComplexity('(a|b)')).toBe(12); // 5 + 5*1 + 2*1
-      expect(RegexValidator.estimateComplexity('(?=a)')).toBe(9); // 5 + 2*1 + 2*1
-    });
-
-    it('should handle complex patterns', () => {
-      const complexPattern =
-        '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$';
-      const complexity = RegexValidator.estimateComplexity(complexPattern);
-      expect(complexity).toBeGreaterThan(50);
-    });
-  });
 
   describe('isSafePattern', () => {
     it('should identify safe patterns', () => {
@@ -153,11 +135,9 @@ describe('RegexValidator', () => {
       });
     });
 
-    it('should respect max complexity limit', () => {
-      // Note: our implementation ignores maxComplexity and uses safe-regex2
+    it('should handle long patterns', () => {
       const pattern = 'a'.repeat(100);
-      expect(RegexValidator.isSafePattern(pattern, 50)).toBe(true); // safe-regex2 considers this safe
-      expect(RegexValidator.isSafePattern(pattern, 200)).toBe(true);
+      expect(RegexValidator.isSafePattern(pattern)).toBe(true); // safe-regex2 considers this safe
     });
   });
 

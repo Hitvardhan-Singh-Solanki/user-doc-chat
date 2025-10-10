@@ -57,10 +57,9 @@ describe('RegexTimeout Protection', () => {
       });
     });
 
-    it('should estimate pattern complexity correctly', () => {
-      // Note: our implementation ignores maxComplexity and uses safe-regex2
-      expect(isSafeRegexPattern('simple', 10)).toBe(true);
-      expect(isSafeRegexPattern('simple', 5)).toBe(true); // safe-regex2 considers this safe
+    it('should validate pattern safety correctly', () => {
+      expect(isSafeRegexPattern('simple')).toBe(true);
+      expect(isSafeRegexPattern('hello')).toBe(true);
     });
   });
 

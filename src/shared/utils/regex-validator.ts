@@ -24,7 +24,10 @@ export class RegexValidator {
    */
   static validatePattern(pattern: string): void {
     if (!safeRegex(new RegExp(pattern))) {
-      throw new UnsafeRegexError(pattern, 'Pattern detected as unsafe by safe-regex2');
+      throw new UnsafeRegexError(
+        pattern,
+        'Pattern detected as unsafe by safe-regex2',
+      );
     }
   }
 
@@ -34,33 +37,8 @@ export class RegexValidator {
    * @param _maxComplexity - Unused parameter (kept for API compatibility)
    * @returns true if pattern is safe, false otherwise
    */
-  static isSafePattern(pattern: string, _maxComplexity: number = 1000): boolean {
-    try {
-      return safeRegex(new RegExp(pattern));
-    } catch {
-      return false;
-    }
+  static isSafePattern(pattern: string): boolean {
+    return safeRegex(new RegExp(pattern));
   }
 
-  /**
-   * Estimates the complexity of a regex pattern
-   * @param pattern - The regex pattern to analyze
-   * @returns A complexity score (simplified implementation)
-   */
-  static estimateComplexity(pattern: string): number {
-    // Simple complexity estimation based on pattern length and features
-    let complexity = pattern.length;
-    
-    // Add complexity for quantifiers
-    complexity += (pattern.match(/[+*?]/g) || []).length * 2;
-    complexity += (pattern.match(/\{[^}]+\}/g) || []).length * 3;
-    
-    // Add complexity for alternation
-    complexity += (pattern.match(/\|/g) || []).length * 5;
-    
-    // Add complexity for groups
-    complexity += (pattern.match(/\(/g) || []).length * 2;
-    
-    return complexity;
-  }
 }
