@@ -184,7 +184,10 @@ ${sanitizedQuestion}
             const index = prompt.indexOf(sanitizedHistory, startIndex);
             if (index === -1) break;
             
-            prompt = prompt.slice(0, index) + truncatedText + prompt.slice(index + sanitizedHistory.length);
+            prompt =
+              prompt.slice(0, index) +
+              truncatedText +
+              prompt.slice(index + sanitizedHistory.length);
             startIndex = index + truncatedText.length;
           }
         }
