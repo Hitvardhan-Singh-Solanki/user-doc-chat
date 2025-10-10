@@ -333,8 +333,10 @@ describe('Security Middleware', () => {
 
         // Check if this request was blocked
         if (
-          (mockRes.status as any).mock.calls.length > 0 &&
-          (mockRes.status as any).mock.calls[0][0] === 429
+          (mockRes.status as unknown as { mock: { calls: number[][] } }).mock
+            .calls.length > 0 &&
+          (mockRes.status as unknown as { mock: { calls: number[][] } }).mock
+            .calls[0][0] === 429
         ) {
           blockedRequest = true;
           expect(mockRes.json).toHaveBeenCalledWith({
