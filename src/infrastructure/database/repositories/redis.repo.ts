@@ -24,7 +24,12 @@ function buildRedisConfig(): string | object {
 
   // Handle Unix socket connection
   if (config.REDIS_SOCKET) {
-    const socketOptions: any = {
+    const socketOptions: {
+      socket: { path: string; tls?: boolean };
+      database?: number;
+      username?: string;
+      password?: string;
+    } = {
       socket: {
         path: config.REDIS_SOCKET,
       },
@@ -114,15 +119,18 @@ const REDIS_CONFIG = buildRedisConfig();
 
 // Create Redis clients with error handling and observability
 // Handle both URL strings and socket options for node-redis v4
-const redisPub = typeof REDIS_CONFIG === 'string' 
-  ? createClient({ url: REDIS_CONFIG })
-  : createClient(REDIS_CONFIG);
-const redisSub = typeof REDIS_CONFIG === 'string' 
-  ? createClient({ url: REDIS_CONFIG })
-  : createClient(REDIS_CONFIG);
-const redisChatHistory = typeof REDIS_CONFIG === 'string' 
-  ? createClient({ url: REDIS_CONFIG })
-  : createClient(REDIS_CONFIG);
+const redisPub =
+  typeof REDIS_CONFIG === 'string'
+    ? createClient({ url: REDIS_CONFIG })
+    : createClient(REDIS_CONFIG);
+const redisSub =
+  typeof REDIS_CONFIG === 'string'
+    ? createClient({ url: REDIS_CONFIG })
+    : createClient(REDIS_CONFIG);
+const redisChatHistory =
+  typeof REDIS_CONFIG === 'string'
+    ? createClient({ url: REDIS_CONFIG })
+    : createClient(REDIS_CONFIG);
 
 // Add error event handlers for all clients
 redisPub.on('error', (error) => {
