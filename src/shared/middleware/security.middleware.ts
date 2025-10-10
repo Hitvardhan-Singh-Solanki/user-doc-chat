@@ -4,6 +4,53 @@ import { rateLimiterService } from '@cache/rate-limiter.service';
 import { config } from '@config';
 
 /**
+ * In-memory fallback rate limiter for file uploads
+ * Provides basic protection when Redis is unavailable
+ */
+class InMemoryFileUploadLimiter {
+  private attempts: Map<string, { count: number; resetTime: number }> = new Map();
+  private readonly maxAttempts = 5; // Conservative limit for fallback
+  private readonly windowMs = 15 * 60 * 1000; // 15 minutes
+
+  isBlocked(key: string): boolean {
+    const now = Date.now();
+    const record = this.attempts.get(key);
+
+    if (!record || now > record.resetTime) {
+      // Reset or initialize
+      this.attempts.set(key, { count: 1, resetTime: now + this.windowMs });
+      return false;
+    }
+
+    if (record.count >= this.maxAttempts) {
+      return true;
+    }
+
+    // Increment count
+    record.count++;
+    return false;
+  }
+
+  // Clean up expired entries periodically
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, record] of this.attempts.entries()) {
+      if (now > record.resetTime) {
+        this.attempts.delete(key);
+      }
+    }
+  }
+}
+
+// Global in-memory fallback limiter
+const inMemoryFileUploadLimiter = new InMemoryFileUploadLimiter();
+
+// Clean up expired entries every 5 minutes
+setInterval(() => {
+  inMemoryFileUploadLimiter.cleanup();
+}, 5 * 60 * 1000);
+
+/**
  * Security middleware for Express application
  * Implements comprehensive security headers and protections
  */
@@ -421,10 +468,51 @@ export function fileUploadRateLimit(
           error: error.message,
           errorName: error.name,
         },
-        'File upload rate limiter service error, bypassing rate limit',
+        'File upload rate limiter service error, using in-memory fallback',
       );
 
-      // Fail-open strategy: allow access when rate limiter is unavailable
+      // Fail-closed strategy: use in-memory fallback for file uploads
+      // File uploads are resource-intensive and need protection even during Redis outages
+      if (inMemoryFileUploadLimiter.isBlocked(key)) {
+        logger.warn(
+          {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            endpoint: req.path,
+          },
+          'File upload blocked by in-memory fallback rate limiter',
+        );
+
+        res.setHeader('X-RateLimit-Limit', '10');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader(
+          'X-RateLimit-Reset',
+          new Date(Date.now() + 60000).toISOString(), // 1 minute fallback
+        );
+
+        res.status(429).json({
+          error: 'Too many file uploads (fallback protection)',
+          retryAfter: 60,
+        });
+        return;
+      }
+
+      // Allow the request but log that we're using fallback protection
+      logger.info(
+        {
+          ip: req.ip,
+          endpoint: req.path,
+        },
+        'File upload allowed via in-memory fallback rate limiter',
+      );
+
+      res.setHeader('X-RateLimit-Limit', '10');
+      res.setHeader('X-RateLimit-Remaining', '9'); // Conservative estimate
+      res.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + 60000).toISOString(),
+      );
+
       next();
     });
 }
