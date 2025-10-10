@@ -7,7 +7,7 @@ import { UserInputSchema } from '../../../domains/auth/validators/user-input.val
 import { LowContentSchema } from '../../../domains/files/validators/file-input.validator';
 import { IEnrichmentService } from '../../../shared/interfaces/enrichment.interface';
 import { logger } from '@config/logger.config';
-import { createCircuitBreaker } from '../../../shared/utils/cb';
+import { createCircuitBreaker } from '../../../shared/utils/circuit-breaker';
 import { XenovaTokenizerAdapter } from '../../../infrastructure/external-services/ai/xenova.adapter';
 import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
 import { config } from '@config';

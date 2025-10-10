@@ -146,7 +146,6 @@ describe('WebsocketService', () => {
       emit: vi.fn(),
       on: vi.fn(),
     };
-    // const next = vi.fn();
 
     // The middleware is now defined inline in authVerification()
     // We need to test the actual WebSocket service behavior
