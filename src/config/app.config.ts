@@ -31,6 +31,7 @@ const envSchema = z.object({
     }, z.coerce.boolean())
     .default(false),
   REDIS_DB: z.coerce.number().default(0),
+  REDIS_SOCKET: z.string().optional(),
 
   // JWT
   JWT_EXPIRES_IN: z.string().default('7d'),

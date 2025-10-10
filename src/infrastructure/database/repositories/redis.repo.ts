@@ -22,7 +22,54 @@ function buildRedisUrl(): string {
     return config.REDIS_URL;
   }
 
-  // Build URL from components
+  // Handle Unix socket connection
+  if (config.REDIS_SOCKET) {
+    const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
+    let auth = '';
+
+    // Handle credentials for socket connections
+    if (config.REDIS_USERNAME || config.REDIS_PASSWORD) {
+      const username = config.REDIS_USERNAME
+        ? encodeURIComponent(config.REDIS_USERNAME)
+        : '';
+      const password = config.REDIS_PASSWORD
+        ? encodeURIComponent(config.REDIS_PASSWORD)
+        : '';
+
+      if (username && password) {
+        auth = `${username}:${password}@`;
+      } else if (password) {
+        auth = `${password}@`;
+      } else if (username) {
+        auth = `${username}@`;
+      }
+    }
+
+    // Build query parameters for socket connections
+    const queryParams: string[] = [];
+    if (config.REDIS_DB !== 0) {
+      queryParams.push(`db=${config.REDIS_DB}`);
+    }
+
+    const queryString =
+      queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+    const url = `${scheme}://${auth}${config.REDIS_SOCKET}${queryString}`;
+
+    logger.info(
+      {
+        scheme,
+        socket: config.REDIS_SOCKET,
+        hasAuth: !!auth,
+        hasQuery: queryParams.length > 0,
+        db: config.REDIS_DB,
+      },
+      'Built Redis URL with Unix socket',
+    );
+
+    return url;
+  }
+
+  // Build URL from host/port components
   const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
   const host = config.REDIS_HOST;
   const port = config.REDIS_PORT;
@@ -53,7 +100,6 @@ function buildRedisUrl(): string {
   }
 
   const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
-
   const url = `${scheme}://${auth}${host}:${port}${queryString}`;
 
   logger.info(
