@@ -51,7 +51,7 @@ const envSchema = z.object({
   PINECONE_TOP_K: z.coerce.number().default(5),
   PINECONE_BATCH_SIZE: z.coerce.number().default(100),
   PINECONE_MAX_RETRIES: z.coerce.number().default(3),
-  VECTOR_STORE_PROVIDER: z.enum(['pinecone', 'postgres']).default('pinecone'),
+  VECTOR_STORE_PROVIDER: z.enum(['pinecone', 'pgvector']).default('pinecone'),
 
   // Processing
   CHUNK_SIZE: z.coerce.number().default(800),
@@ -91,8 +91,8 @@ const envSchema = z.object({
   MINIO_BUCKET_NAME: z.string().default('user-doc-chat'),
   MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
 
-  // Python gRPC Service
-  PYTHON_LLM_URL: z.string().url().default('http://localhost:50051'),
+  // Python HTTP Service
+  PYTHON_LLM_URL: z.string().url().default('http://localhost:8000/embed'),
 
   // Logging
   LOG_LEVEL: z
