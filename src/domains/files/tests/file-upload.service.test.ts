@@ -394,6 +394,93 @@ describe('FileUploadService', () => {
     });
   });
 
+  describe('Queue failure scenarios', () => {
+    it('should handle queue enqueue failure and update database status', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+      const mockFileRecord: UserFileRecord = {
+        id: 'file123',
+        file_name: 'test.pdf',
+        file_size: '1024',
+        owner_id: userId,
+        status: 'uploaded',
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
+      };
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockResolvedValue(undefined);
+      mockDb.query = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [mockFileRecord] })
+        .mockResolvedValueOnce({ rows: [] });
+      mockQueueAdapter.enqueue.mockRejectedValue(
+        new Error('Queue connection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockDb.query).toHaveBeenCalledWith(
+        'UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3',
+        ['failed', 'Queue connection failed', 'file123'],
+      );
+    });
+
+    it('should handle both queue and database update failures', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+      const mockFileRecord: UserFileRecord = {
+        id: 'file123',
+        file_name: 'test.pdf',
+        file_size: '1024',
+        owner_id: userId,
+        status: 'uploaded',
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
+      };
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockResolvedValue(undefined);
+      mockDb.query = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [mockFileRecord] })
+        .mockRejectedValueOnce(new Error('Database update failed'));
+      mockQueueAdapter.enqueue.mockRejectedValue(
+        new Error('Queue connection failed'),
+      );
+
+      const queueError = new Error('Queue connection failed');
+      (queueError as Error & { dbError?: Error }).dbError = new Error(
+        'Database update failed',
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+    });
+  });
+
+  describe('MinIO upload failure scenarios', () => {
+    it('should handle MinIO upload failure', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockRejectedValue(
+        new Error('MinIO connection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockDb.query).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Accepted MIME types', () => {
     const acceptedTypes = [
       'application/pdf',
