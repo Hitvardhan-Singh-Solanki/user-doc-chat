@@ -52,7 +52,7 @@ const mockIo = {
   }),
   on: vi.fn(),
   to: vi.fn().mockReturnValue({ emit: vi.fn() }),
-  _authMiddleware: null as ((socket: any, next: any) => void) | null,
+  _authMiddleware: null as ((socket: unknown, next: () => void) => void) | null,
 };
 
 vi.mock('socket.io', () => ({
@@ -121,7 +121,9 @@ describe('WebsocketService', () => {
     // Call the captured middleware
     expect(mockIo._authMiddleware).toBeDefined();
     const next = vi.fn();
-    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+    await (
+      mockIo._authMiddleware as (socket: unknown, next: () => void) => void
+    )(socket, next);
 
     // Assert the expected outcomes
     expect(socket.userId).toBe('user-123'); // Should be set to the sub value
@@ -153,12 +155,16 @@ describe('WebsocketService', () => {
     };
 
     // Spy on logger.warn to check for warning
-    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+    const loggerSpy = vi
+      .spyOn((ws as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => {});
 
     // Call the captured middleware
     expect(mockIo._authMiddleware).toBeDefined();
     const next = vi.fn();
-    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+    await (
+      mockIo._authMiddleware as (socket: unknown, next: () => void) => void
+    )(socket, next);
 
     // Assert the expected outcomes
     expect(socket.userId).toBe('legacy-user-123'); // Should be set to the legacy userId
@@ -168,7 +174,7 @@ describe('WebsocketService', () => {
         legacyClaim: 'userId',
         ip: undefined,
       }),
-      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.'
+      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
     );
 
     loggerSpy.mockRestore();
@@ -199,12 +205,16 @@ describe('WebsocketService', () => {
     };
 
     // Spy on logger.warn to check for warning
-    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+    const loggerSpy = vi
+      .spyOn((ws as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => {});
 
     // Call the captured middleware
     expect(mockIo._authMiddleware).toBeDefined();
     const next = vi.fn();
-    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+    await (
+      mockIo._authMiddleware as (socket: unknown, next: () => void) => void
+    )(socket, next);
 
     // Assert the expected outcomes
     expect(socket.userId).toBe('legacy-id-123'); // Should be set to the legacy id
@@ -214,7 +224,7 @@ describe('WebsocketService', () => {
         legacyClaim: 'id',
         ip: undefined,
       }),
-      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.'
+      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
     );
 
     loggerSpy.mockRestore();
@@ -245,19 +255,23 @@ describe('WebsocketService', () => {
     };
 
     // Spy on logger.warn to check for warning
-    const loggerSpy = vi.spyOn(ws.logger, 'warn').mockImplementation(() => {});
+    const loggerSpy = vi
+      .spyOn((ws as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => {});
 
     // Call the captured middleware
     expect(mockIo._authMiddleware).toBeDefined();
     const next = vi.fn();
-    await (mockIo._authMiddleware as (socket: any, next: any) => void)(socket, next);
+    await (
+      mockIo._authMiddleware as (socket: unknown, next: () => void) => void
+    )(socket, next);
 
     // Assert the expected outcomes
     expect(socket.userId).toBeUndefined(); // Should not be set
     expect(next).toHaveBeenCalledWith(expect.any(Error)); // Middleware should call next with error
     expect(loggerSpy).toHaveBeenCalledWith(
       { ip: undefined },
-      'Invalid token: missing subject claim'
+      'Invalid token: missing subject claim',
     );
 
     loggerSpy.mockRestore();
