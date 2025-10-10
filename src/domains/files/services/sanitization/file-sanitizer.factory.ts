@@ -1,7 +1,7 @@
 import { PDFSanitizationService } from './pdf-sanitization.service';
 import { DocSanitizationService } from './doc-sanitization.service';
 import { TextSanitizationService } from './text-sanitization.service';
-import { ISanitizeFile } from '../../../../shared/interfaces/sanitize-file.interface';
+import { ISanitizeFile } from '@interfaces/sanitize-file.interface';
 
 const sanitizerMap: Record<string, () => ISanitizeFile> = {
   'application/pdf': () => new PDFSanitizationService(),

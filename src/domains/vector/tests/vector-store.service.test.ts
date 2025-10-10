@@ -2,31 +2,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VectorStoreService } from '../services/vector-store.service';
 import {
   VectorQueryResult,
-  QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
+  // QueryMatch,
+} from '@interfaces/vector-store.interface';
+import { LLMService } from '@chat/services/llm.service';
 
 describe('VectorStoreService', () => {
-  let mockLLM: any;
-  let mockVectorStore: any;
+  let mockLLM: {
+    generateAnswerStream: ReturnType<typeof vi.fn>;
+    generateLowSummaryStream: ReturnType<typeof vi.fn>;
+    generateLowSummary: ReturnType<typeof vi.fn>;
+  };
+  let mockVectorStore: {
+    upsertVectors: ReturnType<typeof vi.fn>;
+    queryVector: ReturnType<typeof vi.fn>;
+  };
   let svc: VectorStoreService;
 
   beforeEach(() => {
     // Mock LLMService.generateAnswerStream as async generator
     mockLLM = {
-      generateAnswerStream: vi.fn(async function* (_input: any) {
+      generateAnswerStream: vi.fn(async function* (/* _input: unknown */) {
         yield 'token1';
         yield 'token2';
       }),
-      generateLowSummaryStream: vi.fn(async function* (_input: any) {
+      generateLowSummaryStream: vi.fn(async function* (/* _input: unknown */) {
         yield 'token1';
         yield 'token2';
       }),
-      generateLowSummary: vi.fn(async (_input: any) => 'token1token2'),
+      generateLowSummary: vi.fn(
+        async (/* _input: unknown */) => 'token1token2',
+      ),
     };
 
     // Mock Pinecone/Postgres vector store with upsert/query spies
     mockVectorStore = {
-      upsertVectors: vi.fn(async (vectors: any[]) => ({
+      upsertVectors: vi.fn(async (vectors: unknown[]) => ({
         upsertedCount: vectors.length, // match IVectorStore interface
       })),
       queryVector: vi.fn(
@@ -38,14 +48,16 @@ describe('VectorStoreService', () => {
 
     // Subclass VectorStoreService to inject mockVectorStore
     class TestVectorStoreService extends VectorStoreService {
-      constructor(llm: any) {
+      constructor(llm: LLMService) {
         super(llm, 'pinecone');
         // Override private vectorStore
-        (this as any).vectorStore = mockVectorStore;
+        (
+          this as unknown as { vectorStore: typeof mockVectorStore }
+        ).vectorStore = mockVectorStore;
       }
     }
 
-    svc = new TestVectorStoreService(mockLLM);
+    svc = new TestVectorStoreService(mockLLM as unknown as LLMService);
   });
 
   it('upsertVectors calls underlying vector store', async () => {
@@ -120,13 +132,27 @@ describe('VectorStoreService', () => {
 
   it('summarizeLowRelevanceChunks returns empty string when no low relevance', async () => {
     // accessing private method for testing
-    const summary = await (svc as any).summarizeLowRelevanceChunks([]);
+    const summary = await (
+      svc as unknown as {
+        summarizeLowRelevanceChunks: (chunks: unknown[]) => Promise<string>;
+      }
+    ).summarizeLowRelevanceChunks([]);
     expect(summary).toBe('');
   });
 
   it('splitChunksByRelevance separates high and low relevance correctly', () => {
     // accessing private method for testing
-    const { highRelevance, lowRelevance } = (svc as any).splitChunksByRelevance(
+    const { highRelevance, lowRelevance } = (
+      svc as unknown as {
+        splitChunksByRelevance: (
+          results: unknown,
+          topK: number,
+        ) => {
+          highRelevance: unknown[];
+          lowRelevance: unknown[];
+        };
+      }
+    ).splitChunksByRelevance(
       {
         matches: Array.from({ length: 3 }, (_, i) => ({
           id: `id-${i}`,

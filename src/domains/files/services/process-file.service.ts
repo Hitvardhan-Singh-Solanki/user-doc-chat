@@ -1,20 +1,19 @@
-// src/services/file-worker.service.ts
-
 import 'dotenv/config';
 import { Job, Worker } from 'bullmq';
 import { v4 as uuid } from 'uuid';
-import { downloadFile } from '../../../infrastructure/storage/providers/minio.provider';
-import { VectorStoreService } from '../../../domains/vector/services/vector-store.service';
-import { FileJob, Vector } from '../../../shared/types';
-import { sanitizeFile } from '../../../shared/utils/sanitize-file';
+import { downloadFile } from '@storage/providers/minio.provider';
+import { VectorStoreService } from '@vector/services/vector-store.service';
+import { FileJob, Vector } from '@shared/types';
+import { sanitizeFile } from '@utils/sanitize-file';
 import {
   connectionOptions,
   fileQueueName,
-} from '../../../infrastructure/queue/providers/bullmq.provider';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { LLMService } from '../../../domains/chat/services/llm.service';
-import { EnrichmentService } from '../../../domains/chat/services/enrichment.service';
-import { logger } from '../../../config/logger.config';
+} from '@queue/providers/bullmq.provider';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { LLMService } from '@chat/services/llm.service';
+import { EnrichmentService } from '@chat/services/enrichment.service';
+import { logger } from '@config/logger.config';
+import { config } from '@config';
 import retry from 'async-retry';
 import { Logger } from 'pino';
 
@@ -37,7 +36,6 @@ export class FileWorkerService {
     this.vectorStore = vectorStore;
   }
 
-  /** Start the BullMQ worker */
   public async startWorker() {
     this.worker = new Worker(fileQueueName, this.processJob.bind(this), {
       connection: connectionOptions,
@@ -103,16 +101,10 @@ export class FileWorkerService {
       await job.updateProgress(40);
       jobLogger.info({ sanitizedTextLength: text.length }, 'File sanitized');
 
-      await this.enrichmentService.preEmbedDocument(text, {
-        fileId: payload.fileId,
-        userId: payload.userId,
-      });
-      await job.updateProgress(70);
-
       const chunks = this.llmService.chunkText(
         text,
-        Number(process.env.CHUNK_SIZE) || 800,
-        Number(process.env.CHUNK_OVERLAP) || 100,
+        config.CHUNK_SIZE,
+        config.CHUNK_OVERLAP,
       );
       jobLogger.info({ chunkCount: chunks.length }, 'Document chunked');
 
@@ -153,7 +145,7 @@ export class FileWorkerService {
           });
         }
 
-        const progress = 70 + Math.floor(((i + 1) / chunks.length) * 20);
+        const progress = 40 + Math.floor(((i + 1) / chunks.length) * 50);
         await job.updateProgress(progress);
         jobLogger.debug({ progress }, 'Processing chunk');
       }
@@ -239,7 +231,7 @@ export class FileWorkerService {
     text: string,
     id: string,
     embedding: number[],
-    extraMeta: Record<string, any> = {},
+    extraMeta: Record<string, unknown> = {},
   ): Vector {
     return {
       id: `${payload.fileId}-${id}`,

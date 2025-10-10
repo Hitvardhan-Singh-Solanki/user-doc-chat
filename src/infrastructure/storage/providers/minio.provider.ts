@@ -1,17 +1,25 @@
 import { Readable } from 'stream';
-import { minioClient } from '../../database/repositories/minio.repo';
+import { minioClient } from '@database/repositories/minio.repo';
 
-const bucket = 'user-files';
+import { storageConfig } from '@config';
+
+const bucket = storageConfig.minio.defaultBucket;
+
+if (!bucket || !bucket.trim()) {
+  throw new Error(
+    'MINIO_DEFAULT_BUCKET is required (storageConfig.minio.defaultBucket)',
+  );
+}
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
   try {
     await minioClient.makeBucket(bucket);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Ignore bucket already exists errors, rethrow others
     if (
-      error.code === 'BucketAlreadyOwnedByYou' ||
-      error.code === 'BucketAlreadyExists' ||
-      error.statusCode === 409
+      (error as { code?: string }).code === 'BucketAlreadyOwnedByYou' ||
+      (error as { code?: string }).code === 'BucketAlreadyExists' ||
+      (error as { statusCode?: number }).statusCode === 409
     ) {
       // Bucket already exists, continue
     } else {
@@ -27,9 +35,7 @@ export async function downloadFile(key: string): Promise<Buffer> {
   const chunks: Buffer[] = [];
 
   return new Promise((resolve, reject) => {
-    let _total = 0;
     stream.on('data', (chunk: Buffer) => {
-      _total += chunk.length;
       chunks.push(chunk);
     });
     stream.once('end', () => resolve(Buffer.concat(chunks)));

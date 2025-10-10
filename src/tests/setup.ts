@@ -1,12 +1,33 @@
-import 'dotenv/config';
-import { vi } from 'vitest';
+// Load test environment variables FIRST, before any other imports
+import { config } from 'dotenv';
+import { resolve } from 'path';
 
-// Set up test environment variables
-process.env.JWT_SECRET = 'kcoFVz1RNik90pi2K0KCOkd94EIbr3OhRYAmkhFRB9g=';
-process.env.JWT_EXPIRES_IN = '3600';
-process.env.JWT_AUDIENCE = 'test-audience';
-process.env.JWT_ISSUER = 'test-issuer';
-process.env.JWT_MAX_AGE = '86400';
+// Load test environment variables from env.test file
+config({ path: resolve(process.cwd(), 'env.test') });
+
+// Set NODE_ENV to test to ensure proper config loading
+process.env.NODE_ENV = 'test';
+
+import { vi } from 'vitest';
+import { logger } from '../config/logger.config';
+import { initializeConfig } from '../config/app.config';
+
+// Initialize config explicitly for tests
+try {
+  initializeConfig();
+} catch (error) {
+  logger.debug({ error }, 'Failed to initialize config in test setup');
+}
+
+// Initialize secrets for tests
+(async () => {
+  try {
+    const { secretsManager } = await import('../config/secrets.config');
+    secretsManager.initialize();
+  } catch (error) {
+    logger.debug({ error }, 'Failed to initialize secrets in test setup');
+  }
+})();
 
 vi.mock('minio', () => {
   return {
@@ -18,14 +39,14 @@ vi.mock('minio', () => {
 
 vi.mock('bullmq', () => {
   return {
-    Worker: vi.fn().mockImplementation((_queueName, _processor) => {
+    Worker: vi.fn().mockImplementation((/* _queueName, _processor */) => {
       return {
         id: 'worker-123',
         close: vi.fn(),
         on: vi.fn(),
       };
     }),
-    Queue: vi.fn().mockImplementation((queueName, _options) => {
+    Queue: vi.fn().mockImplementation((queueName /* _options */) => {
       return {
         name: queueName,
         add: vi.fn(),
@@ -34,7 +55,7 @@ vi.mock('bullmq', () => {
         close: vi.fn(),
       };
     }),
-    QueueEvents: vi.fn().mockImplementation((queueName, _options) => {
+    QueueEvents: vi.fn().mockImplementation((queueName /* _options */) => {
       return {
         name: queueName,
         on: vi.fn(),
@@ -60,3 +81,6 @@ vi.mock('../service/embeddings', () => ({
 vi.mock('../service/pinecone', () => ({
   upsertVectors: vi.fn(),
 }));
+
+// Note: secretsManager.initialize() removed to prevent circular dependency
+// Test environment variables are loaded via dotenv above

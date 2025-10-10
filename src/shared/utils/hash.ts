@@ -1,40 +1,5 @@
 import bcrypt from 'bcrypt';
-import pino from 'pino';
-
-const logger = pino({ name: 'hash-utils' });
-
-const SALT_ROUNDS = (() => {
-  const envValue = process.env.SALT_ROUNDS;
-  if (!envValue) return 10;
-
-  const parsed = parseInt(envValue, 10);
-
-  // Check for NaN or invalid values
-  if (isNaN(parsed)) {
-    logger.warn(`Invalid SALT_ROUNDS value "${envValue}", using default: 10`);
-    return 10;
-  }
-
-  // Enforce safe bounds (min 10, max 15) for bcrypt security/performance
-  const MIN_ROUNDS = 10;
-  const MAX_ROUNDS = 15;
-
-  if (parsed < MIN_ROUNDS) {
-    logger.warn(
-      `SALT_ROUNDS value ${parsed} is below minimum ${MIN_ROUNDS}, clamping to ${MIN_ROUNDS}`,
-    );
-    return MIN_ROUNDS;
-  }
-
-  if (parsed > MAX_ROUNDS) {
-    logger.warn(
-      `SALT_ROUNDS value ${parsed} exceeds maximum ${MAX_ROUNDS}, clamping to ${MAX_ROUNDS}`,
-    );
-    return MAX_ROUNDS;
-  }
-
-  return parsed;
-})();
+import { authConfig } from '@config';
 
 export async function hashPassword(password: string): Promise<string> {
   // Validate input is not empty
@@ -50,7 +15,23 @@ export async function hashPassword(password: string): Promise<string> {
     );
   }
 
-  return await bcrypt.hash(password, SALT_ROUNDS);
+  // Validate saltRounds before using it
+  if (authConfig.saltRounds === undefined || authConfig.saltRounds === null) {
+    throw new Error('saltRounds is not defined in auth configuration');
+  }
+
+  const saltRounds = parseInt(String(authConfig.saltRounds), 10);
+
+  if (!Number.isFinite(saltRounds) || Number.isNaN(saltRounds)) {
+    throw new Error(
+      `Invalid saltRounds value: ${authConfig.saltRounds}. Must be a finite integer.`,
+    );
+  }
+
+  // Clamp saltRounds to bcrypt's valid range (4-31)
+  const validSaltRounds = Math.max(4, Math.min(31, saltRounds));
+
+  return await bcrypt.hash(password, validSaltRounds);
 }
 
 export async function comparePassword(

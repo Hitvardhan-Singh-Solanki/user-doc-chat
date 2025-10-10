@@ -1,13 +1,15 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
-import { logger } from '../../config/logger.config';
+import { logger } from '@config/logger.config';
+import { config, authConfig } from '@config';
+import { secretsManager } from '@secrets';
 
 /**
  * Validates and returns JWT secret from environment variables
  * @throws {Error} When JWT_SECRET is missing, empty, or doesn't meet security requirements
  */
 function validateJwtSecret(): string {
-  const jwtSecret = process.env.JWT_SECRET;
+  const jwtSecret = secretsManager.getJwtSecret();
 
   if (!jwtSecret || !jwtSecret.trim()) {
     throw new Error(
@@ -52,7 +54,7 @@ function validateJwtSecret(): string {
   }
 
   // Security validation: check for environment-specific weak patterns
-  if (process.env.NODE_ENV === 'production') {
+  if (config.NODE_ENV === 'production') {
     if (
       trimmedSecret.includes('dev') ||
       trimmedSecret.includes('test') ||
@@ -70,10 +72,11 @@ function validateJwtSecret(): string {
 
 /**
  * Validates and returns JWT expiration time from environment variables
+ * Supports formats: "7d", "1h", "30m", "3600s", or plain numbers
  * @throws {Error} When JWT_EXPIRES_IN is missing or invalid
  */
 function validateJwtExpiresIn(): number {
-  const jwtExpiresIn = process.env.JWT_EXPIRES_IN;
+  const jwtExpiresIn = config.JWT_EXPIRES_IN;
 
   if (!jwtExpiresIn || !jwtExpiresIn.trim()) {
     throw new Error(
@@ -82,14 +85,48 @@ function validateJwtExpiresIn(): number {
     );
   }
 
-  const expiresIn = Number(jwtExpiresIn.trim());
-  if (isNaN(expiresIn) || expiresIn <= 0) {
-    throw new Error(
-      `JWT_EXPIRES_IN must be a positive number, got: ${jwtExpiresIn}`,
-    );
+  const trimmed = jwtExpiresIn.trim();
+
+  // Try to parse as a plain number first
+  const numericValue = Number(trimmed);
+  if (!isNaN(numericValue) && numericValue > 0) {
+    return numericValue;
   }
 
-  return expiresIn;
+  // Parse time units (7d, 1h, 30m, 3600s)
+  const timeUnitRegex = /^(\d+(?:\.\d+)?)([dhms])$/i;
+  const match = trimmed.match(timeUnitRegex);
+
+  if (match) {
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+
+    if (value <= 0) {
+      throw new Error(
+        `JWT_EXPIRES_IN must be a positive number, got: ${jwtExpiresIn}`,
+      );
+    }
+
+    // Convert to seconds
+    switch (unit) {
+      case 'd':
+        return value * 24 * 60 * 60; // days to seconds
+      case 'h':
+        return value * 60 * 60; // hours to seconds
+      case 'm':
+        return value * 60; // minutes to seconds
+      case 's':
+        return value; // already in seconds
+      default:
+        throw new Error(
+          `JWT_EXPIRES_IN unit must be d, h, m, or s, got: ${jwtExpiresIn}`,
+        );
+    }
+  }
+
+  throw new Error(
+    `JWT_EXPIRES_IN must be a positive number or time unit (e.g., "7d", "1h", "30m"), got: ${jwtExpiresIn}`,
+  );
 }
 
 // Validate JWT configuration at module load time
@@ -111,6 +148,8 @@ export function signJwt(
   const options: SignOptions = {
     expiresIn,
     algorithm: 'HS256',
+    audience: secretsManager.getJwtAudience(),
+    issuer: secretsManager.getJwtIssuer(),
   };
 
   return jwt.sign(payload, JWT_SECRET, options);
@@ -157,9 +196,9 @@ export function verifyJwt(
       // Security: prevent algorithm confusion attacks
       ignoreExpiration: false,
       ignoreNotBefore: false,
-      // Security: validate audience and issuer if provided
-      audience: process.env.JWT_AUDIENCE,
-      issuer: process.env.JWT_ISSUER,
+      // Security: validate audience and issuer for enhanced security
+      audience: secretsManager.getJwtAudience(),
+      issuer: secretsManager.getJwtIssuer(),
     }) as CustomJwtPayload;
 
     // Security validation: check for required claims
@@ -169,10 +208,8 @@ export function verifyJwt(
     }
 
     // Security validation: check token age (prevent very old tokens)
-    const maxAge = process.env.JWT_MAX_AGE
-      ? parseInt(process.env.JWT_MAX_AGE, 10)
-      : 86400; // 24 hours default
-    const issuedAt = (decoded as any).iat;
+    const maxAge = authConfig.jwtMaxAge;
+    const issuedAt = (decoded as { iat?: number }).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');
       return null;
@@ -181,7 +218,7 @@ export function verifyJwt(
     return decoded;
   } catch (error) {
     // Security: don't log sensitive error details in production
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = config.NODE_ENV === 'production';
 
     if (isProduction) {
       logger.warn('JWT verification failed');

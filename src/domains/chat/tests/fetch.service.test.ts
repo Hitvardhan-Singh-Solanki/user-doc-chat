@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchHTMLService } from '../services/fetch.service';
-import { SearchResult } from '../../../shared/types';
+import { FetchHTMLServiceWithPrivateMethods } from '@shared/types/test.types';
+import { EnrichmentOptions, SearchResult } from '@shared/types';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 
-// Mock external dependencies
-// A simpler p-limit mock that runs tasks immediately
 vi.mock('p-limit', () => ({
-  default: vi.fn((_concurrency) => {
+  default: vi.fn((/* _concurrency */) => {
     return (fn: () => Promise<unknown>) => fn();
   }),
 }));
@@ -28,9 +27,8 @@ vi.mock('dns/promises', () => ({
   }),
 }));
 
-// A more robust mock for jsdom and readability
 vi.mock('jsdom', () => ({
-  JSDOM: vi.fn((html: string, _options: unknown) => ({
+  JSDOM: vi.fn((html: string /* _options: unknown */) => ({
     window: {
       document: {
         title: 'Mock Document Title',
@@ -44,9 +42,8 @@ vi.mock('jsdom', () => ({
 }));
 
 vi.mock('@mozilla/readability', () => ({
-  Readability: vi.fn((_dom) => ({
+  Readability: vi.fn((/* _dom */) => ({
     parse: () => {
-      // Direct return for successful parsing in the test.
       return {
         title: 'Mock Title',
         content: '<p>Mock Content</p>',
@@ -63,7 +60,6 @@ vi.mock('@mozilla/readability', () => ({
   })),
 }));
 
-// Mock the logger - define everything inline to avoid hoisting issues
 vi.mock('../config/logger', () => {
   const mockLogger = {
     info: vi.fn(),
@@ -80,7 +76,6 @@ vi.mock('../config/logger', () => {
   };
 });
 
-// Helper function to create mock fetch responses
 function makeFetchResponse({
   ok = true,
   status = 200,
@@ -102,7 +97,6 @@ function makeFetchResponse({
     read: vi.fn(),
   };
 
-  // Normalize header keys for case-insensitive lookup
   const lowerHeaders: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
     lowerHeaders[k.toLowerCase()] = v;
@@ -146,14 +140,13 @@ function makeFetchResponse({
 
 describe('FetchHTMLService', () => {
   let svc: FetchHTMLService;
-  let originalFetch: any;
+  let originalFetch: typeof global.fetch;
 
   beforeEach(async () => {
     vi.useFakeTimers();
     svc = new FetchHTMLService();
     originalFetch = global.fetch;
 
-    // Mock global fetch
     global.fetch = vi.fn(async () => makeFetchResponse({}));
   });
 
@@ -176,8 +169,10 @@ describe('FetchHTMLService', () => {
       ];
       const options = { maxPagesToFetch: 3 };
 
-      // Spy on the private method fetchExtract
-      const fetchExtractSpy = vi.spyOn(svc as any, 'fetchExtract');
+      const fetchExtractSpy = vi.spyOn(
+        svc as unknown as { fetchExtract: (url: string) => Promise<string> },
+        'fetchExtract',
+      );
       fetchExtractSpy.mockResolvedValue('mock content');
 
       const fetched = await svc.fetchHTML(results, options);
@@ -193,7 +188,10 @@ describe('FetchHTMLService', () => {
       ];
       const options = {};
 
-      const fetchExtractSpy = vi.spyOn(svc as any, 'fetchExtract');
+      const fetchExtractSpy = vi.spyOn(
+        svc as unknown as { fetchExtract: (url: string) => Promise<string> },
+        'fetchExtract',
+      );
       fetchExtractSpy
         .mockResolvedValueOnce('some-content')
         .mockRejectedValueOnce(new Error('Network error'));
@@ -208,24 +206,29 @@ describe('FetchHTMLService', () => {
       const results: SearchResult[] = [
         { url: 'https://example.com/1', title: 'A', snippet: '...' },
       ];
-      const fetchExtractSpy = vi.spyOn(svc as any, 'fetchExtract');
+      const fetchExtractSpy = vi.spyOn(
+        svc as unknown as { fetchExtract: (url: string) => Promise<string> },
+        'fetchExtract',
+      );
       fetchExtractSpy.mockResolvedValue('mock content');
 
       await svc.fetchHTML(results, {});
 
-      // Updated expectation to include chunkOverlap
       expect(fetchExtractSpy).toHaveBeenCalledWith(expect.any(Object), {
         maxPagesToFetch: 5,
         fetchConcurrency: 2,
         minContentLength: 2000,
         chunkSize: 1000,
         maxResults: 10,
-        chunkOverlap: 100, // Added this missing property
+        chunkOverlap: 100,
       });
     });
 
     it('should return an empty array for empty input', async () => {
-      const fetchExtractSpy = vi.spyOn(svc as any, 'fetchExtract');
+      const fetchExtractSpy = vi.spyOn(
+        svc as unknown as { fetchExtract: (url: string) => Promise<string> },
+        'fetchExtract',
+      );
       const fetched = await svc.fetchHTML([], {});
       expect(fetched).toEqual([]);
       expect(fetchExtractSpy).not.toHaveBeenCalled();
@@ -239,30 +242,38 @@ describe('FetchHTMLService', () => {
       minContentLength: 2000,
       chunkSize: 1000,
       maxResults: 10,
-      chunkOverlap: 100, // Added this property to match the service
-    } as Required<any>;
+      chunkOverlap: 100,
+    } as Required<EnrichmentOptions>;
 
     beforeEach(() => {
-      vi.spyOn(svc as any, 'fetchPageText');
+      vi.spyOn(
+        svc as unknown as FetchHTMLServiceWithPrivateMethods,
+        'fetchPageText',
+      );
     });
 
     it('should use page text if it meets minContentLength', async () => {
       const longText = 'a'.repeat(3000);
-      (svc as any).fetchPageText.mockResolvedValue(longText);
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText.mockResolvedValue(longText);
 
-      const result = await (svc as any).fetchExtract(
-        { url: 'https://example.com', snippet: 'short' },
-        opts,
-      );
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchExtract({ url: 'https://example.com', snippet: 'short' }, opts);
       expect(result).toBe(longText);
     });
 
     it('should use snippet if page text is too short but snippet is long enough', async () => {
       const shortText = 'a'.repeat(100);
       const longSnippet = 'b'.repeat(500);
-      (svc as any).fetchPageText.mockResolvedValue(shortText);
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText.mockResolvedValue(shortText);
 
-      const result = await (svc as any).fetchExtract(
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchExtract(
         { url: 'https://example.com', snippet: longSnippet },
         { ...opts, minContentLength: 400 },
       );
@@ -272,9 +283,13 @@ describe('FetchHTMLService', () => {
     it('should return empty string if both page text and snippet are too short', async () => {
       const shortText = 'a'.repeat(100);
       const shortSnippet = 'b'.repeat(30);
-      (svc as any).fetchPageText.mockResolvedValue(shortText);
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText.mockResolvedValue(shortText);
 
-      const result = await (svc as any).fetchExtract(
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchExtract(
         { url: 'https://example.com', snippet: shortSnippet },
         opts,
       );
@@ -284,14 +299,23 @@ describe('FetchHTMLService', () => {
 
   describe('fetchPageText', () => {
     beforeEach(() => {
-      // Mock validateUrlForSSRF and isPublicAddress to simplify testing
-      vi.spyOn(svc as any, 'validateUrlForSSRF').mockReturnValue(true);
-      vi.spyOn(svc as any, 'isPublicAddress').mockResolvedValue(true);
+      vi.spyOn(
+        svc as unknown as FetchHTMLServiceWithPrivateMethods,
+        'validateUrlForSSRF',
+      ).mockReturnValue(true);
+      vi.spyOn(
+        svc as unknown as FetchHTMLServiceWithPrivateMethods,
+        'isPublicAddress',
+      ).mockResolvedValue(true);
     });
 
     it('should return null for non-http/https protocols', async () => {
-      (svc as any).validateUrlForSSRF.mockReturnValue(false);
-      const result = await (svc as any).fetchPageText('ftp://example.com');
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).validateUrlForSSRF.mockReturnValue(false);
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('ftp://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
@@ -304,24 +328,34 @@ describe('FetchHTMLService', () => {
         'http://192.168.1.1',
         'http://172.16.0.1',
       ];
-      (svc as any).validateUrlForSSRF.mockReturnValue(false);
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).validateUrlForSSRF.mockReturnValue(false);
       for (const url of urls) {
-        const result = await (svc as any).fetchPageText(url);
+        const result = await (
+          svc as unknown as FetchHTMLServiceWithPrivateMethods
+        ).fetchPageText(url);
         expect(result).toBeNull();
       }
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should return null if dns lookup resolves to a private IP', async () => {
-      (svc as any).isPublicAddress.mockResolvedValue(false);
-      const result = await (svc as any).fetchPageText('http://example.com');
+      (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).isPublicAddress.mockResolvedValue(false);
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('http://example.com');
       expect(result).toBeNull();
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should return null on network error', async () => {
       global.fetch = vi.fn(() => Promise.reject(new Error('Network failed')));
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -329,7 +363,9 @@ describe('FetchHTMLService', () => {
       global.fetch = vi.fn(() =>
         Promise.resolve(makeFetchResponse({ ok: false, status: 404 })),
       );
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -337,7 +373,9 @@ describe('FetchHTMLService', () => {
       global.fetch = vi.fn(() =>
         Promise.resolve(makeFetchResponse({ status: 301, ok: false })),
       );
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -349,7 +387,9 @@ describe('FetchHTMLService', () => {
           }),
         ),
       );
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -361,7 +401,9 @@ describe('FetchHTMLService', () => {
           }),
         ),
       );
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
@@ -376,14 +418,15 @@ describe('FetchHTMLService', () => {
         ),
       );
 
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBeNull();
     });
 
     it('should return null on timeout', async () => {
-      global.fetch = vi.fn((_url, init?: any) => {
+      global.fetch = vi.fn((_url, init?: RequestInit) => {
         return new Promise((_resolve, reject) => {
-          // Create and dispatch an AbortError instead of a generic error.
           const abortError = new DOMException(
             'The operation was aborted.',
             'AbortError',
@@ -391,15 +434,14 @@ describe('FetchHTMLService', () => {
           init?.signal?.addEventListener('abort', () => {
             reject(abortError);
           });
-          // To satisfy the type, we must return a promise that resolves to a Response.
-          // But in this test, we know it will be aborted and rejected.
         }) as Promise<Response>;
       });
 
-      const promise = (svc as any).fetchPageText('https://example.com', 100);
+      const promise = (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com', 100);
       await vi.advanceTimersByTimeAsync(100);
 
-      // Assert that the function returns null after the timeout, as expected by the logic in the main file
       const result = await promise;
       expect(result).toBeNull();
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -424,7 +466,9 @@ describe('FetchHTMLService', () => {
         ),
       );
 
-      const result = await (svc as any).fetchPageText('https://example.com');
+      const result = await (
+        svc as unknown as FetchHTMLServiceWithPrivateMethods
+      ).fetchPageText('https://example.com');
       expect(result).toBe(expectedText);
       expect(global.fetch).toHaveBeenCalledWith(
         'https://example.com',
@@ -438,7 +482,6 @@ describe('FetchHTMLService', () => {
   });
 
   describe('isPrivateAddress', () => {
-    // This part of the test file is correct and doesn't need changes, but it is included for completeness.
     it('should correctly identify private IPv4 addresses', () => {
       const privateAddresses = [
         '10.0.0.1',
@@ -448,21 +491,33 @@ describe('FetchHTMLService', () => {
         '172.31.255.255',
       ];
       privateAddresses.forEach((ip) => {
-        expect((svc as any).isPrivateAddress(ip)).toBe(true);
+        expect(
+          (
+            svc as unknown as FetchHTMLServiceWithPrivateMethods
+          ).isPrivateAddress(ip),
+        ).toBe(true);
       });
     });
 
     it('should correctly identify public IPv4 addresses', () => {
       const publicAddresses = ['8.8.8.8', '203.0.113.5', '1.1.1.1'];
       publicAddresses.forEach((ip) => {
-        expect((svc as any).isPrivateAddress(ip)).toBe(false);
+        expect(
+          (
+            svc as unknown as FetchHTMLServiceWithPrivateMethods
+          ).isPrivateAddress(ip),
+        ).toBe(false);
       });
     });
 
     it('should correctly identify private IPv6 addresses', () => {
       const privateAddresses = ['fe80::1', '::1', 'fc00::', 'fdff::1'];
       privateAddresses.forEach((ip) => {
-        expect((svc as any).isPrivateAddress(ip)).toBe(true);
+        expect(
+          (
+            svc as unknown as FetchHTMLServiceWithPrivateMethods
+          ).isPrivateAddress(ip),
+        ).toBe(true);
       });
     });
 
@@ -472,7 +527,11 @@ describe('FetchHTMLService', () => {
         '2606:4700::1111',
       ];
       publicAddresses.forEach((ip) => {
-        expect((svc as any).isPrivateAddress(ip)).toBe(false);
+        expect(
+          (
+            svc as unknown as FetchHTMLServiceWithPrivateMethods
+          ).isPrivateAddress(ip),
+        ).toBe(false);
       });
     });
   });

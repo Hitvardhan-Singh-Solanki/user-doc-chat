@@ -1,7 +1,8 @@
-import { IDeepResearch } from '../../../shared/interfaces/deep-research.interface';
+import { IDeepResearch } from '@interfaces/deep-research.interface';
 import { LLMService } from './llm.service';
 import { PromptService } from './prompt.service';
-import { SimpleTokenizerAdapter } from '../../../infrastructure/external-services/ai/custom-tokenizer.adapter';
+import { SimpleTokenizerAdapter } from '@ai/custom-tokenizer.adapter';
+import { config } from '@config';
 
 export class DeepResearchService implements IDeepResearch {
   private readonly llmService: LLMService;
@@ -19,8 +20,8 @@ export class DeepResearchService implements IDeepResearch {
 
     const chunks = this.llmService.chunkText(
       sanitized,
-      Number(process.env.CHUNK_SIZE) || 1000,
-      Number(process.env.CHUNK_OVERLAP) || 100,
+      config.CHUNK_SIZE,
+      config.CHUNK_OVERLAP,
     );
 
     return await this.llmService.generateLowSummary(chunks, {

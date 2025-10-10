@@ -1,4 +1,4 @@
-import { ISanitizeFile } from '../../../../shared/interfaces/sanitize-file.interface';
+import { ISanitizeFile } from '@interfaces/sanitize-file.interface';
 import { sanitizeFileGrpc } from './sanitizer-client.service';
 
 export class PDFSanitizationService implements ISanitizeFile {

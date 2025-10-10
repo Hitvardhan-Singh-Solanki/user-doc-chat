@@ -1,4 +1,4 @@
-FROM node:22
+FROM node:22.11
 
 # Accept build arguments for UID/GID with defaults
 ARG UID=1000

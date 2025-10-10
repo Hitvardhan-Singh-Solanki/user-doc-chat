@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SearchService } from './search.service';
-import { ISearchAdapter } from '../../../shared/interfaces/search-adapter.interface';
-import { SearchResult } from '../../../shared/types';
-import { mockSearchResults } from '../../../tests/fixtures';
+import { ISearchAdapter } from '@interfaces/search-adapter.interface';
+import { SearchResult } from '@shared/types';
+import { mockSearchResults } from '@tests/fixtures';
 
 describe('SearchService', () => {
   let searchService: SearchService;
@@ -206,7 +206,7 @@ describe('SearchService', () => {
         },
       ];
       const query = 'test query';
-      mockAdapter.search = vi.fn().mockResolvedValue(extendedResults as any);
+      mockAdapter.search = vi.fn().mockResolvedValue(extendedResults);
 
       const result = await searchService.search(query);
 
@@ -217,7 +217,7 @@ describe('SearchService', () => {
     it('should pass through adapter response without modification', async () => {
       const query = 'test query';
       const adapterResponse = { custom: 'response', format: true };
-      mockAdapter.search = vi.fn().mockResolvedValue(adapterResponse as any);
+      mockAdapter.search = vi.fn().mockResolvedValue(adapterResponse);
 
       const result = await searchService.search(query);
 

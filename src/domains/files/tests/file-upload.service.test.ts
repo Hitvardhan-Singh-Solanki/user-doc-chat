@@ -1,23 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FileUploadService } from '../services/file-upload.service';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import { MulterFile, UserFileRecord } from '../../../shared/types';
-import * as minioService from '../../../infrastructure/storage/providers/minio.provider';
-import { queueAdapter } from '../../../infrastructure/queue/providers/bullmq.provider';
+import { IDBStore } from '@interfaces/db-store.interface';
+import { MulterFile, UserFileRecord } from '@shared/types';
+import * as minioService from '@storage/providers/minio.provider';
+import { queueAdapter } from '@queue/providers/bullmq.provider';
 import { fileTypeFromBuffer } from 'file-type';
 import createHttpError from 'http-errors';
-import { mockFile, mockFileUploadData } from '../../../tests/fixtures';
+import { createDatabaseMock } from '@tests/mocks';
 
 // Mock external dependencies
 vi.mock('file-type', () => ({
   fileTypeFromBuffer: vi.fn(),
 }));
 
-vi.mock('../../../infrastructure/storage/providers/minio.provider', () => ({
+vi.mock('@storage/providers/minio.provider', () => ({
   uploadFileToMinio: vi.fn(),
 }));
 
-vi.mock('../../../infrastructure/queue/providers/bullmq.provider', () => ({
+vi.mock('@queue/providers/bullmq.provider', () => ({
   queueAdapter: {
     enqueue: vi.fn(),
   },
@@ -31,16 +31,18 @@ vi.mock('uuid', () => ({
 describe('FileUploadService', () => {
   let fileUploadService: FileUploadService;
   let mockDb: IDBStore;
-  let mockFileTypeFromBuffer: any;
-  let mockUploadFileToMinio: any;
-  let mockQueueAdapter: any;
+  let mockFileTypeFromBuffer: ReturnType<typeof vi.fn>;
+  let mockUploadFileToMinio: ReturnType<typeof vi.fn>;
+  let mockQueueAdapter: {
+    enqueue: ReturnType<typeof vi.fn>;
+    getJobStatus: ReturnType<typeof vi.fn>;
+    getQueueEvents: ReturnType<typeof vi.fn>;
+    getQueue: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
-    // Setup mocks
-    mockDb = {
-      query: vi.fn(),
-      withTransaction: vi.fn(),
-    };
+    // Setup mocks using common mock builders
+    mockDb = createDatabaseMock();
 
     mockFileTypeFromBuffer = vi.mocked(fileTypeFromBuffer);
     mockUploadFileToMinio = vi.mocked(minioService.uploadFileToMinio);
@@ -94,7 +96,9 @@ describe('FileUploadService', () => {
 
       expect(mockFileTypeFromBuffer).toHaveBeenCalledWith(mockFile.buffer);
       expect(mockUploadFileToMinio).toHaveBeenCalledWith(
-        'mock-uuid-1234-document.pdf',
+        expect.stringMatching(
+          /^user-uploads\/user123\/mock-uuid-1234-document\.pdf$/,
+        ),
         mockFile.buffer,
       );
       expect(mockDb.query).toHaveBeenCalledWith(
@@ -105,7 +109,9 @@ describe('FileUploadService', () => {
         'file-processing',
         'process-file',
         {
-          key: 'mock-uuid-1234-document.pdf',
+          key: expect.stringMatching(
+            /^user-uploads\/user123\/mock-uuid-1234-document\.pdf$/,
+          ),
           userId,
           fileId: 'file123',
         },
@@ -189,7 +195,7 @@ describe('FileUploadService', () => {
     it('should throw error when file buffer is undefined', async () => {
       const mockFile: MulterFile = {
         ...createMockFile(),
-        buffer: undefined as any,
+        buffer: undefined as Buffer | undefined,
       };
       const userId = 'user123';
 
@@ -205,37 +211,42 @@ describe('FileUploadService', () => {
       mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/jpeg' });
 
       await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
-        'Unsupported file type',
+        'File type image/jpeg not supported',
       );
 
       expect(mockUploadFileToMinio).not.toHaveBeenCalled();
     });
 
-    it('should use original mimetype when file-type detection returns null', async () => {
-      const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
+    it('should reject upload when file-type detection returns null', async () => {
+      const mockFile = createMockFile('image/jpeg', 'document.pdf', 1024);
       const userId = 'user123';
 
       mockFileTypeFromBuffer.mockResolvedValue(null);
 
-      const mockFileRecord: UserFileRecord = {
-        id: 'file123',
-        file_name: 'document.pdf',
-        file_size: '1024',
-        owner_id: userId,
-        status: 'uploaded',
-        created_at: new Date().toDateString(),
-        updated_at: new Date().toDateString(),
-      };
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'Unable to verify file type. File signature detection failed.',
+      );
 
-      mockUploadFileToMinio.mockResolvedValue(undefined);
-      mockDb.query = vi.fn().mockResolvedValue({
-        rows: [mockFileRecord],
-      });
-      mockQueueAdapter.enqueue.mockResolvedValue(undefined);
+      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
+      expect(mockDb.query).not.toHaveBeenCalled();
+    });
 
-      const result = await fileUploadService.upload(mockFile, userId);
+    it('should reject upload when file-type detection throws an error', async () => {
+      const mockFile = createMockFile('application/pdf', 'document.pdf', 1024);
+      const userId = 'user123';
 
-      expect(result).toEqual(mockFileRecord);
+      mockFileTypeFromBuffer.mockRejectedValue(
+        new Error('File type detection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
+      expect(mockDb.query).not.toHaveBeenCalled();
     });
 
     it('should throw error when detected mimetype is unsupported', async () => {
@@ -246,7 +257,7 @@ describe('FileUploadService', () => {
       mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/jpeg' });
 
       await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
-        'Unsupported file type',
+        'File type image/jpeg not supported',
       );
     });
 
@@ -357,13 +368,11 @@ describe('FileUploadService', () => {
       });
       mockQueueAdapter.enqueue.mockResolvedValue(undefined);
 
-      const result = await fileUploadService.upload(mockFile, userId);
-
-      expect(mockUploadFileToMinio).toHaveBeenCalledWith(
-        'mock-uuid-1234-',
-        mockFile.buffer,
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'Invalid filename',
       );
-      expect(result).toEqual(mockFileRecord);
+
+      expect(mockUploadFileToMinio).not.toHaveBeenCalled();
     });
 
     it('should handle special characters in filename', async () => {
@@ -393,10 +402,99 @@ describe('FileUploadService', () => {
       const result = await fileUploadService.upload(mockFile, userId);
 
       expect(mockUploadFileToMinio).toHaveBeenCalledWith(
-        'mock-uuid-1234-test%20file%20(1)%20%40%23%24.pdf',
+        expect.stringMatching(
+          /^user-uploads\/user123\/mock-uuid-1234-test_file__1_____\.pdf$/,
+        ),
         mockFile.buffer,
       );
       expect(result).toEqual(mockFileRecord);
+    });
+  });
+
+  describe('Queue failure scenarios', () => {
+    it('should handle queue enqueue failure and update database status', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+      const mockFileRecord: UserFileRecord = {
+        id: 'file123',
+        file_name: 'test.pdf',
+        file_size: '1024',
+        owner_id: userId,
+        status: 'uploaded',
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
+      };
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockResolvedValue(undefined);
+      mockDb.query = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [mockFileRecord] })
+        .mockResolvedValueOnce({ rows: [] });
+      mockQueueAdapter.enqueue.mockRejectedValue(
+        new Error('Queue connection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockDb.query).toHaveBeenCalledWith(
+        'UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3',
+        ['failed', 'Queue connection failed', 'file123'],
+      );
+    });
+
+    it('should handle both queue and database update failures', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+      const mockFileRecord: UserFileRecord = {
+        id: 'file123',
+        file_name: 'test.pdf',
+        file_size: '1024',
+        owner_id: userId,
+        status: 'uploaded',
+        created_at: new Date().toDateString(),
+        updated_at: new Date().toDateString(),
+      };
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockResolvedValue(undefined);
+      mockDb.query = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [mockFileRecord] })
+        .mockRejectedValueOnce(new Error('Database update failed'));
+      mockQueueAdapter.enqueue.mockRejectedValue(
+        new Error('Queue connection failed'),
+      );
+
+      const queueError = new Error('Queue connection failed');
+      (queueError as Error & { dbError?: Error }).dbError = new Error(
+        'Database update failed',
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+    });
+  });
+
+  describe('MinIO upload failure scenarios', () => {
+    it('should handle MinIO upload failure', async () => {
+      const mockFile = createMockFile('application/pdf', 'test.pdf', 1024);
+      const userId = 'user123';
+
+      mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      mockUploadFileToMinio.mockRejectedValue(
+        new Error('MinIO connection failed'),
+      );
+
+      await expect(fileUploadService.upload(mockFile, userId)).rejects.toThrow(
+        'File upload failed',
+      );
+
+      expect(mockDb.query).not.toHaveBeenCalled();
+      expect(mockQueueAdapter.enqueue).not.toHaveBeenCalled();
     });
   });
 
@@ -451,7 +549,7 @@ describe('FileUploadService', () => {
 
         await expect(
           fileUploadService.upload(mockFile, userId),
-        ).rejects.toThrow('Unsupported file type');
+        ).rejects.toThrow(`File type ${mimeType} not supported`);
       });
     });
   });

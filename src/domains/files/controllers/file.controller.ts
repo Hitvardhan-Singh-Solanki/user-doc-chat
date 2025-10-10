@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { FileUploadService } from '../services/file-upload.service';
-import { MulterFile } from '../../../shared/types';
+import { MulterFile } from '@shared/types';
 import createHttpError from 'http-errors';
-import { sseEmitter } from '../../../infrastructure/monitoring/notification.service';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+import { sseEmitter } from '@monitoring/notification.service';
+import { PostgresService } from '@database/repositories/postgres.repository';
 
 export class FileController {
   private fileUploadService: FileUploadService;
@@ -20,7 +20,13 @@ export class FileController {
    * @returns User ID string or undefined if not found
    */
   private extractUserId(req: Request): string | undefined {
-    const user = req.user as any;
+    const user = req.user as {
+      sub?: string;
+      id?: string;
+      userId?: string;
+      iat?: number;
+      exp?: number;
+    };
 
     // RFC-7519 compliant: prioritize 'sub' claim
     if (user?.sub) {

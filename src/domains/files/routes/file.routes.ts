@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { requireAuth } from '../../../shared/middleware/auth.middleware';
+import { requireAuth } from '@middleware/auth.middleware';
+import { fileUploadRateLimit } from '@middleware/security.middleware';
 import { FileController } from '../controllers/file.controller';
+import { config } from '@config';
 
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: Number(process.env.MAX_UPLOAD_BYTES ?? 10 * 1024 * 1024),
+    fileSize: config.MAX_FILE_SIZE,
   },
   fileFilter: (_req, file, cb) => {
     const allowed = new Set(['application/pdf', 'text/plain', 'text/markdown']);
@@ -21,6 +23,7 @@ const fileController = new FileController();
 router.post(
   '/upload',
   requireAuth,
+  fileUploadRateLimit,
   upload.single('file'),
   fileController.fileUploadAsync,
 );

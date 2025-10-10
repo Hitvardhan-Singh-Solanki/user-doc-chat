@@ -1,4 +1,4 @@
-import { ISanitizeFile } from '../../../../shared/interfaces/sanitize-file.interface';
+import { ISanitizeFile } from '@interfaces/sanitize-file.interface';
 import * as mammoth from 'mammoth';
 import TurndownService from 'turndown';
 

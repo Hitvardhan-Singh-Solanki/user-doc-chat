@@ -1,0 +1,155 @@
+name: Security Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  security-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Security Scan
+        run: |
+          npm ci
+          ./security-scan.sh
+
+      - name: Security Gate Check
+        id: security-gate
+        run: |
+          echo "## 🚪 Security Gate Analysis" >> $GITHUB_STEP_SUMMARY
+
+          # Check for critical vulnerabilities
+          CRITICAL_ISSUES=0
+
+          # Check NPM audit
+          if [ -f "reports/npm-audit.json" ]; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' reports/npm-audit.json 2>/dev/null || echo "0")
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              HIGH_VULNS=$(jq '.vulnerabilities | to_entries | map(.value) | map(select(.severity == "high" or .severity == "critical")) | length' reports/npm-audit.json 2>/dev/null || echo "0")
+              if [ "$HIGH_VULNS" -gt 0 ]; then
+                echo "❌ **BLOCKING**: $HIGH_VULNS high/critical NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + HIGH_VULNS))
+              else
+                echo "⚠️ **WARNING**: $VULN_COUNT low/medium NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "✅ No NPM vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          # Check for hardcoded secrets
+          if [ -f "reports/hardcoded-secrets.txt" ] && [ -s "reports/hardcoded-secrets.txt" ]; then
+            SECRET_COUNT=$(wc -l < reports/hardcoded-secrets.txt)
+            # Filter out test files and comments
+            REAL_SECRETS=$(grep -E -v "test|spec|mock|TODO|comment" reports/hardcoded-secrets.txt | wc -l || echo "0")
+            if [ "$REAL_SECRETS" -gt 0 ]; then
+              echo "❌ **BLOCKING**: $REAL_SECRETS potential hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+              CRITICAL_ISSUES=$((CRITICAL_ISSUES + REAL_SECRETS))
+            else
+              echo "✅ No real hardcoded secrets found (only test files)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "✅ No hardcoded secrets found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for eval usage
+          if [ -f "reports/eval-usage.txt" ] && [ -s "reports/eval-usage.txt" ]; then
+            echo "❌ **BLOCKING**: eval() usage found" >> $GITHUB_STEP_SUMMARY
+            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+          else
+            echo "✅ No eval() usage found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for SQL injection patterns
+          if [ -f "reports/sql-patterns.txt" ] && [ -s "reports/sql-patterns.txt" ]; then
+            SQL_COUNT=$(wc -l < reports/sql-patterns.txt)
+            echo "⚠️ **WARNING**: $SQL_COUNT SQL patterns found (review for injection)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No SQL injection patterns found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security gate decision
+          if [ "$CRITICAL_ISSUES" -gt 0 ]; then
+            echo "🚫 **SECURITY GATE FAILED**: $CRITICAL_ISSUES critical issues found" >> $GITHUB_STEP_SUMMARY
+            echo "blocked=true" >> $GITHUB_OUTPUT
+            echo "critical_issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          else
+            echo "✅ **SECURITY GATE PASSED**: No critical issues found" >> $GITHUB_STEP_SUMMARY
+            echo "blocked=false" >> $GITHUB_OUTPUT
+            echo "critical_issues=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment Security Gate Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const blocked = '${{ steps.security-gate.outputs.blocked }}' === 'true';
+            const criticalIssues = '${{ steps.security-gate.outputs.critical_issues }}';
+
+            let commentBody;
+
+            if (blocked) {
+              commentBody = `## 🚫 Security Gate: BLOCKED
+              
+              **Status**: ❌ FAILED
+              **Critical Issues**: ${criticalIssues}
+              
+              ### 🚨 Blocking Issues:
+              - High/Critical NPM vulnerabilities
+              - Hardcoded secrets in production code
+              - eval() usage detected
+              
+              ### 📋 Required Actions:
+              1. Fix all critical vulnerabilities
+              2. Remove hardcoded secrets
+              3. Replace eval() with safe alternatives
+              4. Re-run security scan
+              
+              **This PR cannot be merged until security issues are resolved.**
+              
+              ---
+              *Security gate automatically blocked this PR due to critical security issues*`;
+            } else {
+              commentBody = `## ✅ Security Gate: PASSED
+              
+              **Status**: ✅ PASSED
+              **Critical Issues**: 0
+              
+              ### 🎉 Security Status:
+              - No critical vulnerabilities found
+              - No hardcoded secrets in production code
+              - No eval() usage detected
+              - Security scan passed
+              
+              **This PR is approved for merge from a security perspective.**
+              
+              ---
+              *Security gate automatically approved this PR*`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+      - name: Fail on Security Gate
+        if: steps.security-gate.outputs.blocked == 'true'
+        run: |
+          echo "🚫 Security gate failed - PR blocked"
+          echo "Critical issues found: ${{ steps.security-gate.outputs.critical_issues }}"
+          echo "Please fix all critical security issues before merging"
+          exit 1

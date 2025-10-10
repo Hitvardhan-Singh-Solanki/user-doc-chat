@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthService } from '../services/auth.service';
-import { IDBStore } from '../../../shared/interfaces/db-store.interface';
-import * as hashUtils from '../../../shared/utils/hash';
-import { mockUser } from '../../../tests/fixtures';
+import { IDBStore } from '@interfaces/db-store.interface';
+import * as hashUtils from '@utils/hash';
+import { mockUser } from '@tests/fixtures';
+import { createDatabaseMock } from '@tests/mocks';
 
 // Mock the hash utilities
-vi.mock('../../../shared/utils/hash', () => ({
+vi.mock('@utils/hash', () => ({
   hashPassword: vi.fn(),
   comparePassword: vi.fn(),
 }));
@@ -13,15 +14,16 @@ vi.mock('../../../shared/utils/hash', () => ({
 describe('AuthService', () => {
   let authService: AuthService;
   let mockDb: IDBStore;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockHashPassword: any;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockComparePassword: any;
 
   beforeEach(() => {
-    // Setup mocks
-    mockDb = {
-      query: vi.fn(),
-      withTransaction: vi.fn(),
-    };
+    // Setup mocks using common mock builder
+    mockDb = createDatabaseMock();
 
     mockHashPassword = vi.mocked(hashUtils.hashPassword);
     mockComparePassword = vi.mocked(hashUtils.comparePassword);
@@ -43,14 +45,14 @@ describe('AuthService', () => {
         rows: [mockUser],
       });
 
-      const result = await authService.signUp(email, password);
+      const _result = await authService.signUp(email, password);
 
       expect(mockHashPassword).toHaveBeenCalledWith(password);
       expect(mockDb.query).toHaveBeenCalledWith(
         'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
         ['test@example.com', hashedPassword],
       );
-      expect(result).toEqual(mockUser);
+      expect(_result).toEqual(mockUser);
     });
 
     it('should normalize email to lowercase and trim', async () => {
@@ -132,7 +134,7 @@ describe('AuthService', () => {
       });
       mockComparePassword.mockResolvedValue(true);
 
-      const result = await authService.login(email, password);
+      const _result = await authService.login(email, password);
 
       expect(mockDb.query).toHaveBeenCalledWith(
         'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
@@ -142,13 +144,13 @@ describe('AuthService', () => {
         password,
         mockUser.password_hash,
       );
-      expect(result).toEqual({
+      expect(_result).toEqual({
         id: mockUser.id,
         email: mockUser.email,
       });
     });
 
-    it("should throw 'Invalid credentials' when user not found", async () => {
+    it("should throw 'User not found' when user not found", async () => {
       const email = 'nonexistent@example.com';
       const password = 'password123';
 
@@ -157,7 +159,7 @@ describe('AuthService', () => {
       });
 
       await expect(authService.login(email, password)).rejects.toThrow(
-        'Invalid credentials',
+        'User not found',
       );
       expect(mockComparePassword).not.toHaveBeenCalled();
     });
@@ -288,6 +290,7 @@ describe('AuthService', () => {
   describe('Edge cases', () => {
     it('should handle empty email', async () => {
       const email = '';
+
       const password = 'password123';
 
       mockHashPassword.mockResolvedValue('hashedPassword123');
@@ -295,7 +298,7 @@ describe('AuthService', () => {
         rows: [{ id: 'user1', email: '', created_at: new Date() }],
       });
 
-      const result = await authService.signUp(email, password);
+      const _result = await authService.signUp(email, password);
 
       expect(mockDb.query).toHaveBeenCalledWith(
         'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',

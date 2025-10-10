@@ -1,12 +1,12 @@
-import { Vector, VectorStoreType } from '../../../shared/types';
-import { LLMService } from '../../../domains/chat/services/llm.service';
+import { Vector, VectorStoreType } from '@shared/types';
+import { LLMService } from '@chat/services/llm.service';
 import { PineconeVectorStore } from './pinecone.service';
 import {
   IVectorStore,
   VectorQueryResult,
-  QueryMatch,
-} from '../../../shared/interfaces/vector-store.interface';
-import { PostgresService } from '../../../infrastructure/database/repositories/postgres.repository';
+} from '@interfaces/vector-store.interface';
+import { PostgresService } from '@database/repositories/postgres.repository';
+import { config } from '@config';
 
 export class VectorStoreService {
   private vectorStore: IVectorStore;
@@ -15,7 +15,7 @@ export class VectorStoreService {
 
   constructor(llm: LLMService, store: VectorStoreType = 'pinecone') {
     this.llm = llm;
-    this.maxContextTokens = Number(process.env.MAX_CONTEXT_TOKENS) || 2000;
+    this.maxContextTokens = config.MAX_CONTEXT_TOKENS;
     if (store === 'pinecone') {
       this.vectorStore = new PineconeVectorStore();
     } else {
@@ -31,14 +31,14 @@ export class VectorStoreService {
     embedding: number[],
     userId: string,
     fileId: string,
-    topK: number = Number(process.env.PINECONE_TOP_K) || 5,
+    topK: number = config.PINECONE_TOP_K,
   ): Promise<VectorQueryResult> {
     return await this.vectorStore.queryVector(embedding, userId, fileId, topK);
   }
 
   async getContextWithSummarization(
     results: VectorQueryResult,
-    topK: number = Number(process.env.PINECONE_TOP_K) || 5,
+    topK: number = config.PINECONE_TOP_K,
   ): Promise<string> {
     const { highRelevance, lowRelevance } = this.splitChunksByRelevance(
       results,

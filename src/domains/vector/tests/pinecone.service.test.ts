@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { PineconeVectorStore } from '../services/pinecone.service';
-import { Vector } from '../../../shared/types';
-
-// Mock the pinecone repository
+import { Vector } from '@shared/types';
+// Mock the pinecone repository using common mock
 vi.mock('../repos/pinecone.repo', () => ({
   pinecone: {
     index: vi.fn(),
@@ -11,7 +10,9 @@ vi.mock('../repos/pinecone.repo', () => ({
 
 describe('PineconeVectorStore', () => {
   let pineconeVectorStore: PineconeVectorStore;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockIndex: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockPinecone: any;
 
   beforeEach(async () => {
@@ -46,8 +47,9 @@ describe('PineconeVectorStore', () => {
 
   describe('constructor', () => {
     it('should throw error when PINECONE_INDEX_NAME is not set', () => {
-      delete process.env.PINECONE_INDEX_NAME;
-      expect(() => new PineconeVectorStore()).toThrow('index not set');
+      // The service now uses config.PINECONE_INDEX which has a default value
+      // So we need to test with empty string to trigger the error
+      expect(() => new PineconeVectorStore('')).toThrow('index not set');
     });
 
     it('should initialize with custom index name', () => {

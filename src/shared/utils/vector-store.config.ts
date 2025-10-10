@@ -1,4 +1,5 @@
 import { VectorStoreType } from '../types';
+import { config } from '@config';
 import pino from 'pino';
 
 const logger = pino({ name: 'vector-store-config' });
@@ -19,7 +20,7 @@ const DEFAULT_PROVIDER: VectorStoreType = 'pinecone';
  * @throws Error if an unsupported provider is specified
  */
 export function getVectorStoreProvider(): VectorStoreType {
-  const provider = process.env.VECTOR_STORE_PROVIDER as VectorStoreType;
+  const provider = config.VECTOR_STORE_PROVIDER as VectorStoreType;
 
   // If no provider is specified or it's an empty string, return the default
   if (!provider || provider.trim() === '') {
@@ -45,7 +46,7 @@ export function getVectorStoreProviderWithLogging(): VectorStoreType {
   const provider = getVectorStoreProvider();
 
   // Log the provider being used (useful for debugging)
-  if (process.env.NODE_ENV !== 'production') {
+  if (config.NODE_ENV !== 'production') {
     logger.info(`Using vector store provider: ${provider}`);
   }
 

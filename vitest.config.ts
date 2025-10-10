@@ -1,13 +1,23 @@
 import { defineConfig } from 'vitest/config';
+import type { UserConfig } from 'vitest/config';
+import { resolve } from 'path';
 
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov'],
+export default defineConfig(async (): Promise<UserConfig> => {
+  const tsconfigPaths = await import('vite-tsconfig-paths');
+  return {
+    plugins: [tsconfigPaths.default()],
+    test: {
+      globals: true,
+      environment: 'node',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'lcov'],
+      },
+      setupFiles: ['./src/tests/setup.ts'],
+      env: {
+        NODE_ENV: 'test',
+      },
     },
-    setupFiles: ['./src/tests/setup.ts'],
-  },
+    envDir: resolve(process.cwd()),
+  };
 });
