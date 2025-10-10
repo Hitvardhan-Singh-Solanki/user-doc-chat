@@ -1,6 +1,3 @@
-export interface CircuitBreakerOptions {
-  timeout?: number;
-  errorThresholdPercentage?: number;
-  resetTimeout?: number;
-  name?: string;
-}
+import type { Options as OpossumOptions } from 'opossum';
+
+export type CircuitBreakerOptions = Partial<OpossumOptions>;

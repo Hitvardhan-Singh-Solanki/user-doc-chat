@@ -5,6 +5,12 @@ import { config } from '@config';
 
 const bucket = config.MINIO_DEFAULT_BUCKET;
 
+if (!bucket || !bucket.trim()) {
+  throw new Error(
+    'MINIO_DEFAULT_BUCKET is required (config.MINIO_DEFAULT_BUCKET)',
+  );
+}
+
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
   try {
     await minioClient.makeBucket(bucket);
