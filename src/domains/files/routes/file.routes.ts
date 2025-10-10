@@ -3,12 +3,13 @@ import multer from 'multer';
 import { requireAuth } from '../../../shared/middleware/auth.middleware';
 import { fileUploadRateLimit } from '../../../shared/middleware/security.middleware';
 import { FileController } from '../controllers/file.controller';
+import { config } from '../../../config/app.config';
 
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: Number(process.env.MAX_UPLOAD_BYTES ?? 10 * 1024 * 1024),
+    fileSize: config.MAX_UPLOAD_BYTES,
   },
   fileFilter: (_req, file, cb) => {
     const allowed = new Set(['application/pdf', 'text/plain', 'text/markdown']);

@@ -171,7 +171,7 @@ export function verifyJwt(
     }
 
     // Security validation: check token age (prevent very old tokens)
-    const maxAge = 86400; // 24 hours default
+    const maxAge = config.JWT_MAX_AGE;
     const issuedAt = (decoded as any).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');

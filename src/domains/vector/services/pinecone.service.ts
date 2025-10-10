@@ -19,7 +19,7 @@ export class PineconeVectorStore implements IVectorStore {
     if (!vectors.length) return { upsertedCount: 0, failedBatches: [] };
     const index = pinecone.index(this.indexName);
 
-    const batchSize = 100;
+    const batchSize = config.PINECONE_BATCH_SIZE;
     let total = 0;
     const failedBatches: Array<{ ids: string[]; error: string }> = [];
 
@@ -35,7 +35,7 @@ export class PineconeVectorStore implements IVectorStore {
       let lastError: Error | null = null;
 
       // Retry loop with exponential backoff
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1; attempt <= config.PINECONE_MAX_RETRIES; attempt++) {
         try {
           await index.upsert(batch);
           total += batch.length;

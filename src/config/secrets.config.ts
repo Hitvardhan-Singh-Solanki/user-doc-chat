@@ -30,6 +30,10 @@ interface Secrets {
   // Database
   postgresPassword: string;
   redisPassword?: string;
+
+  // Sanitizer Service
+  sanitizerHost?: string;
+  sanitizerTimeout?: number;
 }
 
 class SecretsManager {
@@ -77,6 +81,12 @@ class SecretsManager {
           'PostgreSQL password is required for database connection',
         ),
         redisPassword: process.env.REDIS_PASSWORD, // Optional
+
+        // Sanitizer Service
+        sanitizerHost: process.env.SANITIZER_HOST, // Optional
+        sanitizerTimeout: process.env.SANITIZER_TIMEOUT 
+          ? parseInt(process.env.SANITIZER_TIMEOUT, 10) 
+          : undefined, // Optional
       };
 
       this.log.info('Secrets initialized successfully');
@@ -141,6 +151,17 @@ class SecretsManager {
     return {
       postgres: this.secrets!.postgresPassword,
       redis: this.secrets!.redisPassword,
+    };
+  }
+
+  /**
+   * Get sanitizer service configuration
+   */
+  public getSanitizerConfig(): { host?: string; timeout?: number } {
+    this.ensureInitialized();
+    return {
+      host: this.secrets!.sanitizerHost,
+      timeout: this.secrets!.sanitizerTimeout,
     };
   }
 

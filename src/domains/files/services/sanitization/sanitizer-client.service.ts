@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import * as grpc from '@grpc/grpc-js';
 import { sanitizer } from '../../../../infrastructure/external-services/grpc/proto/sanitizer';
+import { secretsManager } from '../../../../config/secrets.config';
 
 // Messages
 const { SanitizeRequest } = sanitizer;
@@ -10,11 +11,10 @@ type SanitizerServiceClientType = InstanceType<
   typeof sanitizer.SanitizerServiceClient
 >;
 
-const GRPC_HOST = process.env.SANITIZER_HOST || 'python_apis:50051';
+const GRPC_HOST = secretsManager.getSanitizerConfig().host || 'python_apis:50051';
 const REQUEST_TIMEOUT_MS = (() => {
-  const raw = process.env.SANITIZER_TIMEOUT;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 10000;
+  const timeout = secretsManager.getSanitizerConfig().timeout;
+  return timeout && timeout > 0 ? timeout : 10000;
 })();
 
 // TLS Configuration

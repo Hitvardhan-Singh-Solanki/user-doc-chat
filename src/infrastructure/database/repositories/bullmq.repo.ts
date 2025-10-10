@@ -1,11 +1,12 @@
 import { Queue, QueueEvents } from 'bullmq';
+import { config } from '../../../config/app.config';
 
 export const fileQueueName = 'file-processing';
 export const legalDocumentsQueueName = 'legal-documents';
 
 // Parse and validate Redis port with proper error handling
 const parseRedisPort = (): number => {
-  const portStr = process.env.REDIS_PORT;
+  const portStr = config.REDIS_PORT.toString();
 
   if (!portStr) {
     return 6379; // Default port when unset
@@ -29,7 +30,7 @@ const parseRedisPort = (): number => {
 };
 
 export const connectionOptions = {
-  host: process.env.REDIS_HOST || 'redis',
+  host: config.REDIS_HOST,
   port: parseRedisPort(),
 };
 

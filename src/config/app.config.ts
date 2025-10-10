@@ -26,6 +26,7 @@ const envSchema = z.object({
 
   // Security
   SALT_ROUNDS: z.coerce.number().default(10),
+  JWT_MAX_AGE: z.coerce.number().default(86400), // 24 hours
 
   // AI/LLM
   HUGGINGFACE_CHAT_MODEL: z.string().default('microsoft/DialoGPT-medium'),
@@ -37,6 +38,9 @@ const envSchema = z.object({
   // Vector Store
   PINECONE_INDEX: z.string().default('user-doc-chat'),
   PINECONE_TOP_K: z.coerce.number().default(5),
+  PINECONE_BATCH_SIZE: z.coerce.number().default(100),
+  PINECONE_MAX_RETRIES: z.coerce.number().default(3),
+  VECTOR_STORE_PROVIDER: z.enum(['pinecone', 'postgres']).default('pinecone'),
 
   // Processing
   CHUNK_SIZE: z.coerce.number().default(800),
@@ -54,6 +58,8 @@ const envSchema = z.object({
   // Crawler/HTML Fetch
   CRAWLER_MAX_BYTES: z.coerce.number().default(2_000_000), // 2MB
   CRAWLER_USER_AGENT: z.string().default('user-doc-chat/1.0 (+enrichment)'),
+  CRAWLER_MAX_REDIRECTS: z.coerce.number().default(5),
+  CRAWLER_TIMEOUT_MS: z.coerce.number().default(10000),
 
   // CORS
   CORS_ORIGINS: z
@@ -66,6 +72,7 @@ const envSchema = z.object({
   MINIO_PORT: z.coerce.number().default(9000),
   MINIO_USE_SSL: z.coerce.boolean().default(false),
   MINIO_BUCKET_NAME: z.string().default('user-doc-chat'),
+  MINIO_DEFAULT_BUCKET: z.string().default('user-files'),
 
   // Python gRPC Service
   PYTHON_LLM_URL: z.string().default('localhost:50051'),
