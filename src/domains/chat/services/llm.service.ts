@@ -135,7 +135,9 @@ export class LLMService {
     const simpleTokenizer = new SimpleTokenizerAdapter();
     this.promptService = new PromptService(simpleTokenizer);
 
-    const xenovaAdapter = new XenovaTokenizerAdapter(this.hfChatModel);
+    const xenovaAdapter = new XenovaTokenizerAdapter(
+      config.HUGGINGFACE_TOKENIZER_MODEL,
+    );
 
     this.tokenizerReady = xenovaAdapter
       .init()
