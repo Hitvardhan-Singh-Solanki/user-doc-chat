@@ -7,13 +7,15 @@ import { SanitizerServiceClientType } from '@shared/types/sanitizer.types'; // M
 // Messages
 const { SanitizeRequest } = sanitizer;
 
-const GRPC_HOST =
-  secretsManager.getSanitizerConfig().host || 'python_apis:50051';
-const REQUEST_TIMEOUT_MS = (() => {
+function getGrpcHost(): string {
+  return secretsManager.getSanitizerConfig().host || 'python_apis:50051';
+}
+
+function getRequestTimeoutMs(): number {
   const timeout = secretsManager.getSanitizerConfig().timeout;
   const numericTimeout = Number(timeout);
   return !isNaN(numericTimeout) && numericTimeout > 0 ? numericTimeout : 10000;
-})();
+}
 
 // TLS Configuration
 const {
@@ -80,7 +82,7 @@ async function getSanitizerClient(): Promise<SanitizerServiceClientType> {
 
     const credentials = await credentialsPromise;
     sanitizerClient = new sanitizer.SanitizerServiceClient(
-      GRPC_HOST,
+      getGrpcHost(),
       credentials,
     );
   }
@@ -112,7 +114,7 @@ export async function sanitizeFileGrpc(
   request.document_data = fileData;
 
   const deadline = new Date();
-  deadline.setMilliseconds(deadline.getMilliseconds() + REQUEST_TIMEOUT_MS);
+  deadline.setMilliseconds(deadline.getMilliseconds() + getRequestTimeoutMs());
 
   return new Promise<string>((resolve, reject) => {
     const metadata = new grpc.Metadata();
