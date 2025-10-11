@@ -28,26 +28,31 @@ export class FileController {
       exp?: number;
     };
 
-    // RFC-7519 compliant: prioritize 'sub' claim
     if (user?.sub) {
       return user.sub;
     }
 
-    // Migration fallback for legacy tokens (deprecated)
+    return this.handleLegacyToken(user, req);
+  }
+
+  private handleLegacyToken(
+    user: { sub?: string; id?: string; userId?: string; iat?: number; exp?: number },
+    req: Request,
+  ): string | undefined {
     const legacyId = user?.userId ?? user?.id;
-    if (legacyId) {
-      req.log?.warn(
-        {
-          legacyClaim: user?.userId ? 'userId' : 'id',
-          tokenIssuedAt: user?.iat,
-          tokenExpiresAt: user?.exp,
-        },
-        'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
-      );
-      return legacyId;
+    if (!legacyId) {
+      return undefined;
     }
 
-    return undefined;
+    req.log?.warn(
+      {
+        legacyClaim: user?.userId ? 'userId' : 'id',
+        tokenIssuedAt: user?.iat,
+        tokenExpiresAt: user?.exp,
+      },
+      'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
+    );
+    return legacyId;
   }
 
   /**

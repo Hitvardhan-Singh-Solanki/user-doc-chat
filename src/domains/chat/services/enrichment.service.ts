@@ -12,6 +12,7 @@ import { IEnrichmentService } from '@interfaces/enrichment.interface';
 import { logger } from '@config/logger.config';
 import { circuitBreakerService } from '@utils/circuit-breaker';
 import { config } from '@config';
+import pino from 'pino';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -77,13 +78,85 @@ export class EnrichmentService implements IEnrichmentService {
     log.info('Document pre-embedding process completed.');
   }
 
+  public async searchAndEmbed(
+    query: string,
+    options: EnrichmentOptions = {},
+  ): Promise<SearchResult[]> {
+    const opts = { ...this.defaultOptions(), ...options };
+    const { fileId, userId } = opts;
+    const log = this.log.child({ handler: 'searchAndEmbed', fileId, userId });
+    log.info({ query }, 'Starting search and embed process.');
+
+    const optimizedQuery = await this.generateOptimizedQuery(query);
+    log.info({ optimizedQuery }, 'Generated optimized search query.');
+
+    const results = await this.performWebSearch(
+      optimizedQuery,
+      opts.maxResults || 10,
+      log,
+    );
+
+    if (!results || results.length === 0) {
+      log.warn('No search results found. Returning empty array.');
+      return [];
+    }
+    log.info(
+      { resultsCount: results.length },
+      'Search results retrieved. Starting HTML fetching.',
+    );
+
+    const sourceText = await this.fetchSearchResults(results, opts, log);
+
+    if (!sourceText || sourceText.length === 0) {
+      log.warn(
+        'No useful HTML content fetched. Returning search results without embedding.',
+      );
+      return results;
+    }
+
+    const embeddedResults = await this.combineEmbeddedResults(
+      results,
+      sourceText,
+      log,
+    );
+    log.info('Search and embed process completed.');
+    return embeddedResults;
+  }
+
+  public async enrichIfUnknown(
+    userQuestion: string,
+    llmAnswer: string,
+    options: EnrichmentOptions = {},
+  ): Promise<SearchResult[] | null> {
+    const log = this.log.child({
+      handler: 'enrichIfUnknown',
+      userId: options.userId,
+    });
+    log.info(
+      { userQuestion },
+      'Checking if LLM answer indicates a need for enrichment.',
+    );
+    if (typeof llmAnswer !== 'string') {
+      log.warn('LLM answer is not a string. Skipping enrichment.');
+      return null;
+    }
+    if (llmAnswer.toLowerCase().includes("i don't know")) {
+      log.info(
+        'LLM answer indicates "unknown". Starting search and embed process.',
+      );
+      return await this.searchAndEmbed(userQuestion, options);
+    }
+    log.info('LLM answer is confident. No enrichment needed.');
+    return null;
+  }
+
   /**
    * Performs web search using circuit breaker
    */
   private async performWebSearch(
     query: string,
     maxResults: number,
-    log: any,
+    log: pino.Logger,
   ): Promise<SearchResult[]> {
     const searchBreaker = circuitBreakerService.getBreaker(
       'search',
@@ -119,7 +192,7 @@ export class EnrichmentService implements IEnrichmentService {
   private async fetchSearchResults(
     results: SearchResult[],
     options: EnrichmentOptions,
-    log: any,
+    log: pino.Logger,
   ): Promise<(string | undefined)[]> {
     const fetchBreaker = circuitBreakerService.getBreaker(
       'fetch',
@@ -158,7 +231,7 @@ export class EnrichmentService implements IEnrichmentService {
     result: SearchResult,
     text: string,
     options: EnrichmentOptions,
-    log: any,
+    log: pino.Logger,
   ): Promise<void> {
     let deepSummary: string | null = null;
     try {
@@ -229,7 +302,7 @@ export class EnrichmentService implements IEnrichmentService {
   private async combineEmbeddedResults(
     results: SearchResult[],
     sourceText: (string | undefined)[],
-    log: any,
+    log: pino.Logger,
   ): Promise<SearchResult[]> {
     if (!sourceText || sourceText.length === 0) {
       log.warn(
@@ -249,73 +322,14 @@ export class EnrichmentService implements IEnrichmentService {
         continue;
       }
 
-      await this.embedSearchResult(results[i], text, this.defaultOptions(), log);
+      await this.embedSearchResult(
+        results[i],
+        text,
+        this.defaultOptions(),
+        log,
+      );
     }
     return results;
-  }
-
-  public async searchAndEmbed(
-    query: string,
-    options: EnrichmentOptions = {},
-  ): Promise<SearchResult[]> {
-    const opts = { ...this.defaultOptions(), ...options };
-    const { fileId, userId } = opts;
-    const log = this.log.child({ handler: 'searchAndEmbed', fileId, userId });
-    log.info({ query }, 'Starting search and embed process.');
-
-    const optimizedQuery = await this.generateOptimizedQuery(query);
-    log.info({ optimizedQuery }, 'Generated optimized search query.');
-
-    const results = await this.performWebSearch(optimizedQuery, opts.maxResults, log);
-
-    if (!results || results.length === 0) {
-      log.warn('No search results found. Returning empty array.');
-      return [];
-    }
-    log.info(
-      { resultsCount: results.length },
-      'Search results retrieved. Starting HTML fetching.',
-    );
-
-    const sourceText = await this.fetchSearchResults(results, opts, log);
-
-    if (!sourceText || sourceText.length === 0) {
-      log.warn(
-        'No useful HTML content fetched. Returning search results without embedding.',
-      );
-      return results;
-    }
-
-    const embeddedResults = await this.combineEmbeddedResults(results, sourceText, log);
-    log.info('Search and embed process completed.');
-    return embeddedResults;
-  }
-
-  public async enrichIfUnknown(
-    userQuestion: string,
-    llmAnswer: string,
-    options: EnrichmentOptions = {},
-  ): Promise<SearchResult[] | null> {
-    const log = this.log.child({
-      handler: 'enrichIfUnknown',
-      userId: options.userId,
-    });
-    log.info(
-      { userQuestion },
-      'Checking if LLM answer indicates a need for enrichment.',
-    );
-    if (typeof llmAnswer !== 'string') {
-      log.warn('LLM answer is not a string. Skipping enrichment.');
-      return null;
-    }
-    if (llmAnswer.toLowerCase().includes("i don't know")) {
-      log.info(
-        'LLM answer indicates "unknown". Starting search and embed process.',
-      );
-      return await this.searchAndEmbed(userQuestion, options);
-    }
-    log.info('LLM answer is confident. No enrichment needed.');
-    return null;
   }
 
   private defaultOptions(): EnrichmentOptions {

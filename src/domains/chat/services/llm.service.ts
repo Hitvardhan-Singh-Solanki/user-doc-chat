@@ -226,7 +226,7 @@ export class LLMService {
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
+
     try {
       return await fetch(this.pythonUrl!, {
         method: 'POST',
@@ -330,7 +330,9 @@ export class LLMService {
   /**
    * Streams answer generation
    */
-  private async *streamAnswer(prompt: string): AsyncGenerator<string, void, unknown> {
+  private async *streamAnswer(
+    prompt: string,
+  ): AsyncGenerator<string, void, unknown> {
     const stream = withStreamTimeout(
       () =>
         this.inferenceClient.chatCompletionStream({

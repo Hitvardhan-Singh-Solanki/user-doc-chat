@@ -62,7 +62,7 @@ function validateNumericPort(port: number): number {
  */
 function validateMinioPort(): number {
   const port = appConfig.MINIO_PORT;
-  
+
   if (typeof port === 'string') {
     return parseStringPort(port);
   } else if (typeof port === 'number') {

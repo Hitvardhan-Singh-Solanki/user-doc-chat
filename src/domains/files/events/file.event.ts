@@ -9,41 +9,11 @@ const fileEvents = queueAdapter.getQueueEvents(fileQueueName);
 fileEvents.on('completed', async ({ jobId, returnvalue }) => {
   eventLogger.info({ jobId }, 'Job completed. Sending notification...');
   try {
-    const rv =
-      typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
-    const { userId, fileId } = (rv || {}) as {
-      userId?: string;
-      fileId?: string;
-    };
+    const { userId, fileId } = parseJobReturnValue(returnvalue, jobId);
     if (!userId || !fileId) {
-      eventLogger.warn(
-        { jobId, returnvalue },
-        'Missing userId or fileId in completed job return value. Skipping notification.',
-      );
       return;
     }
-    eventLogger.info(
-      { jobId, userId, fileId },
-      'Job completed successfully. Notifying client.',
-    );
-    try {
-      const success = await sseEmitter.send(userId, 'file-processed', {
-        fileId,
-        status: 'processed',
-        error: null,
-      });
-      if (!success) {
-        eventLogger.warn(
-          { jobId, userId, fileId },
-          'Message delivered locally only due to Redis publish failure.',
-        );
-      }
-    } catch (err) {
-      eventLogger.error(
-        { jobId, userId, fileId, err: (err as Error).message },
-        'Failed to send file-processed notification.',
-      );
-    }
+    await sendCompletedNotification(userId, fileId, jobId);
   } catch (err) {
     eventLogger.error(
       { jobId, err: (err as Error).message, stack: (err as Error).stack },
@@ -51,6 +21,50 @@ fileEvents.on('completed', async ({ jobId, returnvalue }) => {
     );
   }
 });
+
+function parseJobReturnValue(returnvalue: unknown, jobId: string) {
+  const rv = typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
+  const { userId, fileId } = (rv || {}) as {
+    userId?: string;
+    fileId?: string;
+  };
+  
+  if (!userId || !fileId) {
+    eventLogger.warn(
+      { jobId, returnvalue },
+      'Missing userId or fileId in completed job return value. Skipping notification.',
+    );
+    return { userId: undefined, fileId: undefined };
+  }
+  
+  return { userId, fileId };
+}
+
+async function sendCompletedNotification(userId: string, fileId: string, jobId: string) {
+  eventLogger.info(
+    { jobId, userId, fileId },
+    'Job completed successfully. Notifying client.',
+  );
+  
+  try {
+    const success = await sseEmitter.send(userId, 'file-processed', {
+      fileId,
+      status: 'processed',
+      error: null,
+    });
+    if (!success) {
+      eventLogger.warn(
+        { jobId, userId, fileId },
+        'Message delivered locally only due to Redis publish failure.',
+      );
+    }
+  } catch (err) {
+    eventLogger.error(
+      { jobId, userId, fileId, err: (err as Error).message },
+      'Failed to send file-processed notification.',
+    );
+  }
+}
 
 fileEvents.on('failed', async ({ jobId, failedReason }) => {
   eventLogger.error(
