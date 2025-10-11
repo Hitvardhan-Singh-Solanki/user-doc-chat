@@ -15,74 +15,93 @@ export function getMinioClient(): Client {
 }
 
 /**
- * Creates MinIO client with configuration validation
+ * Validates MinIO endpoint configuration
  */
-function createMinioClient(): Client {
-  // Use centralized config
+function validateMinioEndpoint(): string {
   const endpoint = appConfig.MINIO_ENDPOINT;
-  const port = appConfig.MINIO_PORT;
-  const useSSL = appConfig.MINIO_USE_SSL;
-  const bucketName = appConfig.MINIO_BUCKET_NAME;
-
-  // Validate endpoint
   if (!endpoint || typeof endpoint !== 'string' || endpoint.trim() === '') {
     throw new Error('MINIO_ENDPOINT must be a non-empty string');
   }
+  return endpoint.trim();
+}
 
-  // Validate and coerce port
-  let validatedPort: number;
+/**
+ * Validates port number range
+ */
+function isValidPort(port: number): boolean {
+  return port > 0 && port <= 65535 && Number.isInteger(port);
+}
+
+/**
+ * Parses string port to number
+ */
+function parseStringPort(port: string): number {
+  const parsedPort = parseInt(port, 10);
+  if (isNaN(parsedPort) || !isValidPort(parsedPort)) {
+    throw new Error(
+      'MINIO_PORT must be a positive integer between 1 and 65535',
+    );
+  }
+  return parsedPort;
+}
+
+/**
+ * Validates numeric port
+ */
+function validateNumericPort(port: number): number {
+  if (!isValidPort(port)) {
+    throw new Error(
+      'MINIO_PORT must be a positive integer between 1 and 65535',
+    );
+  }
+  return port;
+}
+
+/**
+ * Validates and coerces MinIO port configuration
+ */
+function validateMinioPort(): number {
+  const port = appConfig.MINIO_PORT;
+  
   if (typeof port === 'string') {
-    const parsedPort = parseInt(port, 10);
-    if (isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
-      throw new Error(
-        'MINIO_PORT must be a positive integer between 1 and 65535',
-      );
-    }
-    validatedPort = parsedPort;
+    return parseStringPort(port);
   } else if (typeof port === 'number') {
-    if (port <= 0 || port > 65535 || !Number.isInteger(port)) {
-      throw new Error(
-        'MINIO_PORT must be a positive integer between 1 and 65535',
-      );
-    }
-    validatedPort = port;
+    return validateNumericPort(port);
   } else {
     throw new Error('MINIO_PORT must be a number or numeric string');
   }
+}
 
-  // Validate and coerce useSSL
-  let validatedUseSSL: boolean;
+/**
+ * Validates and coerces MinIO SSL configuration
+ */
+function validateMinioSSL(): boolean {
+  const useSSL = appConfig.MINIO_USE_SSL;
+
   if (typeof useSSL === 'string') {
-    const lowerValue = (useSSL as string).toLowerCase();
+    const lowerValue = useSSL.toLowerCase();
     if (lowerValue === 'true') {
-      validatedUseSSL = true;
+      return true;
     } else if (lowerValue === 'false') {
-      validatedUseSSL = false;
+      return false;
     } else {
       throw new Error(
         'MINIO_USE_SSL must be a boolean or string "true"/"false"',
       );
     }
   } else if (typeof useSSL === 'boolean') {
-    validatedUseSSL = useSSL;
+    return useSSL;
   } else {
     throw new Error('MINIO_USE_SSL must be a boolean or string "true"/"false"');
   }
+}
 
-  // Validate bucket name if provided
-  if (
-    bucketName &&
-    (typeof bucketName !== 'string' || bucketName.trim() === '')
-  ) {
-    throw new Error(
-      'MINIO_BUCKET_NAME must be a non-empty string when provided',
-    );
-  }
-
-  // Get credentials from secrets manager
+/**
+ * Validates MinIO credentials
+ */
+function validateMinioCredentials(): { accessKey: string; secretKey: string } {
   const credentials = secretsManager.getMinioCredentials();
 
-  // Validate credentials
   if (
     !credentials.accessKey ||
     typeof credentials.accessKey !== 'string' ||
@@ -103,11 +122,42 @@ function createMinioClient(): Client {
     );
   }
 
+  return credentials;
+}
+
+/**
+ * Validates MinIO bucket name if provided
+ */
+function validateMinioBucket(): string | undefined {
+  const bucketName = appConfig.MINIO_BUCKET_NAME;
+
+  if (
+    bucketName &&
+    (typeof bucketName !== 'string' || bucketName.trim() === '')
+  ) {
+    throw new Error(
+      'MINIO_BUCKET_NAME must be a non-empty string when provided',
+    );
+  }
+
+  return bucketName?.trim();
+}
+
+/**
+ * Creates MinIO client with configuration validation
+ */
+function createMinioClient(): Client {
+  const endpoint = validateMinioEndpoint();
+  const port = validateMinioPort();
+  const useSSL = validateMinioSSL();
+  const bucketName = validateMinioBucket();
+  const credentials = validateMinioCredentials();
+
   const minioConfig = {
-    endPoint: endpoint.trim(),
-    port: validatedPort,
-    useSSL: validatedUseSSL,
-    bucketName: bucketName?.trim(),
+    endPoint: endpoint,
+    port,
+    useSSL,
+    bucketName,
     accessKey: credentials.accessKey,
     secretKey: credentials.secretKey,
   };

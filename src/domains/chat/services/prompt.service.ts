@@ -682,6 +682,99 @@ Optimized search query:
     return this.truncateText(text, maxCharacters, strategy);
   }
 
+  /**
+   * Truncates history by removing lines from the beginning
+   */
+  private truncateHistory(text: string, maxLength: number): string {
+    const lines = text.split('\n').filter(Boolean);
+    while (lines.join('\n').length > maxLength && lines.length > 1) {
+      lines.shift();
+    }
+    const truncated = lines.join('\n') || '(Truncated to empty history)';
+    this.logger.debug(
+      { truncatedLength: truncated.length },
+      'History truncated.',
+    );
+    return truncated;
+  }
+
+  /**
+   * Builds context by prioritizing important sentences
+   */
+  private buildPrioritizedContext(
+    sentences: string[],
+    maxLength: number,
+    priorityRegex: RegExp,
+  ): string {
+    let result = '';
+    for (const sentence of sentences.reverse()) {
+      if (result.length + sentence.length <= maxLength) {
+        result = sentence + ' ' + result;
+      } else if (sentence.match(priorityRegex)) {
+        if (result.length + sentence.length <= maxLength + 100) {
+          result = sentence + ' ' + result;
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Trims result to fit within effective max length using boundary detection
+   */
+  private trimToBoundary(result: string, effectiveMaxLength: number): string {
+    const boundaryRegex = /[\s.!?;:]/g;
+    let lastBoundaryIndex = -1;
+    let match;
+
+    while ((match = boundaryRegex.exec(result)) !== null) {
+      if (match.index <= effectiveMaxLength) {
+        lastBoundaryIndex = match.index;
+      } else {
+        break;
+      }
+    }
+
+    if (lastBoundaryIndex > 0) {
+      return result.substring(0, lastBoundaryIndex);
+    } else {
+      return result.substring(0, effectiveMaxLength);
+    }
+  }
+
+  /**
+   * Truncates context with priority sentence handling
+   */
+  private truncateContext(text: string, maxLength: number): string {
+    const priorityRegex =
+      /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+    let result = this.buildPrioritizedContext(sentences, maxLength, priorityRegex);
+
+    // Smart trimming logic that respects priority sentences and word boundaries
+    if (result.length > maxLength) {
+      const hasPrioritySentences = priorityRegex.test(result);
+      const effectiveMaxLength = hasPrioritySentences
+        ? maxLength + 100
+        : maxLength;
+
+      if (result.length > effectiveMaxLength) {
+        result = this.trimToBoundary(result, effectiveMaxLength);
+      }
+    }
+
+    const truncated = result.trim() || '(Truncated to empty context)';
+    this.logger.debug(
+      {
+        truncatedLength: truncated.length,
+        hasPrioritySentences: priorityRegex.test(truncated),
+        originalLength: result.length,
+      },
+      'Context truncated with boundary-aware trimming.',
+    );
+    return truncated;
+  }
+
   private truncateText(
     text: string,
     maxLength: number,
@@ -694,74 +787,13 @@ Optimized search query:
     );
 
     if (strategy === 'truncate-history') {
-      const lines = text.split('\n').filter(Boolean);
-      while (lines.join('\n').length > maxLength && lines.length > 1) {
-        lines.shift();
-      }
-      const truncated = lines.join('\n') || '(Truncated to empty history)';
-      this.logger.debug(
-        { truncatedLength: truncated.length },
-        'History truncated.',
-      );
-      return truncated;
+      return this.truncateHistory(text, maxLength);
     }
 
     if (strategy === 'truncate-context') {
-      const priorityRegex =
-        /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
-      const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-      let result = '';
-      for (const sentence of sentences.reverse()) {
-        if (result.length + sentence.length <= maxLength) {
-          result = sentence + ' ' + result;
-        } else if (sentence.match(priorityRegex)) {
-          if (result.length + sentence.length <= maxLength + 100) {
-            result = sentence + ' ' + result;
-          }
-        }
-      }
-
-      // Smart trimming logic that respects priority sentences and word boundaries
-      if (result.length > maxLength) {
-        const hasPrioritySentences = priorityRegex.test(result);
-        const effectiveMaxLength = hasPrioritySentences
-          ? maxLength + 100
-          : maxLength;
-
-        if (result.length > effectiveMaxLength) {
-          // Find the nearest word/sentence boundary at or below the effective max length
-          const boundaryRegex = /[\s.!?;:]/g;
-          let lastBoundaryIndex = -1;
-          let match;
-
-          while ((match = boundaryRegex.exec(result)) !== null) {
-            if (match.index <= effectiveMaxLength) {
-              lastBoundaryIndex = match.index;
-            } else {
-              break;
-            }
-          }
-
-          // If we found a boundary, trim there; otherwise trim at effective max length
-          if (lastBoundaryIndex > 0) {
-            result = result.substring(0, lastBoundaryIndex);
-          } else {
-            result = result.substring(0, effectiveMaxLength);
-          }
-        }
-      }
-
-      const truncated = result.trim() || '(Truncated to empty context)';
-      this.logger.debug(
-        {
-          truncatedLength: truncated.length,
-          hasPrioritySentences: priorityRegex.test(truncated),
-          originalLength: result.length,
-        },
-        'Context truncated with boundary-aware trimming.',
-      );
-      return truncated;
+      return this.truncateContext(text, maxLength);
     }
+
     this.logger.warn({ strategy }, 'Unknown truncation strategy.');
     return text;
   }

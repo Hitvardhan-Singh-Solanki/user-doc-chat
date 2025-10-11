@@ -364,6 +364,102 @@ function setVaryOrigin(res: Response): void {
 }
 
 /**
+ * Sets CORS headers for allowed origin
+ */
+function setCorsHeaders(res: Response, origin: string): void {
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  setVaryOrigin(res);
+}
+
+/**
+ * Sets standard CORS headers for OPTIONS requests
+ */
+function setOptionsHeaders(res: Response): void {
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS',
+  );
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With',
+  );
+  res.setHeader('Access-Control-Max-Age', '86400');
+  setVaryOrigin(res);
+}
+
+/**
+ * Checks if origin is allowed in development mode
+ */
+function isDevelopmentOrigin(origin: string): boolean {
+  return (
+    origin.startsWith('http://localhost') ||
+    origin.startsWith('http://127.0.0.1')
+  );
+}
+
+/**
+ * Handles OPTIONS requests with origin validation
+ */
+function handleOptionsRequest(
+  req: Request,
+  res: Response,
+  origin: string,
+  allowedOrigins: string[],
+): boolean {
+  if (origin && allowedOrigins.includes(origin)) {
+    setCorsHeaders(res, origin);
+  } else if (config.NODE_ENV === 'development') {
+    if (isDevelopmentOrigin(origin)) {
+      setCorsHeaders(res, origin);
+    } else {
+      logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
+      res.status(403).json({ error: 'Origin not allowed' });
+      return false;
+    }
+  } else {
+    logger.warn(
+      { origin, ip: req.ip },
+      'Blocked unauthorized origin in OPTIONS',
+    );
+    res.status(403).json({ error: 'Origin not allowed' });
+    return false;
+  }
+
+  setOptionsHeaders(res);
+  res.status(204).end();
+  return true;
+}
+
+/**
+ * Handles non-OPTIONS requests with origin validation
+ */
+function handleRegularRequest(
+  req: Request,
+  res: Response,
+  origin: string,
+  allowedOrigins: string[],
+): boolean {
+  if (origin && allowedOrigins.includes(origin)) {
+    setCorsHeaders(res, origin);
+  } else if (config.NODE_ENV === 'development') {
+    if (isDevelopmentOrigin(origin)) {
+      setCorsHeaders(res, origin);
+    } else {
+      logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
+      res.status(403).json({ error: 'Origin not allowed' });
+      return false;
+    }
+  } else {
+    logger.warn({ origin, ip: req.ip }, 'Blocked unauthorized origin');
+    res.status(403).json({ error: 'Origin not allowed' });
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * CORS configuration with security considerations
  */
 export function corsSecurity(
@@ -377,16 +473,7 @@ export function corsSecurity(
   // Allow requests with no Origin header (same-origin, CLI, health checks)
   if (!origin) {
     if (req.method === 'OPTIONS') {
-      res.setHeader(
-        'Access-Control-Allow-Methods',
-        'GET, POST, PUT, DELETE, OPTIONS',
-      );
-      res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, X-Requested-With',
-      );
-      res.setHeader('Access-Control-Max-Age', '86400');
-      setVaryOrigin(res);
+      setOptionsHeaders(res);
       res.status(204).end();
       return;
     }
@@ -395,68 +482,13 @@ export function corsSecurity(
   }
 
   if (req.method === 'OPTIONS') {
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    } else if (config.NODE_ENV === 'development') {
-      if (
-        origin?.startsWith('http://localhost') ||
-        origin?.startsWith('http://127.0.0.1')
-      ) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-      } else {
-        logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
-        res.status(403).json({ error: 'Origin not allowed' });
-        return;
-      }
-    } else {
-      logger.warn(
-        { origin, ip: req.ip },
-        'Blocked unauthorized origin in OPTIONS',
-      );
-      res.status(403).json({ error: 'Origin not allowed' });
-      return;
-    }
-
-    res.setHeader(
-      'Access-Control-Allow-Methods',
-      'GET, POST, PUT, DELETE, OPTIONS',
-    );
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Requested-With',
-    );
-    res.setHeader('Access-Control-Max-Age', '86400');
-    setVaryOrigin(res);
-    res.status(204).end();
-    return;
-  }
-
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    setVaryOrigin(res);
-  } else if (config.NODE_ENV === 'development') {
-    if (
-      origin?.startsWith('http://localhost') ||
-      origin?.startsWith('http://127.0.0.1')
-    ) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      setVaryOrigin(res);
-    } else {
-      logger.warn({ origin, ip: req.ip }, 'Blocked origin in development');
-      res.status(403).json({ error: 'Origin not allowed' });
-      return;
-    }
+    const handled = handleOptionsRequest(req, res, origin, allowedOrigins);
+    if (!handled) return;
   } else {
-    logger.warn({ origin, ip: req.ip }, 'Blocked unauthorized origin');
-    res.status(403).json({ error: 'Origin not allowed' });
-    return;
+    const handled = handleRegularRequest(req, res, origin, allowedOrigins);
+    if (!handled) return;
+    next();
   }
-
-  next();
 }
 
 /**
