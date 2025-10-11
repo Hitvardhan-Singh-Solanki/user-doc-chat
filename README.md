@@ -86,10 +86,11 @@ The system will:
 - [**Architecture Guide**](./docs/ARCHITECTURE.md) - System architecture and design
 
 ### Security & Deployment
-- [**Secure Deployment Guide**](./docs/SECURE_DEPLOYMENT.md) - Comprehensive security deployment guide
-- [**Secrets Management**](./docs/SECRETS_MANAGEMENT.md) - Secrets management best practices
-- [**Security Analysis**](./docs/SECURITY_ANALYSIS.md) - Security analysis and recommendations
-- [**Prompt Injection Security**](./docs/PROMPT_INJECTION_SECURITY.md) - Prompt injection vulnerabilities and protections
+- [**Security Guidelines**](./docs/SECURITY_GUIDELINES.md) - Comprehensive security guidelines and best practices
+- [**Secure Deployment Guide**](./docs/SECURE_DEPLOYMENT.md) - Production deployment with security focus
+- [**Secrets Management**](./docs/SECRETS_MANAGEMENT.md) - Secure credential management strategies
+- [**Security Analysis**](./docs/SECURITY_ANALYSIS.md) - Security measures and implementation overview
+- [**Prompt Injection Security**](./docs/PROMPT_INJECTION_SECURITY.md) - AI security protections and mitigations
 
 ### Development & Migration
 - [**JWT Migration Guide**](./docs/JWT_MIGRATION.md) - JWT token migration documentation
@@ -125,6 +126,18 @@ src/
 - **Maintainability**: Related code is grouped together
 - **Testability**: Tests are co-located with their modules
 - **Team Collaboration**: Multiple developers can work on different modules
+
+## 🔄 Important User Flows
+
+> 📊 **[View Detailed System Diagrams](./docs/DIAGRAMS.md)** - Comprehensive Mermaid diagrams showing user flows, system architecture, security flows, and data pipelines
+
+The application supports several key user flows:
+
+- **Authentication Flow**: Secure login/signup with JWT tokens and role-based access control
+- **Document Upload Flow**: Multi-step file processing with real-time progress tracking
+- **Chat Interaction Flow**: Real-time question-answering with WebSocket communication
+- **Vector Search Flow**: Semantic search and context retrieval for AI responses
+- **Security Flow**: Comprehensive authentication, authorization, and file security
 
 > 📖 **See [Architecture Guide](./docs/ARCHITECTURE.md) for detailed system design**
 
@@ -245,7 +258,7 @@ The project includes comprehensive testing:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved. See the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 

@@ -20,6 +20,9 @@ Detailed system architecture, design principles, technology stack, and deploymen
 
 ## 🔒 Security & Deployment
 
+### [Security Guidelines](./SECURITY_GUIDELINES.md)
+Comprehensive security guidelines covering development, deployment, and operational security practices. Includes security principles, controls, and incident response procedures.
+
 ### [Secure Deployment Guide](./SECURE_DEPLOYMENT.md)
 Comprehensive guide for securely deploying the application in production environments. Covers Docker secrets, Kubernetes deployment, cloud secrets managers, and security best practices.
 
@@ -27,10 +30,10 @@ Comprehensive guide for securely deploying the application in production environ
 Best practices for managing secrets, credentials, and sensitive configuration data. Includes rotation strategies and secure storage recommendations.
 
 ### [Security Analysis](./SECURITY_ANALYSIS.md)
-Detailed security analysis of the codebase, including vulnerability assessments, security controls, and compliance considerations.
+Overview of security measures implemented in the application, including JWT security, security headers, input validation, and protection mechanisms.
 
 ### [Prompt Injection Security](./PROMPT_INJECTION_SECURITY.md)
-Analysis of prompt injection vulnerabilities and comprehensive protection strategies for AI-powered applications.
+Comprehensive protection strategies for AI-powered applications against prompt injection attacks and related security considerations.
 
 ## 🔧 Development & Migration
 
@@ -54,9 +57,9 @@ Documentation for migrating from custom JWT claims to RFC-7519 compliant tokens.
 ## 🚀 Getting Started
 
 1. **New to the project?** Start with the [Setup Guide](./SETUP.md)
-2. **Want to understand features?** See [Features Guide](./FEATURES.md)
-3. **Need API reference?** Check [API Documentation](./API.md)
-4. **Security concerns?** Review [Security Analysis](./SECURITY_ANALYSIS.md)
+2. **Security first?** Review [Security Guidelines](./SECURITY_GUIDELINES.md)
+3. **Want to understand features?** See [Features Guide](./FEATURES.md)
+4. **Need API reference?** Check [API Documentation](./API.md)
 5. **Production deployment?** See [Secure Deployment Guide](./SECURE_DEPLOYMENT.md)
 
 ## 📝 Contributing to Documentation
