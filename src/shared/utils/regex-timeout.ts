@@ -48,13 +48,19 @@ export async function withRegexTimeout<T>(
   text: string,
   operation: (regex: RegExp, text: string) => T,
   timeout: number = REGEX_TIMEOUT_MS,
+  replacement?: string,
+  maxIterations?: number,
 ): Promise<T> {
   if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
     return withRegexTimeoutFallback(regex, text, operation, timeout);
   }
 
   try {
-    const operationData = determineOperationType(operation);
+    const operationData = determineOperationType(
+      operation,
+      replacement,
+      maxIterations,
+    );
     return await executeWorkerOperation(regex, text, operationData, timeout);
   } catch (error) {
     logger.warn(
@@ -67,37 +73,49 @@ export async function withRegexTimeout<T>(
 
 function determineOperationType(
   operation: (regex: RegExp, text: string) => unknown,
+  replacement?: string,
+  maxIterations?: number,
 ): RegexWorkerData {
-  let operationType: 'test' | 'match' | 'replace' | 'exec';
-  let replacement: string | undefined;
-  let maxIterations: number | undefined;
-
-  if (operation.name === 'test' || operation.toString().includes('test')) {
-    operationType = 'test';
-  } else if (
-    operation.name === 'match' ||
-    operation.toString().includes('match')
-  ) {
-    operationType = 'match';
-  } else if (
-    operation.name === 'replace' ||
-    operation.toString().includes('replace')
-  ) {
-    operationType = 'replace';
-    replacement = extractReplacementFromOperation(operation);
-  } else {
-    operationType = 'exec';
-    maxIterations = 1000;
-  }
+  const iterations = maxIterations || 1000;
+  const operationType = getOperationType(operation);
+  const extractedReplacement = getReplacementValue(operation, replacement);
 
   return {
     operation: operationType,
     pattern: '',
     flags: '',
     text: '',
-    replacement,
-    maxIterations,
+    replacement: extractedReplacement,
+    maxIterations: iterations,
   };
+}
+
+function getOperationType(
+  operation: (regex: RegExp, text: string) => unknown,
+): 'test' | 'match' | 'replace' | 'exec' {
+  if (operation.name === 'test' || operation.toString().includes('test')) {
+    return 'test';
+  }
+  if (operation.name === 'match' || operation.toString().includes('match')) {
+    return 'match';
+  }
+  if (operation.name === 'replace' || operation.toString().includes('replace')) {
+    return 'replace';
+  }
+  return 'exec';
+}
+
+function getReplacementValue(
+  operation: (regex: RegExp, text: string) => unknown,
+  replacement?: string,
+): string | undefined {
+  if (replacement) {
+    return replacement;
+  }
+  if (operation.name === 'replace' || operation.toString().includes('replace')) {
+    return extractReplacementFromOperation(operation);
+  }
+  return undefined;
 }
 
 function extractReplacementFromOperation(
@@ -231,6 +249,7 @@ export async function safeRegexReplace(
       text,
       (r, t) => t.replace(r, replacement as string),
       timeout,
+      typeof replacement === 'string' ? replacement : undefined,
     );
   } catch (error) {
     if (error instanceof RegexTimeoutError) {
@@ -289,6 +308,8 @@ export async function safeRegexExec(
         return results;
       },
       timeout,
+      undefined,
+      maxIterations,
     );
   } catch (error) {
     if (error instanceof RegexTimeoutError) {

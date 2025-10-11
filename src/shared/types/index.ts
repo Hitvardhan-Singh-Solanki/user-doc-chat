@@ -45,6 +45,9 @@ export type Client = {
   res: Response;
   queue?: string[];
   hasDrainHandler?: boolean;
+  drainHandler?: () => void;
+  errorHandler?: (err: Error) => void;
+  closeHandler?: () => void;
 };
 
 export type SSEData = {

@@ -20,10 +20,24 @@ if ! command -v sonar-scanner &> /dev/null; then
         fi
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Linux
+        EXPECTED_SHA256="REPLACE_WITH_SONARSOURCE_SHA256"
         wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
+        echo "${EXPECTED_SHA256}  sonar-scanner-cli-4.8.0.2856-linux.zip" | sha256sum -c -
         unzip sonar-scanner-cli-4.8.0.2856-linux.zip
-        sudo mv sonar-scanner-4.8.0.2856 /opt/sonar-scanner
-        sudo ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
+        
+        # Try system-wide installation first, fall back to user installation
+        if sudo -n true 2>/dev/null; then
+            echo "⚠️  This script requires sudo privileges to install sonar-scanner system-wide."
+            echo "    You may be prompted for your password."
+            sudo mv sonar-scanner-4.8.0.2856 /opt/sonar-scanner
+            sudo ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
+        else
+            echo "⚠️  No sudo access. Installing to ~/.local/bin"
+            mkdir -p ~/.local/bin
+            mv sonar-scanner-4.8.0.2856 ~/.local/sonar-scanner
+            ln -sf ~/.local/sonar-scanner/bin/sonar-scanner ~/.local/bin/sonar-scanner
+            echo "ℹ️  Add ~/.local/bin to your PATH if not already present"
+        fi
         rm sonar-scanner-cli-4.8.0.2856-linux.zip
     else
         echo "❌ Unsupported OS. Please install sonar-scanner manually."

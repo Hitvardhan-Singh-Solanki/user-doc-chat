@@ -23,7 +23,11 @@ function buildSocketConfig(): object {
   }
 
   // Add database index if not default
-  if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
+  if (
+    config.REDIS_DB !== null &&
+    config.REDIS_DB !== undefined &&
+    config.REDIS_DB !== 0
+  ) {
     socketOptions.database = config.REDIS_DB;
   }
 
@@ -115,7 +119,11 @@ function buildAuthString(username: string, password: string): string {
  * Builds query parameters for Redis URL
  */
 function buildRedisQueryParams(): string {
-  if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
+  if (
+    config.REDIS_DB !== null &&
+    config.REDIS_DB !== undefined &&
+    config.REDIS_DB !== 0
+  ) {
     return `?db=${config.REDIS_DB}`;
   }
   return '';

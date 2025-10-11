@@ -2,6 +2,9 @@ import { Counter, register } from 'prom-client';
 import { Transform } from 'stream';
 import pino from 'pino';
 
+// Create logger once at module level
+const metricsLogger = pino({ name: 'metrics-service' });
+
 const logCounter = new Counter({
   name: 'app_log_count_total',
   help: 'Total number of log messages by level',
@@ -44,12 +47,14 @@ function handleTransformError(error: unknown, chunk: unknown): void {
     error instanceof Error ? error.constructor.name : 'UnknownError';
   errorCounter.labels(errorType).inc();
 
-  const logger = pino({ name: 'metrics-service' });
-  logger.error(
+  metricsLogger.error(
     {
       error: error instanceof Error ? error.message : String(error),
       errorType,
-      chunk: typeof chunk === 'object' ? '[object]' : String(chunk),
+      chunk:
+        typeof chunk === 'object' && chunk !== null
+          ? JSON.stringify(chunk).substring(0, 1000) // Limit size to prevent huge logs
+          : String(chunk),
       stack: error instanceof Error ? error.stack : undefined,
     },
     'Error in pino metrics transform:',

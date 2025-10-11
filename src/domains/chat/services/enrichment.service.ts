@@ -117,6 +117,7 @@ export class EnrichmentService implements IEnrichmentService {
     const embeddedResults = await this.combineEmbeddedResults(
       results,
       sourceText,
+      opts,
       log,
     );
     log.info('Search and embed process completed.');
@@ -302,6 +303,7 @@ export class EnrichmentService implements IEnrichmentService {
   private async combineEmbeddedResults(
     results: SearchResult[],
     sourceText: (string | undefined)[],
+    options: EnrichmentOptions,
     log: pino.Logger,
   ): Promise<SearchResult[]> {
     if (!sourceText || sourceText.length === 0) {
@@ -322,12 +324,7 @@ export class EnrichmentService implements IEnrichmentService {
         continue;
       }
 
-      await this.embedSearchResult(
-        results[i],
-        text,
-        this.defaultOptions(),
-        log,
-      );
+      await this.embedSearchResult(results[i], text, options, log);
     }
     return results;
   }

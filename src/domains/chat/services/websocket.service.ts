@@ -395,7 +395,13 @@ export class WebsocketService {
     chatId: string,
   ): Promise<void> {
     if (fullAnswer.toLowerCase().includes("i don't know")) {
-      await this.handleEnrichmentFlow(fullPrompt, userId, fileId, chatId);
+      await this.handleEnrichmentFlow(
+        fullPrompt,
+        userId,
+        fileId,
+        chatId,
+        fullAnswer,
+      );
       return;
     }
 
@@ -407,6 +413,7 @@ export class WebsocketService {
     userId: string,
     fileId: string,
     chatId: string,
+    originalAnswer: string,
   ): Promise<void> {
     this.io.to(userId).emit('search_status', {
       message: 'Searching external sources for more information...',
@@ -436,12 +443,16 @@ export class WebsocketService {
           fileId,
           chatId,
         );
+        return;
       }
+
+      await this.finalizeAnswer(originalAnswer, userId, fileId, chatId);
     } catch (enrichmentError) {
       this.logger.warn(
         { enrichmentError },
         'Enrichment failed, using original answer',
       );
+      await this.finalizeAnswer(originalAnswer, userId, fileId, chatId);
     }
   }
 

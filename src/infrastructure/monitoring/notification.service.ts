@@ -319,7 +319,7 @@ class SSEEmitter {
 
       this.clearClientQueue(client);
       this.cleanupDrainHandlers(client, res);
-      clientsToRemove.push(client);
+      this.removeClient(userId, res);
     };
 
     const closeHandler = () => {
@@ -330,8 +330,13 @@ class SSEEmitter {
 
       this.clearClientQueue(client);
       this.cleanupDrainHandlers(client, res);
-      clientsToRemove.push(client);
+      this.removeClient(userId, res);
     };
+
+    // Store references for cleanup
+    client.drainHandler = drainHandler;
+    client.errorHandler = errorHandler;
+    client.closeHandler = closeHandler;
 
     res.once('drain', drainHandler);
     res.once('error', errorHandler);
@@ -345,6 +350,8 @@ class SSEEmitter {
         const writeSuccess = client.res.write(queuedMessage);
 
         if (!writeSuccess) {
+          // Re-queue the message that couldn't be written
+          client.queue.unshift(queuedMessage);
           // Still backpressured, stop flushing
           break;
         }
@@ -357,13 +364,19 @@ class SSEEmitter {
     client.hasDrainHandler = false;
   }
 
-  private cleanupDrainHandlers(
-    client: Client,
-    res: { removeListener: (event: string, handler: () => void) => void },
-  ): void {
-    res.removeListener('drain', () => {});
-    res.removeListener('error', () => {});
-    res.removeListener('close', () => {});
+  private cleanupDrainHandlers(client: Client, res: Response): void {
+    if (client.drainHandler) {
+      res.removeListener('drain', client.drainHandler);
+      client.drainHandler = undefined;
+    }
+    if (client.errorHandler) {
+      res.removeListener('error', client.errorHandler);
+      client.errorHandler = undefined;
+    }
+    if (client.closeHandler) {
+      res.removeListener('close', client.closeHandler);
+      client.closeHandler = undefined;
+    }
   }
 
   private removeUnwritableClients(

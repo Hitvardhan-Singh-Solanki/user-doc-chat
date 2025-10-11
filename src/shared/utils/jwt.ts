@@ -63,10 +63,11 @@ function validateSecretStrength(secret: string): void {
 
 function validateProductionSecret(secret: string): void {
   if (config.NODE_ENV === 'production') {
+    const normalized = secret.toLowerCase();
     if (
-      secret.includes('dev') ||
-      secret.includes('test') ||
-      secret.includes('local')
+      normalized.includes('dev') ||
+      normalized.includes('test') ||
+      normalized.includes('local')
     ) {
       throw new Error(
         'JWT_SECRET in production must not contain development-related keywords. ' +

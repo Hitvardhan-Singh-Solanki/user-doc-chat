@@ -30,7 +30,7 @@ function buildSSLConfig(): boolean | object {
   const isDevelopment = NODE_ENV === 'development' || NODE_ENV === 'test';
 
   if (isProduction) {
-    return buildProductionSSLConfig();
+    return buildDefaultSSLConfig();
   }
 
   if (isDevelopment) {
@@ -38,18 +38,6 @@ function buildSSLConfig(): boolean | object {
   }
 
   return buildDefaultSSLConfig();
-}
-
-function buildProductionSSLConfig(): object {
-  const sslConfig: { rejectUnauthorized: boolean; ca?: string } = {
-    rejectUnauthorized: true,
-  };
-
-  if (PG_SSL_CA) {
-    sslConfig.ca = PG_SSL_CA;
-  }
-
-  return sslConfig;
 }
 
 function buildDevelopmentSSLConfig(): object {
