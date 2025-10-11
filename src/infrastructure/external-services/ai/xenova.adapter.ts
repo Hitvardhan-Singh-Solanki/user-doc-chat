@@ -8,16 +8,22 @@ interface XenovaTokenizer {
 export class XenovaTokenizerAdapter implements ITokenizer {
   private tokenizer: XenovaTokenizer | null = null;
 
-  constructor(private modelName: string) {}
+  constructor(private tokenizerModelName: string) {}
 
   public async init() {
+    if (!this.tokenizerModelName) {
+      throw new Error('Tokenizer model name is required but was not provided');
+    }
+
     const dynamicImport = new Function(
       'modulePath',
       'return import(modulePath)',
     );
     const module = await dynamicImport('@xenova/transformers');
     const AutoTokenizer = module.AutoTokenizer;
-    this.tokenizer = await AutoTokenizer.from_pretrained(this.modelName);
+    this.tokenizer = await AutoTokenizer.from_pretrained(
+      this.tokenizerModelName,
+    );
   }
 
   encode(text: string): number[] {

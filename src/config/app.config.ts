@@ -44,11 +44,18 @@ const envSchema = z.object({
   JWT_MAX_AGE: z.coerce.number().default(86400), // 24 hours
 
   // AI/LLM
-  HUGGINGFACE_CHAT_MODEL: z.string().default('bert-base-uncased'),
+  HUGGINGFACE_CHAT_MODEL: z
+    .string()
+    .min(1, 'HUGGINGFACE_CHAT_MODEL is required'),
+  HUGGINGFACE_TOKENIZER_MODEL: z
+    .string()
+    .min(1, 'HUGGINGFACE_TOKENIZER_MODEL is required'),
   HUGGINGFACE_EMBEDDING_MODEL: z
     .string()
-    .default('sentence-transformers/all-MiniLM-L6-v2'),
-  HUGGINGFACE_SUMMARY_MODEL: z.string().default('facebook/bart-large-cnn'),
+    .min(1, 'HUGGINGFACE_EMBEDDING_MODEL is required'),
+  HUGGINGFACE_SUMMARY_MODEL: z
+    .string()
+    .min(1, 'HUGGINGFACE_SUMMARY_MODEL is required'),
   HUGGINGFACE_HUB_TOKEN: z.string().min(1, 'HUGGINGFACE_HUB_TOKEN is required'),
 
   // Vector Store
