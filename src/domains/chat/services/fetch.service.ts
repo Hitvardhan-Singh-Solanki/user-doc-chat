@@ -10,6 +10,79 @@ import { config } from '@config';
 export class FetchHTMLService implements IHTMLFetch {
   private readonly log = logger.child({ component: 'FetchHTMLService' });
 
+  /**
+   * Validates fetch URL for security
+   */
+  private validateFetchUrl(url: string): boolean {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      this.log.error({ url }, 'Invalid URL format.');
+      return false;
+    }
+  }
+
+  /**
+   * Executes fetch with timeout
+   */
+  private async executeFetch(
+    url: string,
+    timeoutMs: number,
+  ): Promise<Response | null> {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch(url, {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: {
+          'User-Agent': config.CRAWLER_USER_AGENT,
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        this.log.warn({ url }, 'Fetch request timed out.');
+      } else {
+        this.log.error(
+          { url, err: (err as Error).message },
+          'Fetch request failed.',
+        );
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Processes fetch response
+   */
+  private async processFetchResponse(
+    res: Response,
+    url: string,
+  ): Promise<string | null> {
+    if (!this.validateResponse(res)) {
+      this.log.warn(
+        { status: res.status, contentType: res.headers.get('content-type') },
+        'Invalid response received.',
+      );
+      return null;
+    }
+
+    const html = await this.fetchAndDecodeBody(res);
+    if (!html) {
+      this.log.warn({ url }, 'HTML body was empty or too large.');
+      return null;
+    }
+
+    return this.parseHtml(html, url);
+  }
+
   async fetchHTML(
     results: SearchResult[],
     options: EnrichmentOptions,
@@ -38,7 +111,7 @@ export class FetchHTMLService implements IHTMLFetch {
       minContentLength: options.minContentLength ?? 2000,
       chunkSize: options.chunkSize ?? 1000,
       maxResults: options.maxResults ?? 10,
-      chunkOverlap: options.chunkOverlap ?? 100, // Ensure all props exist
+      chunkOverlap: options.chunkOverlap ?? 100,
     } as Required<EnrichmentOptions>;
 
     const tasks = toFetch.map((r) =>
@@ -92,6 +165,46 @@ export class FetchHTMLService implements IHTMLFetch {
     return sourceText;
   }
 
+  /**
+   * Loads HTML content from URL
+   */
+  private async loadHtmlContent(
+    url: string,
+    timeoutMs: number,
+  ): Promise<Response | null> {
+    const log = this.log.child({ url });
+
+    if (!this.validateUrlForSSRF(url)) {
+      log.error('URL failed SSRF validation.');
+      return null;
+    }
+    if (!(await this.isPublicAddress(new URL(url).hostname))) {
+      log.error("URL's hostname is not a public address.");
+      return null;
+    }
+
+    log.debug('Starting fetch request with timeout.');
+    return await this.executeFetch(url, timeoutMs);
+  }
+
+  /**
+   * Extracts text from HTML
+   */
+  private extractTextFromHtml(html: string, url: string): string | null {
+    const parsedText = this.parseHtml(html, url);
+    if (!parsedText) {
+      this.log.warn({ url }, 'Failed to parse HTML into readable text.');
+    }
+    return parsedText;
+  }
+
+  /**
+   * Cleans extracted text
+   */
+  private cleanExtractedText(text: string): string {
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
   private async fetchPageText(
     url: string,
     timeoutMs = config.CRAWLER_TIMEOUT_MS,
@@ -101,30 +214,10 @@ export class FetchHTMLService implements IHTMLFetch {
     const log = this.log.child({ url, redirectCount });
 
     try {
-      if (!this.validateUrlForSSRF(url)) {
-        log.error('URL failed SSRF validation.');
+      const res = await this.loadHtmlContent(url, timeoutMs);
+      if (!res) {
         return null;
       }
-      if (!(await this.isPublicAddress(new URL(url).hostname))) {
-        log.error("URL's hostname is not a public address.");
-        return null;
-      }
-
-      log.debug('Starting fetch request with timeout.');
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-
-      const res = await fetch(url, {
-        signal: controller.signal,
-        redirect: 'manual',
-        headers: {
-          'User-Agent': config.CRAWLER_USER_AGENT,
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
-      });
-
-      clearTimeout(id);
 
       const redirection = await this.handleRedirects(
         res,
@@ -140,25 +233,18 @@ export class FetchHTMLService implements IHTMLFetch {
         return redirection;
       }
 
-      if (!this.validateResponse(res)) {
-        log.warn(
-          { status: res.status, contentType: res.headers.get('content-type') },
-          'Invalid response received.',
-        );
-        return null;
-      }
-
       const html = await this.fetchAndDecodeBody(res);
       if (!html) {
         log.warn('HTML body was empty or too large.');
         return null;
       }
 
-      const parsedText = this.parseHtml(html, url);
+      const parsedText = this.extractTextFromHtml(html, url);
       if (!parsedText) {
-        log.warn('Failed to parse HTML into readable text.');
+        return null;
       }
-      return parsedText;
+
+      return this.cleanExtractedText(parsedText);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
         log.warn('Fetch request timed out.');
@@ -172,27 +258,50 @@ export class FetchHTMLService implements IHTMLFetch {
     }
   }
 
+  /**
+   * Checks if domain is blocked
+   */
+  private isBlockedDomain(host: string): boolean {
+    return (
+      host === 'localhost' ||
+      host.endsWith('.local') ||
+      host.startsWith('fe80:') ||
+      /^(fc|fd)/.test(host) ||
+      host === '::1' ||
+      this.isIPv4MappedIPv6(host)
+    );
+  }
+
+  /**
+   * Checks if URL is private
+   */
+  private isPrivateUrl(host: string): boolean {
+    return /^0\.|^127\.|^10\.|^169\.254\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(
+      host,
+    );
+  }
+
+  /**
+   * Validates URL protocol
+   */
+  private validateUrlProtocol(protocol: string): boolean {
+    return /^https?:$/i.test(protocol);
+  }
+
   private validateUrlForSSRF(url: string): boolean {
     try {
       const u = new URL(url);
-      const isSecure = /^https?:$/i.test(u.protocol);
+      const isSecure = this.validateUrlProtocol(u.protocol);
       if (!isSecure) {
         this.log.warn({ url }, 'URL has an invalid protocol.');
         return false;
       }
 
       const host = u.hostname.toLowerCase();
-      const isPrivate =
-        host === 'localhost' ||
-        host.endsWith('.local') ||
-        /^0\.|^127\.|^10\.|^169\.254\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(
-          host,
-        ) ||
-        host.startsWith('fe80:') ||
-        /^(fc|fd)/.test(host) ||
-        host === '::1' ||
-        this.isIPv4MappedIPv6(host);
-      if (isPrivate) {
+      const isBlocked = this.isBlockedDomain(host);
+      const isPrivate = this.isPrivateUrl(host);
+
+      if (isBlocked || isPrivate) {
         this.log.warn({ host }, "URL's hostname is a private address.");
         return false;
       }
@@ -361,16 +470,38 @@ export class FetchHTMLService implements IHTMLFetch {
     }
   }
 
+  /**
+   * Checks IPv4 private ranges
+   */
+  private isPrivateIpv4(address: string): boolean {
+    return (
+      /^0\./.test(address) ||
+      /^10\./.test(address) ||
+      /^127\./.test(address) ||
+      /^169\.254\./.test(address) ||
+      /^192\.168\./.test(address) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
+    );
+  }
+
+  /**
+   * Checks IPv6 private ranges
+   */
+  private isPrivateIpv6(address: string): boolean {
+    const a = address.toLowerCase();
+    return a === '::1' || a.startsWith('fe80:') || /^(fc|fd)/.test(a);
+  }
+
+  /**
+   * Checks localhost addresses
+   */
+  private isLocalhost(address: string): boolean {
+    return address === '::1' || address.startsWith('fe80:');
+  }
+
   private isPrivateAddress(address: string): boolean {
     if (net.isIP(address) === 4) {
-      return (
-        /^0\./.test(address) ||
-        /^10\./.test(address) ||
-        /^127\./.test(address) ||
-        /^169\.254\./.test(address) ||
-        /^192\.168\./.test(address) ||
-        /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
-      );
+      return this.isPrivateIpv4(address);
     }
 
     const a = address.toLowerCase();
@@ -383,7 +514,7 @@ export class FetchHTMLService implements IHTMLFetch {
       }
     }
 
-    return a === '::1' || a.startsWith('fe80:') || /^(fc|fd)/.test(a);
+    return this.isPrivateIpv6(a) || this.isLocalhost(a);
   }
 
   private isIPv4MappedIPv6(address: string): boolean {

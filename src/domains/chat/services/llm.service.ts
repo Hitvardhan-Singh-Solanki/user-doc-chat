@@ -209,20 +209,30 @@ export class LLMService {
     return chunks;
   }
 
-  async embeddingPython(text: string, timeoutMs = 10_000): Promise<number[]> {
-    if (!this.pythonUrl)
-      throw new Error('PYTHON_LLM_URL environment variable is not set');
-
+  /**
+   * Prepares embedding request
+   */
+  private async prepareEmbeddingRequest(text: string): Promise<string> {
     const promptService = await this.getPromptService();
+    return promptService.sanitizeText(text);
+  }
+
+  /**
+   * Calls embedding service
+   */
+  private async callEmbeddingService(
+    sanitizedText: string,
+    timeoutMs: number,
+  ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    let res: Response | null = null;
+    
     try {
-      res = await fetch(this.pythonUrl, {
+      return await fetch(this.pythonUrl!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({ text: promptService.sanitizeText(text) }),
+        body: JSON.stringify({ text: sanitizedText }),
       });
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError';
@@ -234,12 +244,12 @@ export class LLMService {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
 
-    if (!res) {
-      throw new Error(
-        'Python embed API request failed before receiving a response',
-      );
-    }
+  /**
+   * Processes embedding response
+   */
+  private async processEmbeddingResponse(res: Response): Promise<number[]> {
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(
@@ -257,6 +267,15 @@ export class LLMService {
     }
 
     return emb as number[];
+  }
+
+  async embeddingPython(text: string, timeoutMs = 10_000): Promise<number[]> {
+    if (!this.pythonUrl)
+      throw new Error('PYTHON_LLM_URL environment variable is not set');
+
+    const sanitizedText = await this.prepareEmbeddingRequest(text);
+    const res = await this.callEmbeddingService(sanitizedText, timeoutMs);
+    return await this.processEmbeddingResponse(res);
   }
 
   private async embeddingHF(text: string): Promise<number[]> {
@@ -296,6 +315,41 @@ export class LLMService {
     }
   }
 
+  /**
+   * Enriches context with web search
+   */
+  private async enrichContext(
+    userInput: z.infer<typeof UserInputSchema>,
+    enrichedContext: string,
+  ): Promise<string> {
+    // This would typically call enrichment service
+    // For now, we'll just return the enriched context
+    return enrichedContext;
+  }
+
+  /**
+   * Streams answer generation
+   */
+  private async *streamAnswer(prompt: string): AsyncGenerator<string, void, unknown> {
+    const stream = withStreamTimeout(
+      () =>
+        this.inferenceClient.chatCompletionStream({
+          model: this.hfChatModel,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 1000,
+          temperature: 0.1,
+        }),
+      this.CHAT_COMPLETION_TIMEOUT_MS,
+      'chat completion with enrichment',
+    );
+
+    for await (const chunk of stream) {
+      if (chunk.choices?.[0]?.delta?.content) {
+        yield chunk.choices[0].delta.content;
+      }
+    }
+  }
+
   async *generateAnswerStreamWithEnrichment(
     userInput: z.infer<typeof UserInputSchema>,
     enrichedContext: string,
@@ -304,11 +358,12 @@ export class LLMService {
     if (!this.hfToken) throw new Error('HuggingFace token missing');
 
     const promptService = await this.getPromptService();
+    const enriched = await this.enrichContext(userInput, enrichedContext);
 
     const prompt = promptService.mainPrompt(
       {
         question: userInput.question,
-        context: enrichedContext,
+        context: enriched,
         chatHistory: userInput.chatHistory ?? [],
       },
       config,
@@ -316,23 +371,7 @@ export class LLMService {
 
     try {
       const resolvedPrompt = await prompt;
-      const stream = withStreamTimeout(
-        () =>
-          this.inferenceClient.chatCompletionStream({
-            model: this.hfChatModel,
-            messages: [{ role: 'user', content: resolvedPrompt }],
-            max_tokens: 1000,
-            temperature: 0.1,
-          }),
-        this.CHAT_COMPLETION_TIMEOUT_MS,
-        'chat completion with enrichment',
-      );
-
-      for await (const chunk of stream) {
-        if (chunk.choices?.[0]?.delta?.content) {
-          yield chunk.choices[0].delta.content;
-        }
-      }
+      yield* this.streamAnswer(resolvedPrompt);
     } catch (err) {
       logger.error({ err }, 'Error in enriched answer generation');
       throw err;
