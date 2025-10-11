@@ -36,7 +36,13 @@ export class FileController {
   }
 
   private handleLegacyToken(
-    user: { sub?: string; id?: string; userId?: string; iat?: number; exp?: number },
+    user: {
+      sub?: string;
+      id?: string;
+      userId?: string;
+      iat?: number;
+      exp?: number;
+    },
     req: Request,
   ): string | undefined {
     const legacyId = user?.userId ?? user?.id;

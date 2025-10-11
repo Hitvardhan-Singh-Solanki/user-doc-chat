@@ -104,7 +104,7 @@ export class FileWorkerService {
 
       await this.processChunksInBatches(chunks, payload, job, jobLogger);
       await this.markFileProcessed(payload.fileId, jobLogger);
-      
+
       jobLogger.info('File processing job completed successfully');
       await job.updateProgress(100);
 
@@ -134,13 +134,13 @@ export class FileWorkerService {
     jobLogger: Logger,
   ) {
     const batch: Vector[] = [];
-    
+
     for (let i = 0; i < chunks.length; i++) {
       const embedding = await this.getEmbeddingWithRetry(chunks[i], jobLogger);
       const vector = this.createVector(payload, chunks[i], uuid(), embedding, {
         type: 'full-document',
       });
-      
+
       batch.push(vector);
 
       if (batch.length >= 50) {
@@ -157,20 +157,20 @@ export class FileWorkerService {
     }
   }
 
-  private async getEmbeddingWithRetry(text: string, jobLogger: Logger): Promise<number[]> {
-    return await retry(
-      () => this.llmService.getEmbedding(text),
-      {
-        retries: 3,
-        factor: 2,
-        onRetry: (error, attempt) => {
-          jobLogger.warn(
-            { attempt, error: (error as Error).message },
-            'Embedding failed, retrying...',
-          );
-        },
+  private async getEmbeddingWithRetry(
+    text: string,
+    jobLogger: Logger,
+  ): Promise<number[]> {
+    return await retry(() => this.llmService.getEmbedding(text), {
+      retries: 3,
+      factor: 2,
+      onRetry: (error, attempt) => {
+        jobLogger.warn(
+          { attempt, error: (error as Error).message },
+          'Embedding failed, retrying...',
+        );
       },
-    );
+    });
   }
 
   private async upsertBatchWithRetry(batch: Vector[], jobLogger: Logger) {

@@ -214,15 +214,23 @@ export class RateLimiterService {
     if (!limiter) {
       throw new Error('RateLimiterService not initialized');
     }
+
     const resConsume = await limiter.get(key);
+    return this.buildRateLimitResponse(resConsume, limiter);
+  }
+
+  private buildRateLimitResponse(resConsume: any, limiter: any) {
     const remainingPoints =
       resConsume?.remainingPoints ?? Number(limiter.points);
+    const totalHits = resConsume?.consumedPoints || 0;
+    const msBeforeNext = resConsume?.msBeforeNext || 0;
+    const isBlocked = resConsume ? remainingPoints <= 0 : false;
 
     return {
-      remainingPoints: remainingPoints,
-      totalHits: resConsume?.consumedPoints || 0,
-      msBeforeNext: resConsume?.msBeforeNext || 0,
-      isBlocked: resConsume ? remainingPoints <= 0 : false,
+      remainingPoints,
+      totalHits,
+      msBeforeNext,
+      isBlocked,
     };
   }
 

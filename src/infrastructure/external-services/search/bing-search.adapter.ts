@@ -10,7 +10,16 @@ export class BingSearchAdapter implements ISearchAdapter {
   }
 
   async search(query: string, maxResults = 5): Promise<SearchResult[]> {
-    // Validate query parameter
+    this.validateSearchParameters(query, maxResults);
+
+    const trimmedQuery = query.trim();
+    const url = this.buildSearchUrl(trimmedQuery, maxResults);
+    const data = await this.fetchSearchResults(url);
+
+    return this.transformSearchResults(data);
+  }
+
+  private validateSearchParameters(query: string, maxResults: number): void {
     if (typeof query !== 'string') {
       throw new Error('Query must be a string');
     }
@@ -20,28 +29,36 @@ export class BingSearchAdapter implements ISearchAdapter {
       throw new Error('Query cannot be empty or contain only whitespace');
     }
 
-    // Validate maxResults parameter
     if (typeof maxResults !== 'number' || !Number.isInteger(maxResults)) {
       throw new Error('maxResults must be an integer');
     }
 
-    // Ensure maxResults is within allowed range
     if (maxResults < 1 || maxResults > 50) {
       throw new Error(
         `maxResults must be between 1 and 50, got: ${maxResults}`,
       );
     }
+  }
 
-    const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
-      trimmedQuery,
+  private buildSearchUrl(query: string, maxResults: number): string {
+    return `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(
+      query,
     )}&count=${maxResults}`;
+  }
+
+  private async fetchSearchResults(url: string): Promise<any> {
     const res = await fetch(url, {
       headers: { 'Ocp-Apim-Subscription-Key': this.apiKey },
     });
-    if (!res.ok)
-      throw new Error(`Bing Search failed: ${res.status} ${res.statusText}`);
-    const data = await res.json();
 
+    if (!res.ok) {
+      throw new Error(`Bing Search failed: ${res.status} ${res.statusText}`);
+    }
+
+    return await res.json();
+  }
+
+  private transformSearchResults(data: any): SearchResult[] {
     return (data.webPages?.value || []).map(
       (r: { name: string; snippet: string; url: string }) => ({
         title: r.name,

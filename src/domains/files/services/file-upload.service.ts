@@ -72,14 +72,19 @@ export class FileUploadService {
     try {
       this.validateFileBuffer(file, log);
       this.validateFileSize(file, log);
-      
+
       const finalMimeType = await this.detectFileType(file, log);
       this.validateMimeType(finalMimeType, file.mimetype, log);
-      
+
       const sanitizedName = this.sanitizeFileName(file.originalname, log);
-      const { fileRecord, key } = await this.uploadAndStoreFile(file, sanitizedName, userId, log);
+      const { fileRecord, key } = await this.uploadAndStoreFile(
+        file,
+        sanitizedName,
+        userId,
+        log,
+      );
       await this.queueFileProcessing({ ...fileRecord, key }, log);
-      
+
       log.info(
         { fileId: fileRecord.id },
         'File upload and queueing process completed successfully',
@@ -143,22 +148,20 @@ export class FileUploadService {
     });
   }
 
-  private validateMimeType(finalMimeType: string, claimedMime: string, log: any) {
+  private validateMimeType(
+    finalMimeType: string,
+    claimedMime: string,
+    log: any,
+  ) {
     if (!acceptedMimeTypes.includes(finalMimeType)) {
-      log.warn(
-        { finalMimeType, claimedMime },
-        'Unsupported file type',
-      );
+      log.warn({ finalMimeType, claimedMime }, 'Unsupported file type');
       throw createHttpError({
         status: 400,
         message: `File type ${finalMimeType} not supported`,
       });
     }
 
-    log.info(
-      { mime: finalMimeType },
-      'File type and size are valid',
-    );
+    log.info({ mime: finalMimeType }, 'File type and size are valid');
   }
 
   private sanitizeFileName(originalname: string, log: any): string {
@@ -187,11 +190,11 @@ export class FileUploadService {
   ): Promise<{ fileRecord: UserFileRecord; key: string }> {
     const encodedName = encodeURIComponent(sanitizedName);
     const key = `user-uploads/${userId}/${uuid()}-${encodedName}`;
-    
+
     log.info({ key }, 'Uploading file to MinIO');
     await uploadFileToMinio(key, file.buffer!);
     log.info('File successfully uploaded to MinIO');
-    
+
     log.info('Inserting file record into database');
     const result = await this.db.query<UserFileRecord>(
       `
@@ -201,20 +204,27 @@ export class FileUploadService {
       `,
       [sanitizedName, file.size, userId, 'uploaded'],
     );
-    
+
     const fileRecord = result.rows[0];
     log.info({ fileId: fileRecord.id }, 'File record created in database');
-    
+
     return { fileRecord, key };
   }
 
-  private async queueFileProcessing(fileRecord: UserFileRecord & { key: string }, log: any) {
-    const job: FileJob = { key: fileRecord.key, userId: fileRecord.owner_id, fileId: fileRecord.id };
+  private async queueFileProcessing(
+    fileRecord: UserFileRecord & { key: string },
+    log: any,
+  ) {
+    const job: FileJob = {
+      key: fileRecord.key,
+      userId: fileRecord.owner_id,
+      fileId: fileRecord.id,
+    };
     log.info(
       { jobId: job.key, fileId: job.fileId },
       'Adding job to BullMQ queue',
     );
-    
+
     try {
       await queueAdapter.enqueue(fileQueueName, 'process-file', job);
     } catch (e) {
@@ -222,7 +232,11 @@ export class FileUploadService {
     }
   }
 
-  private async handleQueueFailure(queueError: Error, fileId: string, log: any) {
+  private async handleQueueFailure(
+    queueError: Error,
+    fileId: string,
+    log: any,
+  ) {
     log.error(
       { fileId, err: queueError.message },
       'Failed to add job to queue. Updating database status.',

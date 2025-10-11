@@ -92,11 +92,19 @@ function buildRedisAuth(): string {
     ? encodeURIComponent(config.REDIS_PASSWORD)
     : '';
 
+  return buildAuthString(username, password);
+}
+
+function buildAuthString(username: string, password: string): string {
   if (username && password) {
     return `${username}:${password}@`;
-  } else if (password) {
+  }
+
+  if (password) {
     return `:${password}@`;
-  } else if (username) {
+  }
+
+  if (username) {
     return `${username}@`;
   }
 

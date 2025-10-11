@@ -23,12 +23,13 @@ fileEvents.on('completed', async ({ jobId, returnvalue }) => {
 });
 
 function parseJobReturnValue(returnvalue: unknown, jobId: string) {
-  const rv = typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
+  const rv =
+    typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
   const { userId, fileId } = (rv || {}) as {
     userId?: string;
     fileId?: string;
   };
-  
+
   if (!userId || !fileId) {
     eventLogger.warn(
       { jobId, returnvalue },
@@ -36,16 +37,20 @@ function parseJobReturnValue(returnvalue: unknown, jobId: string) {
     );
     return { userId: undefined, fileId: undefined };
   }
-  
+
   return { userId, fileId };
 }
 
-async function sendCompletedNotification(userId: string, fileId: string, jobId: string) {
+async function sendCompletedNotification(
+  userId: string,
+  fileId: string,
+  jobId: string,
+) {
   eventLogger.info(
     { jobId, userId, fileId },
     'Job completed successfully. Notifying client.',
   );
-  
+
   try {
     const success = await sseEmitter.send(userId, 'file-processed', {
       fileId,
