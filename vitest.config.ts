@@ -24,16 +24,16 @@ export default defineConfig(async (): Promise<UserConfig> => {
           'src/fixtures/**',
           'src/**/*.d.ts',
           'dist/**',
-          'node_modules/**'
+          'node_modules/**',
         ],
         thresholds: {
           global: {
             branches: 80,
             functions: 80,
             lines: 80,
-            statements: 80
-          }
-        }
+            statements: 80,
+          },
+        },
       },
       setupFiles: ['./src/tests/setup.ts'],
       env: {

@@ -168,29 +168,34 @@ export class FileUploadService {
     log.info({ mime: finalMimeType }, 'File type and size are valid');
   }
 
-  private async sanitizeFileName(originalname: string, log: pino.Logger): Promise<string> {
+  private async sanitizeFileName(
+    originalname: string,
+    log: pino.Logger,
+  ): Promise<string> {
     const { withRegexTimeout } = await import('@shared/utils/regex-timeout');
-    
+
     // Step 1: Replace invalid characters (safe regex)
-    let sanitizedName = String(originalname || '')
-      .replace(/[^a-zA-Z0-9.-]/g, '_');
-    
+    let sanitizedName = String(originalname || '').replace(
+      /[^a-zA-Z0-9.-]/g,
+      '_',
+    );
+
     // Step 2: Replace multiple consecutive dots with single dot (protected with timeout)
     sanitizedName = await withRegexTimeout(
       /\.{2,}/g,
       sanitizedName,
       (regex, text) => text.replace(regex, '.'),
-      1000 // 1 second timeout
+      1000, // 1 second timeout
     );
-    
+
     // Step 3: Remove leading and trailing dots (protected with timeout)
     sanitizedName = await withRegexTimeout(
       /^\.+|\.+$/g,
       sanitizedName,
       (regex, text) => text.replace(regex, ''),
-      1000 // 1 second timeout
+      1000, // 1 second timeout
     );
-    
+
     // Step 4: Limit length
     sanitizedName = sanitizedName.substring(0, 255);
 
