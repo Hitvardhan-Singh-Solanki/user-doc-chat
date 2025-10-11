@@ -99,7 +99,10 @@ function getOperationType(
   if (operation.name === 'match' || operation.toString().includes('match')) {
     return 'match';
   }
-  if (operation.name === 'replace' || operation.toString().includes('replace')) {
+  if (
+    operation.name === 'replace' ||
+    operation.toString().includes('replace')
+  ) {
     return 'replace';
   }
   return 'exec';
@@ -112,7 +115,10 @@ function getReplacementValue(
   if (replacement) {
     return replacement;
   }
-  if (operation.name === 'replace' || operation.toString().includes('replace')) {
+  if (
+    operation.name === 'replace' ||
+    operation.toString().includes('replace')
+  ) {
     return extractReplacementFromOperation(operation);
   }
   return undefined;
