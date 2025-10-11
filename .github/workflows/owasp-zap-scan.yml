@@ -39,7 +39,7 @@ jobs:
           npm run build
           npm start &
           sleep 30  # Wait for app to start
-          
+
       - name: Check if application is running
         run: |
           curl -f ${{ env.TARGET_URL }}/health || echo "Application not responding, continuing with scan anyway"
@@ -50,7 +50,6 @@ jobs:
           target: ${{ env.TARGET_URL }}
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
-          docker_image: 'ghcr.io/zaproxy/zaproxy:stable'
         continue-on-error: true
 
       - name: Run OWASP ZAP Full Scan
@@ -59,7 +58,6 @@ jobs:
           target: ${{ env.TARGET_URL }}
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
-          docker_image: 'ghcr.io/zaproxy/zaproxy:stable'
         continue-on-error: true
 
       - name: Generate ZAP Report

@@ -1,4 +1,3 @@
-import { fileTypeFromBuffer } from 'file-type';
 import { uploadFileToMinio } from '@storage/providers/minio.provider';
 import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
 import { queueAdapter, fileQueueName } from '@queue/providers/bullmq.provider';
@@ -90,6 +89,7 @@ export class FileUploadService {
         });
       }
 
+      const { fileTypeFromBuffer } = await import('file-type');
       const detected = await fileTypeFromBuffer(file.buffer!);
       let finalMimeType: string;
 

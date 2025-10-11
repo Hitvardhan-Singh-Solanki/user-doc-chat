@@ -129,9 +129,6 @@ function validateJwtExpiresIn(): number {
   );
 }
 
-// Validate JWT configuration at module load time
-const JWT_SECRET = validateJwtSecret();
-const JWT_EXPIRES_IN = validateJwtExpiresIn();
 
 /**
  * Signs a JWT payload using HS256 and returns the serialized token.
@@ -143,16 +140,19 @@ const JWT_EXPIRES_IN = validateJwtExpiresIn();
  */
 export function signJwt(
   payload: JwtPayload,
-  expiresIn: number = JWT_EXPIRES_IN,
+  expiresIn?: number,
 ): string {
+  const jwtSecret = validateJwtSecret();
+  const jwtExpiresIn = expiresIn || validateJwtExpiresIn();
+
   const options: SignOptions = {
-    expiresIn,
+    expiresIn: jwtExpiresIn,
     algorithm: 'HS256',
     audience: secretsManager.getJwtAudience(),
     issuer: secretsManager.getJwtIssuer(),
   };
 
-  return jwt.sign(payload, JWT_SECRET, options);
+  return jwt.sign(payload, jwtSecret, options);
 }
 
 /**
@@ -191,7 +191,8 @@ export function verifyJwt(
       return null;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const jwtSecret = validateJwtSecret();
+    const decoded = jwt.verify(token, jwtSecret, {
       algorithms,
       // Security: prevent algorithm confusion attacks
       ignoreExpiration: false,

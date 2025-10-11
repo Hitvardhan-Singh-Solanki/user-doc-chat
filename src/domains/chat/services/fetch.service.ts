@@ -1,4 +1,3 @@
-import pLimit from 'p-limit';
 import net from 'net';
 import { JSDOM } from 'jsdom';
 import { lookup } from 'dns/promises';
@@ -29,6 +28,7 @@ export class FetchHTMLService implements IHTMLFetch {
       Math.min(results.length, options.maxPagesToFetch || 5),
     );
 
+    const { default: pLimit } = await import('p-limit');
     const limit = pLimit(options.fetchConcurrency || 2);
 
     const requiredOptions: Required<EnrichmentOptions> = {
