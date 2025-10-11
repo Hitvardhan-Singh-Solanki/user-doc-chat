@@ -11,7 +11,29 @@ export default defineConfig(async (): Promise<UserConfig> => {
       environment: 'node',
       coverage: {
         provider: 'v8',
-        reporter: ['text', 'lcov'],
+        reporter: ['text', 'lcov', 'json', 'html'],
+        reportsDirectory: './coverage',
+        include: ['src/**/*.ts'],
+        exclude: [
+          'src/**/*.test.ts',
+          'src/**/*.spec.ts',
+          'src/**/*.test.js',
+          'src/**/*.spec.js',
+          'src/tests/**',
+          'src/mocks/**',
+          'src/fixtures/**',
+          'src/**/*.d.ts',
+          'dist/**',
+          'node_modules/**'
+        ],
+        thresholds: {
+          global: {
+            branches: 80,
+            functions: 80,
+            lines: 80,
+            statements: 80
+          }
+        }
       },
       setupFiles: ['./src/tests/setup.ts'],
       env: {

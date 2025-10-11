@@ -1,0 +1,71 @@
+name: SonarQube Quality Gate
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  sonar-quality-gate:
+    name: SonarQube Quality Gate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run type check
+        run: npm run type-check
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Run tests with coverage
+        run: npm run coverage
+        
+      - name: Generate ESLint report
+        run: npm run lint -- --format json --output-file eslint-report.json || true
+        
+      - name: Cache SonarQube packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+          
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=user-doc-chat
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.typescript.eslint.reportPaths=eslint-report.json
+            -Dsonar.javascript.eslint.reportPaths=eslint-report.json
+            -Dsonar.coverage.exclusions=**/*.test.ts,**/*.spec.ts,**/*.test.js,**/*.spec.js,**/tests/**,**/mocks/**,**/fixtures/**,**/dist/**,**/node_modules/**
+            -Dsonar.cpd.exclusions=**/*.test.ts,**/*.spec.ts,**/*.test.js,**/*.spec.js,**/tests/**,**/mocks/**,**/fixtures/**
+            -Dsonar.typescript.tsconfigPath=tsconfig.json
+            -Dsonar.coverage.minimum=80
+            -Dsonar.complexity.max=8
+            -Dsonar.maintainability.rating.minimum=A
+            -Dsonar.reliability.rating.minimum=A
+            -Dsonar.security.rating.minimum=A
