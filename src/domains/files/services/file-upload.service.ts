@@ -1,11 +1,12 @@
 import { uploadFileToMinio } from '@storage/providers/minio.provider';
 import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
-import { queueAdapter, fileQueueName } from '@queue/providers/bullmq.provider';
+import { fileQueueName, queueAdapter } from '@queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
 import { IDBStore } from '@interfaces/db-store.interface';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
+import pino from 'pino';
 
 const acceptedMimeTypes = [
   'application/pdf',
@@ -95,7 +96,7 @@ export class FileUploadService {
     }
   }
 
-  private validateFileBuffer(file: MulterFile, log: any) {
+  private validateFileBuffer(file: MulterFile, log: pino.Logger) {
     if (!file?.buffer || file.buffer.length === 0) {
       log.warn('File buffer is empty or missing');
       throw createHttpError({
@@ -105,7 +106,7 @@ export class FileUploadService {
     }
   }
 
-  private validateFileSize(file: MulterFile, log: any) {
+  private validateFileSize(file: MulterFile, log: pino.Logger) {
     const MAX_FILE_SIZE = config.MAX_FILE_SIZE;
     if (file.size > MAX_FILE_SIZE) {
       log.warn({ size: file.size, maxSize: MAX_FILE_SIZE }, 'File too large');
@@ -116,7 +117,10 @@ export class FileUploadService {
     }
   }
 
-  private async detectFileType(file: MulterFile, log: any): Promise<string> {
+  private async detectFileType(
+    file: MulterFile,
+    log: pino.Logger,
+  ): Promise<string> {
     const { fileTypeFromBuffer } = await import('file-type');
     const detected = await fileTypeFromBuffer(file.buffer!);
 
@@ -151,7 +155,7 @@ export class FileUploadService {
   private validateMimeType(
     finalMimeType: string,
     claimedMime: string,
-    log: any,
+    log: pino.Logger,
   ) {
     if (!acceptedMimeTypes.includes(finalMimeType)) {
       log.warn({ finalMimeType, claimedMime }, 'Unsupported file type');
@@ -164,7 +168,7 @@ export class FileUploadService {
     log.info({ mime: finalMimeType }, 'File type and size are valid');
   }
 
-  private sanitizeFileName(originalname: string, log: any): string {
+  private sanitizeFileName(originalname: string, log: pino.Logger): string {
     const sanitizedName = String(originalname || '')
       .replace(/[^a-zA-Z0-9.-]/g, '_')
       .replace(/\.{2,}/g, '.')
@@ -186,7 +190,7 @@ export class FileUploadService {
     file: MulterFile,
     sanitizedName: string,
     userId: string,
-    log: any,
+    log: pino.Logger,
   ): Promise<{ fileRecord: UserFileRecord; key: string }> {
     const encodedName = encodeURIComponent(sanitizedName);
     const key = `user-uploads/${userId}/${uuid()}-${encodedName}`;
@@ -198,10 +202,10 @@ export class FileUploadService {
     log.info('Inserting file record into database');
     const result = await this.db.query<UserFileRecord>(
       `
-      INSERT INTO user_files (file_name, file_size, owner_id, status)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
-      `,
+                INSERT INTO user_files (file_name, file_size, owner_id, status)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, file_name, file_size, owner_id, status, created_at, updated_at
+            `,
       [sanitizedName, file.size, userId, 'uploaded'],
     );
 
@@ -213,7 +217,7 @@ export class FileUploadService {
 
   private async queueFileProcessing(
     fileRecord: UserFileRecord & { key: string },
-    log: any,
+    log: pino.Logger,
   ) {
     const job: FileJob = {
       key: fileRecord.key,
@@ -235,7 +239,7 @@ export class FileUploadService {
   private async handleQueueFailure(
     queueError: Error,
     fileId: string,
-    log: any,
+    log: pino.Logger,
   ) {
     log.error(
       { fileId, err: queueError.message },
@@ -244,7 +248,10 @@ export class FileUploadService {
 
     try {
       await this.db.query(
-        `UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3`,
+        `UPDATE user_files
+                 SET status = $1,
+                     error_message = $2
+                 WHERE id = $3`,
         ['failed', queueError.message, fileId],
       );
     } catch (dbError) {
@@ -265,7 +272,7 @@ export class FileUploadService {
     throw queueError;
   }
 
-  private handleUploadError(error: unknown, log: any): never {
+  private handleUploadError(error: unknown, log: pino.Logger): never {
     if (error instanceof createHttpError.HttpError) {
       log.warn(
         { status: error.status, message: error.message },

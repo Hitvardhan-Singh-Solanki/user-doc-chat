@@ -13,7 +13,7 @@ function buildSocketConfig(): object {
     password?: string;
   } = {
     socket: {
-      path: config.REDIS_SOCKET,
+      path: config.REDIS_SOCKET!,
     },
   };
 

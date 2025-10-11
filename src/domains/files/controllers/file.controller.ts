@@ -45,11 +45,31 @@ export class FileController {
     },
     req: Request,
   ): string | undefined {
-    const legacyId = user?.userId ?? user?.id;
+    const legacyId = this.extractLegacyId(user);
     if (!legacyId) {
       return undefined;
     }
 
+    this.logLegacyTokenUsage(user, req);
+    return legacyId;
+  }
+
+  private extractLegacyId(user: {
+    id?: string;
+    userId?: string;
+  }): string | undefined {
+    return user?.userId ?? user?.id;
+  }
+
+  private logLegacyTokenUsage(
+    user: {
+      userId?: string;
+      id?: string;
+      iat?: number;
+      exp?: number;
+    },
+    req: Request,
+  ): void {
     req.log?.warn(
       {
         legacyClaim: user?.userId ? 'userId' : 'id',
@@ -58,7 +78,6 @@ export class FileController {
       },
       'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
     );
-    return legacyId;
   }
 
   /**

@@ -21,33 +21,37 @@ export function createPinoMetricsTransport(): Transform {
     objectMode: true,
     transform(chunk, encoding, callback) {
       try {
-        if (chunk.level !== undefined && chunk.level !== null) {
-          const pinoLevel = pino.levels.labels[chunk.level] || 'unknown';
-          logCounter.labels(pinoLevel).inc();
-        }
+        processChunk(chunk);
         this.push(JSON.stringify(chunk) + '\n');
         callback();
       } catch (error) {
-        // Record error metric
-        const errorType =
-          error instanceof Error ? error.constructor.name : 'UnknownError';
-        errorCounter.labels(errorType).inc();
-
-        // Log the error with details
-        const logger = pino({ name: 'metrics-service' });
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : String(error),
-            errorType,
-            chunk: typeof chunk === 'object' ? '[object]' : String(chunk),
-            stack: error instanceof Error ? error.stack : undefined,
-          },
-          'Error in pino metrics transform:',
-        );
-
-        // Skip pushing the problematic chunk and continue stream
+        handleTransformError(error, chunk);
         callback();
       }
     },
   });
+}
+
+function processChunk(chunk: { level?: number }): void {
+  if (chunk.level !== undefined && chunk.level !== null) {
+    const pinoLevel = pino.levels.labels[chunk.level] || 'unknown';
+    logCounter.labels(pinoLevel).inc();
+  }
+}
+
+function handleTransformError(error: unknown, chunk: unknown): void {
+  const errorType =
+    error instanceof Error ? error.constructor.name : 'UnknownError';
+  errorCounter.labels(errorType).inc();
+
+  const logger = pino({ name: 'metrics-service' });
+  logger.error(
+    {
+      error: error instanceof Error ? error.message : String(error),
+      errorType,
+      chunk: typeof chunk === 'object' ? '[object]' : String(chunk),
+      stack: error instanceof Error ? error.stack : undefined,
+    },
+    'Error in pino metrics transform:',
+  );
 }

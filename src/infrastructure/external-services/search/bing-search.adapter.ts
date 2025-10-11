@@ -46,7 +46,7 @@ export class BingSearchAdapter implements ISearchAdapter {
     )}&count=${maxResults}`;
   }
 
-  private async fetchSearchResults(url: string): Promise<any> {
+  private async fetchSearchResults(url: string): Promise<unknown> {
     const res = await fetch(url, {
       headers: { 'Ocp-Apim-Subscription-Key': this.apiKey },
     });
@@ -58,8 +58,11 @@ export class BingSearchAdapter implements ISearchAdapter {
     return await res.json();
   }
 
-  private transformSearchResults(data: any): SearchResult[] {
-    return (data.webPages?.value || []).map(
+  private transformSearchResults(data: unknown): SearchResult[] {
+    const searchData = data as {
+      webPages?: { value?: { name: string; snippet: string; url: string }[] };
+    };
+    return (searchData.webPages?.value || []).map(
       (r: { name: string; snippet: string; url: string }) => ({
         title: r.name,
         snippet: r.snippet,

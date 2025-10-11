@@ -6,31 +6,69 @@ rules:
       write_style: concise
       variable_naming: self_explanatory
       type_handling: separate_files
-      always_use_type: only_when_required
+      always_use_type: true
       enforce_git_safety: true
 
     custom_guidelines: |
-      # TypeScript Project Standards
-      - Modular by feature/domain (e.g., /auth, /tasks, /cases)
+      # 🧠 TypeScript Project Standards
+
+      ## Architecture
+      - Modular by feature/domain (e.g., `/auth`, `/tasks`, `/cases`)
       - Separation of concerns: controllers → services → repositories → models
       - Centralized error handling with proper HTTP codes and structured logging
-      - Unit, integration, e2e tests per module (Jest / Vitest)
+      - Unit, integration, and e2e tests per module (Jest / Vitest)
       - Secure handling of sensitive data: encryption at rest & in transit, CDR scanning
-      - API versioning (/v1, /v2) and consistent REST/GraphQL design
-      - Audit logging, RBAC, multi-tenant isolation
+      - API versioning (`/v1`, `/v2`) and consistent REST/GraphQL design
+      - Audit logging, RBAC, and multi-tenant isolation
       - Scalability: async jobs, queues (BullMQ), caching (Redis)
-      - Observability: Prometheus, monitoring, centralized logs (ELK/Grafana)
-      - CI/CD pipelines: linting, type checks, tests, security scans
-      - CamelCase variables/functions/classes; PascalCase for types/interfaces
+      - Observability: Prometheus metrics, centralized logs (ELK/Grafana)
+      - CI/CD pipelines: linting, type checks, tests, and security scans
+
+      ## Code Style
+      - CamelCase for variables/functions/classes; PascalCase for types/interfaces
       - Immutable data structures and pure functions
-      - Prettier + ESLint formatting
-      - Input validation & sanitization
-      - Secrets management: env vars + secure vault
-      - AI integration: RAG, structured JSON, never hallucinate, maintain prompt/version control
-      - Legal: GDPR/HIPAA, audit logs, secure file handling, hashed storage, access expiration
-      - Never suggest unsafe git commands (e.g., --no-verify)
+      - Follow Prettier + ESLint formatting
+      - Keep cognitive complexity of functions below 8
+      - Input validation & sanitization on all user inputs
+      - Manage secrets via env vars and secure vaults
+      - Never use unsafe git commands (e.g., `--no-verify`)
       - Make all variable and method names self-explanatory
-      - For gRPC, always generate clients/servers from proto files
-      - Do not manually modify generated gRPC code
-      - Thin service layer; business logic in services
-      - Strict typing; async/await for all calls
+      - Always enable `async/await` for all async calls
+      - Thin controller layer; business logic resides in services
+
+      ## TypeScript Compiler Settings
+      - Enable `strict: true` in `@tsconfig.json` with:
+        - `noImplicitAny: true`
+        - `strictNullChecks: true`
+        - `strictFunctionTypes: true`
+        - `strictBindCallApply: true`
+        - `strictPropertyInitialization: true`
+        - `noImplicitThis: true`
+        - `alwaysStrict: true`
+        - `exactOptionalPropertyTypes: true`
+      - Never use `// @ts-ignore` or `// @ts-expect-error` without a clear justification
+      - Use `--noEmitOnError` to prevent JS output when TS errors exist
+
+      ## Type Definitions
+      - Do **not** use `any`. Use `unknown` if unavoidable
+      - Explicitly type all function parameters, return values, and object literals
+      - Avoid `enum`; prefer union types (`'A' | 'B'`)
+      - Use `readonly` modifiers for immutable properties/arrays
+      - Leverage TypeScript utility types (`Partial`, `Required`, `Pick`, `Omit`, `Record`, etc.)
+      - Use discriminated unions and exhaustiveness checking for narrowing
+
+      ## Advanced Type Patterns
+      - Implement proper generics with constraints
+      - Use mapped and conditional types to minimize duplication
+      - Use `const` assertions for literal types
+      - Implement branded (nominal) types for safer domain-level validation
+
+      ## Code Organization
+      - Organize types in dedicated files (`types.ts`) or alongside their modules
+      - Document complex types using JSDoc
+      - Create a central `src/types` directory for shared type definitions
+
+      ## gRPC Standards
+      - Always generate clients/servers from `.proto` files
+      - Never manually modify generated gRPC code
+      - Use strong typing for request/response DTOs

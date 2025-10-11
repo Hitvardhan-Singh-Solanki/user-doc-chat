@@ -1,4 +1,8 @@
-import { RateLimiterRedis, RateLimiterMemory } from 'rate-limiter-flexible';
+import {
+  RateLimiterMemory,
+  RateLimiterRedis,
+  RateLimiterRes,
+} from 'rate-limiter-flexible';
 import { redisPub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
 
@@ -19,6 +23,87 @@ export class RateLimiterService {
       this.initPromise = this.initializeRateLimiters();
     }
     return this.initPromise;
+  }
+
+  async consumeGeneral(key: string): Promise<void> {
+    if (!this.generalLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    await this.generalLimiter.consume(key);
+  }
+
+  async consumeAuth(key: string): Promise<void> {
+    if (!this.authLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    await this.authLimiter.consume(key);
+  }
+
+  async consumeFileUpload(key: string): Promise<void> {
+    if (!this.fileUploadLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    await this.fileUploadLimiter.consume(key);
+  }
+
+  async consumeChat(key: string): Promise<void> {
+    if (!this.chatLimiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    await this.chatLimiter.consume(key);
+  }
+
+  async getRemainingPoints(
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ): Promise<number> {
+    const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    const resConsume = await limiter.get(key);
+    return resConsume?.remainingPoints ?? Number(limiter.points);
+  }
+
+  async getTotalHits(
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ): Promise<number> {
+    const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    const resConsume = await limiter.get(key);
+    return resConsume?.consumedPoints || 0;
+  }
+
+  async reset(
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ): Promise<void> {
+    const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+    await limiter.delete(key);
+    logger.info({ key, type }, 'Rate limit reset for key');
+  }
+
+  async getRateLimitInfo(
+    key: string,
+    type: 'general' | 'auth' | 'upload' | 'chat',
+  ) {
+    const limiter = this.getLimiter(type);
+    if (!limiter) {
+      throw new Error('RateLimiterService not initialized');
+    }
+
+    const resConsume = await limiter.get(key);
+    return this.buildRateLimitResponse(resConsume, limiter);
+  }
+
+  isRedisBackend(): boolean {
+    return this.isRedisConnected;
   }
 
   private async checkRedisConnection(): Promise<boolean> {
@@ -125,58 +210,6 @@ export class RateLimiterService {
     }
   }
 
-  async consumeGeneral(key: string): Promise<void> {
-    if (!this.generalLimiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    await this.generalLimiter.consume(key);
-  }
-
-  async consumeAuth(key: string): Promise<void> {
-    if (!this.authLimiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    await this.authLimiter.consume(key);
-  }
-
-  async consumeFileUpload(key: string): Promise<void> {
-    if (!this.fileUploadLimiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    await this.fileUploadLimiter.consume(key);
-  }
-
-  async consumeChat(key: string): Promise<void> {
-    if (!this.chatLimiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    await this.chatLimiter.consume(key);
-  }
-
-  async getRemainingPoints(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ): Promise<number> {
-    const limiter = this.getLimiter(type);
-    if (!limiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    const resConsume = await limiter.get(key);
-    return resConsume?.remainingPoints ?? Number(limiter.points);
-  }
-
-  async getTotalHits(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ): Promise<number> {
-    const limiter = this.getLimiter(type);
-    if (!limiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    const resConsume = await limiter.get(key);
-    return resConsume?.consumedPoints || 0;
-  }
-
   private getLimiter(
     type: 'general' | 'auth' | 'upload' | 'chat',
   ): RateLimiterRedis | RateLimiterMemory | undefined {
@@ -194,32 +227,10 @@ export class RateLimiterService {
     }
   }
 
-  async reset(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ): Promise<void> {
-    const limiter = this.getLimiter(type);
-    if (!limiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-    await limiter.delete(key);
-    logger.info({ key, type }, 'Rate limit reset for key');
-  }
-
-  async getRateLimitInfo(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
+  private buildRateLimitResponse(
+    resConsume: RateLimiterRes | null,
+    limiter: { points: number },
   ) {
-    const limiter = this.getLimiter(type);
-    if (!limiter) {
-      throw new Error('RateLimiterService not initialized');
-    }
-
-    const resConsume = await limiter.get(key);
-    return this.buildRateLimitResponse(resConsume, limiter);
-  }
-
-  private buildRateLimitResponse(resConsume: any, limiter: any) {
     const remainingPoints =
       resConsume?.remainingPoints ?? Number(limiter.points);
     const totalHits = resConsume?.consumedPoints || 0;
@@ -232,10 +243,6 @@ export class RateLimiterService {
       msBeforeNext,
       isBlocked,
     };
-  }
-
-  isRedisBackend(): boolean {
-    return this.isRedisConnected;
   }
 }
 

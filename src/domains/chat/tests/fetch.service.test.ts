@@ -93,36 +93,8 @@ function makeFetchResponse({
 }): Response {
   const text = async () => body;
   const buffer = new TextEncoder().encode(body);
-  const reader = {
-    read: vi.fn(),
-  };
-
-  const lowerHeaders: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
-    lowerHeaders[k.toLowerCase()] = v;
-  }
-
-  if (chunks) {
-    const chunkSize = 100;
-    let offset = 0;
-    reader.read.mockImplementation(async () => {
-      if (offset >= buffer.length) {
-        return { done: true, value: undefined };
-      }
-      const chunk = buffer.slice(offset, offset + chunkSize);
-      offset += chunkSize;
-      return { done: false, value: chunk };
-    });
-  } else {
-    let delivered = false;
-    reader.read.mockImplementation(async () => {
-      if (delivered) {
-        return { done: true, value: undefined };
-      }
-      delivered = true;
-      return { done: false, value: buffer };
-    });
-  }
+  const reader = createMockReader(buffer, chunks);
+  const lowerHeaders = createLowerHeaders(headers);
 
   return {
     ok,
@@ -136,6 +108,65 @@ function makeFetchResponse({
       getReader: () => reader,
     },
   } as unknown as Response;
+}
+
+function createMockReader(
+  buffer: Uint8Array,
+  chunks: boolean,
+): { read: unknown } {
+  const reader = { read: vi.fn() };
+
+  if (chunks) {
+    setupChunkedReader(reader, buffer);
+  } else {
+    setupSingleReader(reader, buffer);
+  }
+
+  return reader;
+}
+
+function setupChunkedReader(
+  reader: { read: unknown },
+  buffer: Uint8Array,
+): void {
+  const chunkSize = 100;
+  let offset = 0;
+  (
+    reader.read as { mockImplementation: (fn: () => Promise<unknown>) => void }
+  ).mockImplementation(async () => {
+    if (offset >= buffer.length) {
+      return { done: true, value: undefined };
+    }
+    const chunk = buffer.slice(offset, offset + chunkSize);
+    offset += chunkSize;
+    return { done: false, value: chunk };
+  });
+}
+
+function setupSingleReader(
+  reader: { read: unknown },
+  buffer: Uint8Array,
+): void {
+  let delivered = false;
+  (
+    reader.read as { mockImplementation: (fn: () => Promise<unknown>) => void }
+  ).mockImplementation(async () => {
+    if (delivered) {
+      return { done: true, value: undefined };
+    }
+    delivered = true;
+    return { done: false, value: buffer };
+  });
+}
+
+function createLowerHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const lowerHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    lowerHeaders[k.toLowerCase()] = v;
+  }
+  return lowerHeaders;
 }
 
 describe('FetchHTMLService', () => {

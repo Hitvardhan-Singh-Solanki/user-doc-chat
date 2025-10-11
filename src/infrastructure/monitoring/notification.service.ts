@@ -218,110 +218,159 @@ class SSEEmitter {
     const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
     for (const client of clientsToProcess) {
-      const { res } = client;
-
-      // Check if stream is still writable
-      if (!res.writable || res.destroyed) {
-        this.log.debug(
-          { userId },
-          'Client stream is not writable, marking for removal.',
-        );
-        clientsToRemove.push(client);
-        continue;
-      }
-
-      try {
-        // Attempt to write the message
-        const writeSuccess = res.write(message);
-
-        if (!writeSuccess) {
-          // Stream is backpressured, queue the message
-          this.log.debug(
-            { userId },
-            'Client stream is backpressured, queuing message.',
-          );
-
-          // Initialize queue if it doesn't exist
-          if (!client.queue) {
-            client.queue = [];
-          }
-          client.queue.push(message);
-
-          // Only set up handlers if not already present
-          if (!client.hasDrainHandler) {
-            client.hasDrainHandler = true;
-
-            const drainHandler = () => {
-              this.log.debug(
-                { userId },
-                'Client stream drained, flushing queue.',
-              );
-
-              // Flush queued messages
-              if (client.queue && client.queue.length > 0) {
-                while (client.queue.length > 0) {
-                  const queuedMessage = client.queue.shift()!;
-                  const writeSuccess = res.write(queuedMessage);
-
-                  if (!writeSuccess) {
-                    // Still backpressured, stop flushing
-                    break;
-                  }
-                }
-              }
-
-              // Clean up handlers
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-            };
-
-            const errorHandler = (err: Error) => {
-              this.log.error(
-                { userId, err: err.message },
-                'Client stream error during drain wait, clearing queue and marking for removal.',
-              );
-
-              // Clear queue and clean up
-              client.queue = [];
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-              clientsToRemove.push(client);
-            };
-
-            const closeHandler = () => {
-              this.log.debug(
-                { userId },
-                'Client stream closed during drain wait, clearing queue and marking for removal.',
-              );
-
-              // Clear queue and clean up
-              client.queue = [];
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-              clientsToRemove.push(client);
-            };
-
-            res.once('drain', drainHandler);
-            res.once('error', errorHandler);
-            res.once('close', closeHandler);
-          }
-        }
-      } catch (err) {
-        this.log.error(
-          { userId, err: (err as Error).message },
-          'Failed to write to client response stream. Marking for removal.',
-        );
-        clientsToRemove.push(client);
+      if (this.isClientWritable(client, userId, clientsToRemove)) {
+        this.processClientMessage(client, message, userId, clientsToRemove);
       }
     }
 
-    // Remove clients that are no longer writable or had errors
+    this.removeUnwritableClients(userId, arr, clientsToRemove);
+  }
+
+  private isClientWritable(
+    client: Client,
+    userId: string,
+    clientsToRemove: Client[],
+  ): boolean {
+    const { res } = client;
+
+    if (!res.writable || res.destroyed) {
+      this.log.debug(
+        { userId },
+        'Client stream is not writable, marking for removal.',
+      );
+      clientsToRemove.push(client);
+      return false;
+    }
+
+    return true;
+  }
+
+  private processClientMessage(
+    client: Client,
+    message: string,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    const { res } = client;
+
+    try {
+      const writeSuccess = res.write(message);
+
+      if (!writeSuccess) {
+        this.handleBackpressuredClient(
+          client,
+          message,
+          userId,
+          clientsToRemove,
+        );
+      }
+    } catch (err) {
+      this.log.error(
+        { userId, err: (err as Error).message },
+        'Failed to write to client response stream. Marking for removal.',
+      );
+      clientsToRemove.push(client);
+    }
+  }
+
+  private handleBackpressuredClient(
+    client: Client,
+    message: string,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    this.log.debug(
+      { userId },
+      'Client stream is backpressured, queuing message.',
+    );
+
+    // Initialize queue if it doesn't exist
+    if (!client.queue) {
+      client.queue = [];
+    }
+    client.queue.push(message);
+
+    // Only set up handlers if not already present
+    if (!client.hasDrainHandler) {
+      this.setupDrainHandlers(client, userId, clientsToRemove);
+    }
+  }
+
+  private setupDrainHandlers(
+    client: Client,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    const { res } = client;
+    client.hasDrainHandler = true;
+
+    const drainHandler = () => {
+      this.log.debug({ userId }, 'Client stream drained, flushing queue.');
+
+      this.flushClientQueue(client, userId);
+      this.cleanupDrainHandlers(client, res);
+    };
+
+    const errorHandler = (err: Error) => {
+      this.log.error(
+        { userId, err: err.message },
+        'Client stream error during drain wait, clearing queue and marking for removal.',
+      );
+
+      this.clearClientQueue(client);
+      this.cleanupDrainHandlers(client, res);
+      clientsToRemove.push(client);
+    };
+
+    const closeHandler = () => {
+      this.log.debug(
+        { userId },
+        'Client stream closed during drain wait, clearing queue and marking for removal.',
+      );
+
+      this.clearClientQueue(client);
+      this.cleanupDrainHandlers(client, res);
+      clientsToRemove.push(client);
+    };
+
+    res.once('drain', drainHandler);
+    res.once('error', errorHandler);
+    res.once('close', closeHandler);
+  }
+
+  private flushClientQueue(client: Client, userId: string): void {
+    if (client.queue && client.queue.length > 0) {
+      while (client.queue.length > 0) {
+        const queuedMessage = client.queue.shift()!;
+        const writeSuccess = client.res.write(queuedMessage);
+
+        if (!writeSuccess) {
+          // Still backpressured, stop flushing
+          break;
+        }
+      }
+    }
+  }
+
+  private clearClientQueue(client: Client): void {
+    client.queue = [];
+    client.hasDrainHandler = false;
+  }
+
+  private cleanupDrainHandlers(
+    client: Client,
+    res: { removeListener: (event: string, handler: () => void) => void },
+  ): void {
+    res.removeListener('drain', () => {});
+    res.removeListener('error', () => {});
+    res.removeListener('close', () => {});
+  }
+
+  private removeUnwritableClients(
+    userId: string,
+    arr: Client[],
+    clientsToRemove: Client[],
+  ): void {
     if (clientsToRemove.length > 0) {
       const remainingClients = arr.filter(
         (client) => !clientsToRemove.includes(client),

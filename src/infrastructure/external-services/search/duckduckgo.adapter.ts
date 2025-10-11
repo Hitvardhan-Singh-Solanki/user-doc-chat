@@ -34,7 +34,7 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
   private async fetchSearchData(
     url: string,
     signal: AbortSignal,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const res = await fetch(url, {
       signal,
       headers: {
@@ -50,21 +50,30 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
     return await res.json();
   }
 
-  private processSearchResults(data: any, maxResults: number): SearchResult[] {
+  private processSearchResults(
+    data: unknown,
+    maxResults: number,
+  ): SearchResult[] {
     const results: SearchResult[] = [];
-    const topics = data.RelatedTopics || [];
+    const searchData = data as { RelatedTopics?: unknown[] };
+    const topics = searchData.RelatedTopics || [];
 
     for (const topic of topics) {
       if (results.length >= maxResults) break;
 
-      if (topic.Text && topic.FirstURL) {
+      const topicData = topic as {
+        Text?: string;
+        FirstURL?: string;
+        Topics?: unknown[];
+      };
+      if (topicData.Text && topicData.FirstURL) {
         results.push({
-          title: topic.Text,
-          snippet: topic.Text,
-          url: topic.FirstURL,
+          title: topicData.Text,
+          snippet: topicData.Text,
+          url: topicData.FirstURL,
         });
-      } else if (topic.Topics) {
-        this.processSubTopics(topic.Topics, results, maxResults);
+      } else if (topicData.Topics) {
+        this.processSubTopics(topicData.Topics, results, maxResults);
       }
     }
 
@@ -72,18 +81,19 @@ export class DuckDuckGoAdapter implements ISearchAdapter {
   }
 
   private processSubTopics(
-    subTopics: any[],
+    subTopics: unknown[],
     results: SearchResult[],
     maxResults: number,
   ): void {
     for (const sub of subTopics) {
       if (results.length >= maxResults) break;
 
-      if (sub.Text && sub.FirstURL) {
+      const subData = sub as { Text?: string; FirstURL?: string };
+      if (subData.Text && subData.FirstURL) {
         results.push({
-          title: sub.Text,
-          snippet: sub.Text,
-          url: sub.FirstURL,
+          title: subData.Text,
+          snippet: subData.Text,
+          url: subData.FirstURL,
         });
       }
     }

@@ -916,45 +916,86 @@ ${content}
     const priorityRegex =
       /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
     const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+
+    if (await this.checkFirstSentenceLimit(sentences, maxTokens)) {
+      return '(Content truncated - first sentence exceeded token limit)';
+    }
+
+    const { kept, used, hasPriorityContent } = await this.processSentences(
+      sentences,
+      maxTokens,
+      priorityRegex,
+    );
+
+    return this.buildTruncatedResult(
+      kept,
+      used,
+      hasPriorityContent || false,
+      sentences.length,
+    );
+  }
+
+  private async checkFirstSentenceLimit(
+    sentences: string[],
+    maxTokens: number,
+  ): Promise<boolean> {
+    if (sentences.length > 0) {
+      const firstSentenceTokens = await this.countTokensCached(sentences[0]);
+      return firstSentenceTokens > maxTokens;
+    }
+    return false;
+  }
+
+  private async processSentences(
+    sentences: string[],
+    maxTokens: number,
+    priorityRegex: RegExp,
+  ): Promise<{ kept: string[]; used: number; hasPriorityContent: boolean }> {
     const kept: string[] = [];
     let used = 0;
     let hasPriorityContent = false;
 
-    // Check if even the first sentence exceeds the token limit
-    if (sentences.length > 0) {
-      const firstSentenceTokens = await this.countTokensCached(sentences[0]);
-
-      if (firstSentenceTokens > maxTokens) {
-        return '(Content truncated - first sentence exceeded token limit)';
-      }
-    }
-
-    // Process sentences in reverse order to prioritize recent content
     for (let i = sentences.length - 1; i >= 0; i--) {
       const sentence = sentences[i];
       const sentenceTokens = await this.countTokensCached(sentence);
-
       const isPriority = sentence.match(priorityRegex);
 
-      if (used + sentenceTokens <= maxTokens) {
+      if (this.canAddSentence(used, sentenceTokens, maxTokens, isPriority)) {
         kept.unshift(sentence);
         used += sentenceTokens;
         if (isPriority) hasPriorityContent = true;
-      } else if (isPriority && used + sentenceTokens <= maxTokens + 50) {
-        kept.unshift(sentence);
-        used += sentenceTokens;
-        hasPriorityContent = true;
       } else {
         break;
       }
     }
 
+    return { kept, used, hasPriorityContent };
+  }
+
+  private canAddSentence(
+    used: number,
+    sentenceTokens: number,
+    maxTokens: number,
+    isPriority: RegExpMatchArray | null,
+  ): boolean {
+    if (used + sentenceTokens <= maxTokens) {
+      return true;
+    }
+    return Boolean(isPriority) && used + sentenceTokens <= maxTokens + 50;
+  }
+
+  private buildTruncatedResult(
+    kept: string[],
+    used: number,
+    hasPriorityContent: boolean,
+    totalSentences: number,
+  ): string {
     const result = kept.join(' ').trim() || '(Truncated to empty context)';
     this.logger.debug(
       {
         truncatedLength: result.length,
         keptSentences: kept.length,
-        totalSentences: sentences.length,
+        totalSentences,
         usedTokens: used,
         hasPriorityContent,
       },

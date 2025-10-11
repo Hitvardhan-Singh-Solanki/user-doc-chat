@@ -19,16 +19,23 @@ function validateJwtSecret(): string {
   }
 
   const trimmedSecret = jwtSecret.trim();
+  validateSecretLength(trimmedSecret);
+  validateSecretStrength(trimmedSecret);
+  validateProductionSecret(trimmedSecret);
 
-  // Security validation: minimum length check (256 bits = 32 bytes = 44 base64 chars)
-  if (trimmedSecret.length < 32) {
+  return trimmedSecret;
+}
+
+function validateSecretLength(secret: string): void {
+  if (secret.length < 32) {
     throw new Error(
       'JWT_SECRET must be at least 32 characters long (256 bits). ' +
         'Use: openssl rand -base64 32 to generate a secure secret.',
     );
   }
+}
 
-  // Security validation: check for common weak secrets
+function validateSecretStrength(secret: string): void {
   const weakSecrets = [
     'secret',
     'password',
@@ -44,7 +51,7 @@ function validateJwtSecret(): string {
 
   if (
     weakSecrets.some((weak) =>
-      trimmedSecret.toLowerCase().includes(weak.toLowerCase()),
+      secret.toLowerCase().includes(weak.toLowerCase()),
     )
   ) {
     throw new Error(
@@ -52,13 +59,14 @@ function validateJwtSecret(): string {
         'Please generate a cryptographically secure secret using: openssl rand -base64 32',
     );
   }
+}
 
-  // Security validation: check for environment-specific weak patterns
+function validateProductionSecret(secret: string): void {
   if (config.NODE_ENV === 'production') {
     if (
-      trimmedSecret.includes('dev') ||
-      trimmedSecret.includes('test') ||
-      trimmedSecret.includes('local')
+      secret.includes('dev') ||
+      secret.includes('test') ||
+      secret.includes('local')
     ) {
       throw new Error(
         'JWT_SECRET in production must not contain development-related keywords. ' +
@@ -66,8 +74,6 @@ function validateJwtSecret(): string {
       );
     }
   }
-
-  return trimmedSecret;
 }
 
 /**
@@ -88,45 +94,64 @@ function validateJwtExpiresIn(): number {
   const trimmed = jwtExpiresIn.trim();
 
   // Try to parse as a plain number first
-  const numericValue = Number(trimmed);
-  if (!isNaN(numericValue) && numericValue > 0) {
+  const numericValue = parseNumericValue(trimmed);
+  if (numericValue !== null) {
     return numericValue;
   }
 
   // Parse time units (7d, 1h, 30m, 3600s)
+  return parseTimeUnitValue(trimmed, jwtExpiresIn);
+}
+
+function parseNumericValue(trimmed: string): number | null {
+  const numericValue = Number(trimmed);
+  if (!isNaN(numericValue) && numericValue > 0) {
+    return numericValue;
+  }
+  return null;
+}
+
+function parseTimeUnitValue(trimmed: string, originalValue: string): number {
   const timeUnitRegex = /^(\d+(?:\.\d+)?)([dhms])$/i;
   const match = trimmed.match(timeUnitRegex);
 
-  if (match) {
-    const value = parseFloat(match[1]);
-    const unit = match[2].toLowerCase();
-
-    if (value <= 0) {
-      throw new Error(
-        `JWT_EXPIRES_IN must be a positive number, got: ${jwtExpiresIn}`,
-      );
-    }
-
-    // Convert to seconds
-    switch (unit) {
-      case 'd':
-        return value * 24 * 60 * 60; // days to seconds
-      case 'h':
-        return value * 60 * 60; // hours to seconds
-      case 'm':
-        return value * 60; // minutes to seconds
-      case 's':
-        return value; // already in seconds
-      default:
-        throw new Error(
-          `JWT_EXPIRES_IN unit must be d, h, m, or s, got: ${jwtExpiresIn}`,
-        );
-    }
+  if (!match) {
+    throw new Error(
+      `JWT_EXPIRES_IN must be a positive number or time unit (e.g., "7d", "1h", "30m"), got: ${originalValue}`,
+    );
   }
 
-  throw new Error(
-    `JWT_EXPIRES_IN must be a positive number or time unit (e.g., "7d", "1h", "30m"), got: ${jwtExpiresIn}`,
-  );
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+
+  if (value <= 0) {
+    throw new Error(
+      `JWT_EXPIRES_IN must be a positive number, got: ${originalValue}`,
+    );
+  }
+
+  return convertTimeUnitToSeconds(value, unit, originalValue);
+}
+
+function convertTimeUnitToSeconds(
+  value: number,
+  unit: string,
+  originalValue: string,
+): number {
+  switch (unit) {
+    case 'd':
+      return value * 24 * 60 * 60; // days to seconds
+    case 'h':
+      return value * 60 * 60; // hours to seconds
+    case 'm':
+      return value * 60; // minutes to seconds
+    case 's':
+      return value; // already in seconds
+    default:
+      throw new Error(
+        `JWT_EXPIRES_IN unit must be d, h, m, or s, got: ${originalValue}`,
+      );
+  }
 }
 
 /**
@@ -166,68 +191,132 @@ export function verifyJwt(
   algorithms: Algorithm[] = ['HS256'],
 ): JwtPayload | null {
   try {
-    // Security validation: check token format
-    if (!token || typeof token !== 'string') {
-      logger.warn('JWT verification failed: invalid token format');
+    if (!validateToken(token)) {
       return null;
     }
 
-    // Security validation: check token structure (should have 3 parts separated by dots)
-    const tokenParts = token.split('.');
-    if (tokenParts.length !== 3) {
-      logger.warn('JWT verification failed: invalid token structure');
+    const decoded = decodeJwtToken(token, algorithms);
+    if (!decoded) {
       return null;
     }
 
-    // Security validation: check for reasonable token length (not too short or too long)
-    if (token.length < 20 || token.length > 8192) {
-      logger.warn(
-        'JWT verification failed: token length out of acceptable range',
-      );
-      return null;
-    }
-
-    const jwtSecret = validateJwtSecret();
-    const decoded = jwt.verify(token, jwtSecret, {
-      algorithms,
-      // Security: prevent algorithm confusion attacks
-      ignoreExpiration: false,
-      ignoreNotBefore: false,
-      // Security: validate audience and issuer for enhanced security
-      audience: secretsManager.getJwtAudience(),
-      issuer: secretsManager.getJwtIssuer(),
-    }) as CustomJwtPayload;
-
-    // Security validation: check for required claims
-    if (!decoded.sub && !decoded.userId && !decoded.id) {
-      logger.warn('JWT verification failed: missing subject claim');
-      return null;
-    }
-
-    // Security validation: check token age (prevent very old tokens)
-    const maxAge = config.JWT_MAX_AGE;
-    const issuedAt = (decoded as { iat?: number }).iat;
-    if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
-      logger.warn('JWT verification failed: token too old');
+    if (!validateDecodedToken(decoded)) {
       return null;
     }
 
     return decoded;
   } catch (error) {
-    // Security: don't log sensitive error details in production
-    const isProduction = config.NODE_ENV === 'production';
-
-    if (isProduction) {
-      logger.warn('JWT verification failed');
-    } else {
-      logger.error(
-        {
-          errorName: error instanceof Error ? error.name : 'Unknown',
-          errorMessage: error instanceof Error ? error.message : String(error),
-        },
-        'JWT verification failed',
-      );
-    }
+    handleJwtVerificationError(error);
     return null;
+  }
+}
+
+function validateToken(token: string): boolean {
+  return (
+    validateTokenFormat(token) &&
+    validateTokenStructure(token) &&
+    validateTokenLength(token)
+  );
+}
+
+function validateDecodedToken(decoded: {
+  sub?: string;
+  userId?: string;
+  id?: string;
+  iat?: number;
+  exp?: number;
+}): boolean {
+  return validateTokenClaims(decoded) && validateTokenAge(decoded);
+}
+
+function validateTokenFormat(token: string): boolean {
+  if (!token || typeof token !== 'string') {
+    logger.warn('JWT verification failed: invalid token format');
+    return false;
+  }
+  return true;
+}
+
+function validateTokenStructure(token: string): boolean {
+  const tokenParts = token.split('.');
+  if (tokenParts.length !== 3) {
+    logger.warn('JWT verification failed: invalid token structure');
+    return false;
+  }
+  return true;
+}
+
+function validateTokenLength(token: string): boolean {
+  if (token.length < 20 || token.length > 8192) {
+    logger.warn(
+      'JWT verification failed: token length out of acceptable range',
+    );
+    return false;
+  }
+  return true;
+}
+
+function decodeJwtToken(
+  token: string,
+  algorithms: Algorithm[],
+): CustomJwtPayload | null {
+  try {
+    const jwtSecret = validateJwtSecret();
+    return jwt.verify(token, jwtSecret, {
+      algorithms,
+      ignoreExpiration: false,
+      ignoreNotBefore: false,
+      audience: secretsManager.getJwtAudience(),
+      issuer: secretsManager.getJwtIssuer(),
+    }) as CustomJwtPayload;
+  } catch (error) {
+    logger.warn('JWT verification failed: token decode error');
+    return null;
+  }
+}
+
+function validateTokenClaims(decoded: {
+  sub?: string;
+  userId?: string;
+  id?: string;
+  iat?: number;
+  exp?: number;
+}): boolean {
+  if (!decoded.sub && !decoded.userId && !decoded.id) {
+    logger.warn('JWT verification failed: missing subject claim');
+    return false;
+  }
+  return true;
+}
+
+function validateTokenAge(decoded: {
+  sub?: string;
+  userId?: string;
+  id?: string;
+  iat?: number;
+  exp?: number;
+}): boolean {
+  const maxAge = config.JWT_MAX_AGE;
+  const issuedAt = (decoded as { iat?: number }).iat;
+  if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
+    logger.warn('JWT verification failed: token too old');
+    return false;
+  }
+  return true;
+}
+
+function handleJwtVerificationError(error: unknown): void {
+  const isProduction = config.NODE_ENV === 'production';
+
+  if (isProduction) {
+    logger.warn('JWT verification failed');
+  } else {
+    logger.error(
+      {
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+      'JWT verification failed',
+    );
   }
 }

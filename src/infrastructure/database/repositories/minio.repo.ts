@@ -79,7 +79,7 @@ function validateMinioSSL(): boolean {
   const useSSL = appConfig.MINIO_USE_SSL;
 
   if (typeof useSSL === 'string') {
-    const lowerValue = useSSL.toLowerCase();
+    const lowerValue = (useSSL as string).toLowerCase();
     if (lowerValue === 'true') {
       return true;
     } else if (lowerValue === 'false') {

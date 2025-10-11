@@ -87,6 +87,23 @@ export class FetchHTMLService implements IHTMLFetch {
     results: SearchResult[],
     options: EnrichmentOptions,
   ): Promise<(string | undefined)[]> {
+    this.logFetchStart(results, options);
+
+    const toFetch = this.getResultsToFetch(results, options);
+    const limit = await this.createConcurrencyLimit(options);
+    const requiredOptions = this.buildRequiredOptions(options);
+
+    const tasks = this.createFetchTasks(toFetch, limit, requiredOptions);
+    const res = await Promise.all(tasks);
+
+    this.log.info('All HTML fetch tasks completed.');
+    return res;
+  }
+
+  private logFetchStart(
+    results: SearchResult[],
+    options: EnrichmentOptions,
+  ): void {
     this.log.info(
       {
         totalResults: results.length,
@@ -95,16 +112,31 @@ export class FetchHTMLService implements IHTMLFetch {
       },
       'Starting HTML fetch tasks.',
     );
+  }
 
-    const toFetch = results.slice(
+  private getResultsToFetch(
+    results: SearchResult[],
+    options: EnrichmentOptions,
+  ): SearchResult[] {
+    return results.slice(
       0,
       Math.min(results.length, options.maxPagesToFetch || 5),
     );
+  }
 
+  private async createConcurrencyLimit(
+    options: EnrichmentOptions,
+  ): Promise<
+    (fn: () => Promise<string | undefined>) => Promise<string | undefined>
+  > {
     const { default: pLimit } = await import('p-limit');
-    const limit = pLimit(options.fetchConcurrency || 2);
+    return pLimit(options.fetchConcurrency || 2);
+  }
 
-    const requiredOptions: Required<EnrichmentOptions> = {
+  private buildRequiredOptions(
+    options: EnrichmentOptions,
+  ): Required<EnrichmentOptions> {
+    return {
       ...options,
       maxPagesToFetch: options.maxPagesToFetch ?? 5,
       fetchConcurrency: options.fetchConcurrency ?? 2,
@@ -113,8 +145,16 @@ export class FetchHTMLService implements IHTMLFetch {
       maxResults: options.maxResults ?? 10,
       chunkOverlap: options.chunkOverlap ?? 100,
     } as Required<EnrichmentOptions>;
+  }
 
-    const tasks = toFetch.map((r) =>
+  private createFetchTasks(
+    toFetch: SearchResult[],
+    limit: (
+      fn: () => Promise<string | undefined>,
+    ) => Promise<string | undefined>,
+    requiredOptions: Required<EnrichmentOptions>,
+  ): Promise<string | undefined>[] {
+    return toFetch.map((r) =>
       limit(async () => {
         try {
           return await this.fetchExtract(r, requiredOptions);
@@ -127,12 +167,6 @@ export class FetchHTMLService implements IHTMLFetch {
         }
       }),
     );
-
-    const res = await Promise.all(tasks);
-
-    this.log.info('All HTML fetch tasks completed.');
-
-    return res;
   }
 
   private async fetchExtract(
@@ -227,35 +261,60 @@ export class FetchHTMLService implements IHTMLFetch {
         timeoutMs,
       );
       if (redirection !== undefined) {
-        if (redirection === null) {
-          log.warn('Maximum redirects reached or invalid redirect location.');
-        }
-        return redirection;
+        return this.handleRedirectResponse(redirection, log);
       }
 
-      const html = await this.fetchAndDecodeBody(res);
-      if (!html) {
-        log.warn('HTML body was empty or too large.');
-        return null;
-      }
-
-      const parsedText = this.extractTextFromHtml(html, url);
-      if (!parsedText) {
-        return null;
-      }
-
-      return this.cleanExtractedText(parsedText);
+      return await this.processHtmlContent(res, url, log);
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        log.warn('Fetch request timed out.');
-      } else {
-        log.error(
-          { err, stack: err instanceof Error ? err.stack : undefined },
-          'FetchPageText encountered an error.',
-        );
-      }
+      return this.handleFetchError(err, log);
+    }
+  }
+
+  private handleRedirectResponse(
+    redirection: string | null,
+    log: { warn: (message: string) => void },
+  ): string | null {
+    if (redirection === null) {
+      log.warn('Maximum redirects reached or invalid redirect location.');
+    }
+    return redirection;
+  }
+
+  private async processHtmlContent(
+    res: Response,
+    url: string,
+    log: { warn: (message: string) => void },
+  ): Promise<string | null> {
+    const html = await this.fetchAndDecodeBody(res);
+    if (!html) {
+      log.warn('HTML body was empty or too large.');
       return null;
     }
+
+    const parsedText = this.extractTextFromHtml(html, url);
+    if (!parsedText) {
+      return null;
+    }
+
+    return this.cleanExtractedText(parsedText);
+  }
+
+  private handleFetchError(
+    err: unknown,
+    log: {
+      warn: (message: string) => void;
+      error: (data: unknown, message: string) => void;
+    },
+  ): null {
+    if (err instanceof Error && err.name === 'AbortError') {
+      log.warn('Fetch request timed out.');
+    } else {
+      log.error(
+        { err, stack: err instanceof Error ? err.stack : undefined },
+        'FetchPageText encountered an error.',
+      );
+    }
+    return null;
   }
 
   /**

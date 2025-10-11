@@ -28,48 +28,7 @@ if (parentPort) {
   parentPort.on('message', (data: RegexWorkerData) => {
     try {
       const regex = new RegExp(data.pattern, data.flags);
-      let result:
-        | string
-        | RegExpExecArray
-        | RegExpExecArray[]
-        | RegExpMatchArray
-        | boolean
-        | null;
-
-      switch (data.operation) {
-        case 'test':
-          result = regex.test(data.text);
-          break;
-        case 'match':
-          result = data.text.match(regex);
-          break;
-        case 'replace':
-          result = data.text.replace(regex, data.replacement || '');
-          break;
-        case 'exec': {
-          const results: RegExpExecArray[] = [];
-          let match: RegExpExecArray | null;
-          let iterations = 0;
-          const maxIterations = data.maxIterations || 1000;
-
-          while (
-            (match = regex.exec(data.text)) !== null &&
-            iterations < maxIterations
-          ) {
-            results.push(match);
-            iterations++;
-
-            // Prevent infinite loop on zero-width matches
-            if (match.index === regex.lastIndex) {
-              regex.lastIndex++;
-            }
-          }
-          result = results;
-          break;
-        }
-        default:
-          throw new Error(`Unknown operation: ${data.operation}`);
-      }
+      const result = executeRegexOperation(regex, data);
 
       parentPort!.postMessage({
         success: true,
@@ -82,4 +41,50 @@ if (parentPort) {
       } as RegexWorkerResult);
     }
   });
+}
+
+function executeRegexOperation(
+  regex: RegExp,
+  data: RegexWorkerData,
+):
+  | string
+  | RegExpExecArray
+  | RegExpExecArray[]
+  | RegExpMatchArray
+  | boolean
+  | null {
+  switch (data.operation) {
+    case 'test':
+      return regex.test(data.text);
+    case 'match':
+      return data.text.match(regex);
+    case 'replace':
+      return data.text.replace(regex, data.replacement || '');
+    case 'exec':
+      return executeRegexExec(regex, data.text, data.maxIterations || 1000);
+    default:
+      throw new Error(`Unknown operation: ${data.operation}`);
+  }
+}
+
+function executeRegexExec(
+  regex: RegExp,
+  text: string,
+  maxIterations: number,
+): RegExpExecArray[] {
+  const results: RegExpExecArray[] = [];
+  let match: RegExpExecArray | null;
+  let iterations = 0;
+
+  while ((match = regex.exec(text)) !== null && iterations < maxIterations) {
+    results.push(match);
+    iterations++;
+
+    // Prevent infinite loop on zero-width matches
+    if (match.index === regex.lastIndex) {
+      regex.lastIndex++;
+    }
+  }
+
+  return results;
 }

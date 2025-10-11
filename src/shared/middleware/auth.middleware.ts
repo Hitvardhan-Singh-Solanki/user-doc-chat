@@ -18,16 +18,23 @@ function validateJwtSecret(): string {
   }
 
   const trimmedSecret = jwtSecret.trim();
+  validateSecretLength(trimmedSecret);
+  validateSecretStrength(trimmedSecret);
+  validateProductionSecret(trimmedSecret);
 
-  // Security validation: minimum length check (256 bits = 32 bytes = 44 base64 chars)
-  if (trimmedSecret.length < 32) {
+  return trimmedSecret;
+}
+
+function validateSecretLength(secret: string): void {
+  if (secret.length < 32) {
     throw new Error(
       'JWT_SECRET must be at least 32 characters long (256 bits). ' +
         'Use: openssl rand -base64 32 to generate a secure secret.',
     );
   }
+}
 
-  // Security validation: check for common weak secrets
+function validateSecretStrength(secret: string): void {
   const weakSecrets = [
     'secret',
     'password',
@@ -43,7 +50,7 @@ function validateJwtSecret(): string {
 
   if (
     weakSecrets.some((weak) =>
-      trimmedSecret.toLowerCase().includes(weak.toLowerCase()),
+      secret.toLowerCase().includes(weak.toLowerCase()),
     )
   ) {
     throw new Error(
@@ -51,13 +58,14 @@ function validateJwtSecret(): string {
         'Please generate a cryptographically secure secret using: openssl rand -base64 32',
     );
   }
+}
 
-  // Security validation: check for environment-specific weak patterns
+function validateProductionSecret(secret: string): void {
   if (config.NODE_ENV === 'production') {
     if (
-      trimmedSecret.includes('dev') ||
-      trimmedSecret.includes('test') ||
-      trimmedSecret.includes('local')
+      secret.includes('dev') ||
+      secret.includes('test') ||
+      secret.includes('local')
     ) {
       throw new Error(
         'JWT_SECRET in production must not contain development-related keywords. ' +
@@ -65,8 +73,6 @@ function validateJwtSecret(): string {
       );
     }
   }
-
-  return trimmedSecret;
 }
 
 let requireAuthInstance: ReturnType<typeof expressjwt> | null = null;
