@@ -1,6 +1,7 @@
 import { Counter, register } from 'prom-client';
 import { Transform } from 'stream';
 import pino from 'pino';
+import { SafeStringifyChunk } from '@utils/safe-json'; // Create logger once at module level
 
 // Create logger once at module level
 const metricsLogger = pino({ name: 'metrics-service' });
@@ -25,7 +26,7 @@ export function createPinoMetricsTransport(): Transform {
     transform(chunk, encoding, callback) {
       try {
         processChunk(chunk);
-        this.push(JSON.stringify(chunk) + '\n');
+        this.push(SafeStringifyChunk(chunk) + '\n');
         callback();
       } catch (error) {
         handleTransformError(error, chunk);
@@ -53,7 +54,7 @@ function handleTransformError(error: unknown, chunk: unknown): void {
       errorType,
       chunk:
         typeof chunk === 'object' && chunk !== null
-          ? JSON.stringify(chunk).substring(0, 1000) // Limit size to prevent huge logs
+          ? SafeStringifyChunk(chunk).substring(0, 1000) // Limit size to prevent huge logs
           : String(chunk),
       stack: error instanceof Error ? error.stack : undefined,
     },

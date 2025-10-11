@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Client, SSEData } from '@shared/types';
 import { redisPub, redisSub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
+import { SafeStringifyChunk } from '@utils/safe-json';
 
 class SSEEmitter {
   private clients: Map<string, Client[]> = new Map();
@@ -9,10 +10,90 @@ class SSEEmitter {
   private isInitialized = false;
   private retryCount = 0;
   private readonly maxRetries = 5;
-  private readonly retryDelay = 1000; // 1 second base delay
+  private readonly retryDelay = 1000;
 
   constructor() {
     this.init();
+  }
+
+  /** Add new SSE connection for a user */
+  addClient(userId: string, res: Response) {
+    this.log.info({ userId }, 'Adding new client to SSE emitter.');
+    if (!this.clients.has(userId)) {
+      this.clients.set(userId, []);
+      this.log.debug({ userId }, 'Created new client array for user.');
+    }
+    this.clients.get(userId)!.push({ res });
+  }
+
+  /** Remove SSE connection for a user */
+  removeClient(userId: string, res: Response) {
+    this.log.info({ userId }, 'Removing client from SSE emitter.');
+    const arr = this.clients.get(userId) || [];
+    const filtered = arr.filter((c) => c.res !== res);
+
+    if (filtered.length === 0) {
+      this.clients.delete(userId);
+      this.log.debug(
+        { userId },
+        'Removed user entry from clients Map (no remaining connections).',
+      );
+    } else {
+      this.clients.set(userId, filtered);
+    }
+  }
+
+  /** Send message to all Node instances (publishes to Redis) */
+  async send(userId: string, event: string, data: SSEData): Promise<boolean> {
+    this.log.info(
+      { userId, event, data },
+      'Publishing message to Redis for all SSE instances.',
+    );
+
+    try {
+      const result = await redisPub.publish(
+        'sse-events',
+        SafeStringifyChunk({ userId, event, data }),
+      );
+      this.log.debug(
+        { userId, event, result },
+        'Successfully published message to Redis.',
+      );
+      return true;
+    } catch (error) {
+      this.log.error(
+        {
+          userId,
+          event,
+          data,
+          error: (error as Error).message,
+          stack: (error as Error).stack,
+        },
+        'Failed to publish message to Redis. Falling back to local delivery.',
+      );
+
+      // Fallback: send to local clients only
+      try {
+        this.sendLocal(userId, event, data);
+        this.log.warn(
+          { userId, event },
+          'Message delivered locally as fallback after Redis publish failure.',
+        );
+        return false; // Indicate partial success (local only)
+      } catch (fallbackError) {
+        this.log.error(
+          {
+            userId,
+            event,
+            fallbackError: (fallbackError as Error).message,
+          },
+          'Both Redis publish and local fallback failed.',
+        );
+        throw new Error(
+          `Failed to deliver message: Redis error - ${(error as Error).message}, Local fallback error - ${(fallbackError as Error).message}`,
+        );
+      }
+    }
   }
 
   private async init(): Promise<void> {
@@ -127,86 +208,6 @@ class SSEEmitter {
     }, delay);
   }
 
-  /** Add new SSE connection for a user */
-  addClient(userId: string, res: Response) {
-    this.log.info({ userId }, 'Adding new client to SSE emitter.');
-    if (!this.clients.has(userId)) {
-      this.clients.set(userId, []);
-      this.log.debug({ userId }, 'Created new client array for user.');
-    }
-    this.clients.get(userId)!.push({ res });
-  }
-
-  /** Remove SSE connection for a user */
-  removeClient(userId: string, res: Response) {
-    this.log.info({ userId }, 'Removing client from SSE emitter.');
-    const arr = this.clients.get(userId) || [];
-    const filtered = arr.filter((c) => c.res !== res);
-
-    if (filtered.length === 0) {
-      this.clients.delete(userId);
-      this.log.debug(
-        { userId },
-        'Removed user entry from clients Map (no remaining connections).',
-      );
-    } else {
-      this.clients.set(userId, filtered);
-    }
-  }
-
-  /** Send message to all Node instances (publishes to Redis) */
-  async send(userId: string, event: string, data: SSEData): Promise<boolean> {
-    this.log.info(
-      { userId, event, data },
-      'Publishing message to Redis for all SSE instances.',
-    );
-
-    try {
-      const result = await redisPub.publish(
-        'sse-events',
-        JSON.stringify({ userId, event, data }),
-      );
-      this.log.debug(
-        { userId, event, result },
-        'Successfully published message to Redis.',
-      );
-      return true;
-    } catch (error) {
-      this.log.error(
-        {
-          userId,
-          event,
-          data,
-          error: (error as Error).message,
-          stack: (error as Error).stack,
-        },
-        'Failed to publish message to Redis. Falling back to local delivery.',
-      );
-
-      // Fallback: send to local clients only
-      try {
-        this.sendLocal(userId, event, data);
-        this.log.warn(
-          { userId, event },
-          'Message delivered locally as fallback after Redis publish failure.',
-        );
-        return false; // Indicate partial success (local only)
-      } catch (fallbackError) {
-        this.log.error(
-          {
-            userId,
-            event,
-            fallbackError: (fallbackError as Error).message,
-          },
-          'Both Redis publish and local fallback failed.',
-        );
-        throw new Error(
-          `Failed to deliver message: Redis error - ${(error as Error).message}, Local fallback error - ${(fallbackError as Error).message}`,
-        );
-      }
-    }
-  }
-
   /** Send message to only local clients connected to this Node */
   private sendLocal(userId: string, event: string, data: SSEData) {
     this.log.debug({ userId, event }, 'Sending message to local SSE clients.');
@@ -215,7 +216,7 @@ class SSEEmitter {
     // Create shallow copy to avoid race conditions during iteration
     const clientsToProcess = [...arr];
     const clientsToRemove: Client[] = [];
-    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    const message = `event: ${event}\ndata: ${SafeStringifyChunk(data)}\n\n`;
 
     for (const client of clientsToProcess) {
       if (this.isClientWritable(client, userId, clientsToRemove)) {
@@ -377,6 +378,7 @@ class SSEEmitter {
       res.removeListener('close', client.closeHandler);
       client.closeHandler = undefined;
     }
+    client.hasDrainHandler = false;
   }
 
   private removeUnwritableClients(
