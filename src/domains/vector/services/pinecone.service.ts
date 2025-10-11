@@ -4,7 +4,7 @@ import {
   QueryMatch,
 } from '@interfaces/vector-store.interface';
 import { Vector } from '@shared/types';
-import { pinecone } from '../repos/pinecone.repo';
+import { getPineconeClient } from '../repos/pinecone.repo';
 import { config } from '@config';
 
 export class PineconeVectorStore implements IVectorStore {
@@ -17,6 +17,7 @@ export class PineconeVectorStore implements IVectorStore {
 
   async upsertVectors(vectors: Vector[]) {
     if (!vectors.length) return { upsertedCount: 0, failedBatches: [] };
+    const pinecone = getPineconeClient();
     const index = pinecone.index(this.indexName);
 
     const batchSize = config.PINECONE_BATCH_SIZE;
@@ -70,6 +71,7 @@ export class PineconeVectorStore implements IVectorStore {
     fileId: string,
     topK = 5,
   ): Promise<VectorQueryResult> {
+    const pinecone = getPineconeClient();
     const index = pinecone.index(this.indexName);
     const result = await index.query({
       vector: embedding,

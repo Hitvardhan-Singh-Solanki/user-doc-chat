@@ -3,9 +3,7 @@ import { PineconeVectorStore } from '../services/pinecone.service';
 import { Vector } from '@shared/types';
 // Mock the pinecone repository using common mock
 vi.mock('../repos/pinecone.repo', () => ({
-  pinecone: {
-    index: vi.fn(),
-  },
+  getPineconeClient: vi.fn(),
 }));
 
 describe('PineconeVectorStore', () => {
@@ -13,7 +11,7 @@ describe('PineconeVectorStore', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockIndex: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockPinecone: any;
+  let mockGetPineconeClient: any;
 
   beforeEach(async () => {
     // Mock timers to prevent real delays in retry logic
@@ -25,9 +23,9 @@ describe('PineconeVectorStore', () => {
     // Clear all mocks
     vi.clearAllMocks();
 
-    // Import the mocked pinecone after clearing mocks
+    // Import the mocked getPineconeClient after clearing mocks
     const pineconeModule = await import('../repos/pinecone.repo');
-    mockPinecone = pineconeModule.pinecone;
+    mockGetPineconeClient = pineconeModule.getPineconeClient;
 
     // Create mock index
     mockIndex = {
@@ -35,7 +33,12 @@ describe('PineconeVectorStore', () => {
       query: vi.fn(),
     };
 
-    mockPinecone.index.mockReturnValue(mockIndex);
+    // Create mock pinecone client that returns our mock index
+    const mockPineconeClient = {
+      index: vi.fn().mockReturnValue(mockIndex),
+    };
+
+    mockGetPineconeClient.mockReturnValue(mockPineconeClient);
 
     pineconeVectorStore = new PineconeVectorStore();
   });
