@@ -1,14 +1,12 @@
 import { Readable } from 'stream';
 import { minioClient } from '@database/repositories/minio.repo';
 
-import { storageConfig } from '@config';
+import { config } from '@config';
 
-const bucket = storageConfig.minio.defaultBucket;
+const bucket = config.MINIO_DEFAULT_BUCKET;
 
 if (!bucket || !bucket.trim()) {
-  throw new Error(
-    'MINIO_DEFAULT_BUCKET is required (storageConfig.minio.defaultBucket)',
-  );
+  throw new Error('MINIO_DEFAULT_BUCKET is required');
 }
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {

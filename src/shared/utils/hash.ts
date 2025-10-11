@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { authConfig } from '@config';
+import { config } from '@config';
 
 export async function hashPassword(password: string): Promise<string> {
   // Validate input is not empty
@@ -16,15 +16,15 @@ export async function hashPassword(password: string): Promise<string> {
   }
 
   // Validate saltRounds before using it
-  if (authConfig.saltRounds === undefined || authConfig.saltRounds === null) {
+  if (config.SALT_ROUNDS === undefined || config.SALT_ROUNDS === null) {
     throw new Error('saltRounds is not defined in auth configuration');
   }
 
-  const saltRounds = parseInt(String(authConfig.saltRounds), 10);
+  const saltRounds = parseInt(String(config.SALT_ROUNDS), 10);
 
   if (!Number.isFinite(saltRounds) || Number.isNaN(saltRounds)) {
     throw new Error(
-      `Invalid saltRounds value: ${authConfig.saltRounds}. Must be a finite integer.`,
+      `Invalid saltRounds value: ${config.SALT_ROUNDS}. Must be a finite integer.`,
     );
   }
 

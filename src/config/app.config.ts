@@ -135,7 +135,6 @@ function initializeConfig() {
     const parsedConfig = parseConfig();
     configInitialized = true;
     configProxy = parsedConfig;
-    rebuildConfigs(parsedConfig);
     return parsedConfig;
   }
   return configProxy;

@@ -1,7 +1,7 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
 import { logger } from '@config/logger.config';
-import { config, authConfig } from '@config';
+import { config } from '@config';
 import { secretsManager } from '@secrets';
 
 /**
@@ -129,7 +129,6 @@ function validateJwtExpiresIn(): number {
   );
 }
 
-
 /**
  * Signs a JWT payload using HS256 and returns the serialized token.
  *
@@ -138,10 +137,7 @@ function validateJwtExpiresIn(): number {
  * @returns The signed JWT as a string.
  * @throws If signing fails (errors from `jsonwebtoken` are propagated).
  */
-export function signJwt(
-  payload: JwtPayload,
-  expiresIn?: number,
-): string {
+export function signJwt(payload: JwtPayload, expiresIn?: number): string {
   const jwtSecret = validateJwtSecret();
   const jwtExpiresIn = expiresIn || validateJwtExpiresIn();
 
@@ -209,7 +205,7 @@ export function verifyJwt(
     }
 
     // Security validation: check token age (prevent very old tokens)
-    const maxAge = authConfig.jwtMaxAge;
+    const maxAge = config.JWT_MAX_AGE;
     const issuedAt = (decoded as { iat?: number }).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');
