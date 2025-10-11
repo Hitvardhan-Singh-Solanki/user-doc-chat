@@ -44,7 +44,7 @@ const envSchema = z.object({
   JWT_MAX_AGE: z.coerce.number().default(86400), // 24 hours
 
   // AI/LLM
-  HUGGINGFACE_CHAT_MODEL: z.string().default('microsoft/DialoGPT-medium'),
+  HUGGINGFACE_CHAT_MODEL: z.string().default('bert-base-uncased'),
   HUGGINGFACE_EMBEDDING_MODEL: z
     .string()
     .default('sentence-transformers/all-MiniLM-L6-v2'),
@@ -135,7 +135,6 @@ function initializeConfig() {
     const parsedConfig = parseConfig();
     configInitialized = true;
     configProxy = parsedConfig;
-    rebuildConfigs(parsedConfig);
     return parsedConfig;
   }
   return configProxy;
@@ -146,7 +145,6 @@ if (process.env.NODE_ENV !== 'test') {
   const parsedConfig = parseConfig();
   configInitialized = true;
   configProxy = parsedConfig;
-  rebuildConfigs(parsedConfig);
 }
 
 // Runtime security validation for production environments
@@ -172,7 +170,6 @@ if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
 // Export function to re-parse config (useful for tests)
 export function reparseConfig() {
   const parsedConfig = parseConfig();
-  rebuildConfigs(parsedConfig);
   return parsedConfig;
 }
 
@@ -189,224 +186,3 @@ export const config = new Proxy({} as z.infer<typeof envSchema>, {
     return configProxy![prop as keyof typeof configProxy];
   },
 });
-
-// Config objects that will be rebuilt when config changes
-let serverConfig: {
-  nodeEnv: string;
-  port: number;
-  frontendUrl?: string;
-};
-
-let databaseConfig: {
-  postgres: {
-    host: string;
-    port: number;
-    database: string;
-    user: string;
-    password: string;
-    distanceOperator: string;
-  };
-  redis: {
-    url?: string;
-    host: string;
-    port: number;
-    password?: string;
-    username?: string;
-    tls: boolean;
-    db: number;
-    socket?: string;
-  };
-};
-
-let authConfig: {
-  jwtExpiresIn: string;
-  jwtAudience: string;
-  jwtIssuer: string;
-  saltRounds: number;
-  jwtMaxAge: number;
-};
-
-let aiConfig: {
-  huggingface: {
-    chatModel: string;
-    embeddingModel: string;
-    summaryModel: string;
-    apiToken: string;
-  };
-  pinecone: {
-    index: string;
-    topK: number;
-    batchSize: number;
-    maxRetries: number;
-    apiKey: string;
-  };
-  vectorStoreProvider: string;
-};
-
-let processingConfig: {
-  chunkSize: number;
-  chunkOverlap: number;
-  maxContextTokens: number;
-};
-
-let rateLimitConfig: {
-  windowMs: number;
-  maxRequests: number;
-};
-
-let fileConfig: {
-  maxFileSize: number;
-};
-
-let corsConfig: {
-  origins: string[];
-};
-
-let storageConfig: {
-  minio: {
-    endpoint: string;
-    port: number;
-    useSSL: boolean;
-    accessKey: string;
-    secretKey: string;
-    bucketName: string;
-    defaultBucket: string;
-  };
-};
-
-let pythonHttpConfig: {
-  pythonUrl: string;
-};
-
-let crawlerConfig: {
-  maxBytes: number;
-  userAgent: string;
-  maxRedirects: number;
-  timeoutMs: number;
-};
-
-let loggingConfig: {
-  level: string;
-};
-
-function rebuildConfigs(configData: z.infer<typeof envSchema>) {
-  serverConfig = {
-    nodeEnv: configData.NODE_ENV,
-    port: configData.PORT,
-    frontendUrl: configData.FRONTEND_URL,
-  };
-
-  databaseConfig = {
-    postgres: {
-      host: configData.POSTGRES_HOST,
-      port: configData.POSTGRES_PORT,
-      database: configData.POSTGRES_DB,
-      user: configData.POSTGRES_USER,
-      password: configData.POSTGRES_PASSWORD,
-      distanceOperator: configData.POSTGRES_VECTOR_DISTANCE_OPERATOR,
-    },
-    redis: {
-      url: configData.REDIS_URL,
-      host: configData.REDIS_HOST,
-      port: configData.REDIS_PORT,
-      password: configData.REDIS_PASSWORD,
-      username: configData.REDIS_USERNAME,
-      tls: configData.REDIS_TLS,
-      db: configData.REDIS_DB,
-      socket: configData.REDIS_SOCKET,
-    },
-  };
-
-  authConfig = {
-    jwtExpiresIn: configData.JWT_EXPIRES_IN,
-    jwtAudience: configData.JWT_AUDIENCE,
-    jwtIssuer: configData.JWT_ISSUER,
-    saltRounds: configData.SALT_ROUNDS,
-    jwtMaxAge: configData.JWT_MAX_AGE,
-  };
-
-  aiConfig = {
-    huggingface: {
-      chatModel: configData.HUGGINGFACE_CHAT_MODEL,
-      embeddingModel: configData.HUGGINGFACE_EMBEDDING_MODEL,
-      summaryModel: configData.HUGGINGFACE_SUMMARY_MODEL,
-      apiToken: configData.HUGGINGFACE_HUB_TOKEN,
-    },
-    pinecone: {
-      index: configData.PINECONE_INDEX,
-      topK: configData.PINECONE_TOP_K,
-      batchSize: configData.PINECONE_BATCH_SIZE,
-      maxRetries: configData.PINECONE_MAX_RETRIES,
-      apiKey: configData.PINECONE_API_KEY,
-    },
-    vectorStoreProvider: configData.VECTOR_STORE_PROVIDER,
-  };
-
-  processingConfig = {
-    chunkSize: configData.CHUNK_SIZE,
-    chunkOverlap: configData.CHUNK_OVERLAP,
-    maxContextTokens: configData.MAX_CONTEXT_TOKENS,
-  };
-
-  rateLimitConfig = {
-    windowMs: configData.RATE_LIMIT_WINDOW_MS,
-    maxRequests: configData.RATE_LIMIT_MAX_REQUESTS,
-  };
-
-  fileConfig = {
-    maxFileSize: configData.MAX_FILE_SIZE,
-  };
-
-  corsConfig = {
-    origins: configData.CORS_ORIGINS,
-  };
-
-  storageConfig = {
-    minio: {
-      endpoint: configData.MINIO_ENDPOINT,
-      port: configData.MINIO_PORT,
-      useSSL: configData.MINIO_USE_SSL,
-      accessKey: configData.MINIO_ACCESS_KEY,
-      secretKey: configData.MINIO_SECRET_KEY,
-      bucketName: configData.MINIO_BUCKET_NAME,
-      defaultBucket: configData.MINIO_DEFAULT_BUCKET,
-    },
-  };
-
-  pythonHttpConfig = {
-    pythonUrl: configData.PYTHON_LLM_URL,
-  };
-
-  crawlerConfig = {
-    maxBytes: configData.CRAWLER_MAX_BYTES,
-    userAgent: configData.CRAWLER_USER_AGENT,
-    maxRedirects: configData.CRAWLER_MAX_REDIRECTS,
-    timeoutMs: configData.CRAWLER_TIMEOUT_MS,
-  };
-
-  loggingConfig = {
-    level: configData.LOG_LEVEL,
-  };
-}
-
-// Initialize config objects (only for non-test environments)
-if (process.env.NODE_ENV !== 'test') {
-  const parsedConfig = parseConfig();
-  rebuildConfigs(parsedConfig);
-}
-
-// Export the config objects
-export {
-  serverConfig,
-  databaseConfig,
-  authConfig,
-  aiConfig,
-  processingConfig,
-  rateLimitConfig,
-  fileConfig,
-  corsConfig,
-  storageConfig,
-  pythonHttpConfig,
-  crawlerConfig,
-  loggingConfig,
-};

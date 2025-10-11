@@ -69,20 +69,30 @@ function validateJwtSecret(): string {
   return trimmedSecret;
 }
 
-// Validate JWT secret at module load time
-const validatedJwtSecret = validateJwtSecret();
+let requireAuthInstance: ReturnType<typeof expressjwt> | null = null;
 
-export const requireAuth = expressjwt({
-  secret: validatedJwtSecret,
-  algorithms: ['HS256'], // Only allow HS256 to prevent algorithm confusion attacks
-  requestProperty: 'user',
-  // Security: validate audience and issuer for enhanced security
-  audience: secretsManager.getJwtAudience(),
-  issuer: secretsManager.getJwtIssuer(),
-  // Security: don't ignore expiration or not-before claims
-  ignoreExpiration: false,
-  ignoreNotBefore: false,
-});
+function getRequireAuthMiddleware() {
+  if (!requireAuthInstance) {
+    requireAuthInstance = expressjwt({
+      secret: validateJwtSecret(),
+      algorithms: ['HS256'],
+      requestProperty: 'user',
+      audience: secretsManager.getJwtAudience(),
+      issuer: secretsManager.getJwtIssuer(),
+      ignoreExpiration: false,
+      ignoreNotBefore: false,
+    });
+  }
+  return requireAuthInstance;
+}
+
+export const requireAuth = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  return getRequireAuthMiddleware()(req, res, next);
+};
 
 /**
  * Custom error handler for JWT authentication errors

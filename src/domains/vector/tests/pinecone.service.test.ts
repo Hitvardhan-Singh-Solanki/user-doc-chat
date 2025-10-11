@@ -3,9 +3,7 @@ import { PineconeVectorStore } from '../services/pinecone.service';
 import { Vector } from '@shared/types';
 // Mock the pinecone repository using common mock
 vi.mock('../repos/pinecone.repo', () => ({
-  pinecone: {
-    index: vi.fn(),
-  },
+  pinecone: vi.fn(),
 }));
 
 describe('PineconeVectorStore', () => {
@@ -35,7 +33,10 @@ describe('PineconeVectorStore', () => {
       query: vi.fn(),
     };
 
-    mockPinecone.index.mockReturnValue(mockIndex);
+    // Mock the pinecone function to return an object with index method
+    mockPinecone.mockReturnValue({
+      index: vi.fn().mockReturnValue(mockIndex),
+    });
 
     pineconeVectorStore = new PineconeVectorStore();
   });

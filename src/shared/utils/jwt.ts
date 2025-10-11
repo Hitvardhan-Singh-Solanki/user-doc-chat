@@ -1,7 +1,7 @@
 import jwt, { SignOptions, JwtPayload, Algorithm } from 'jsonwebtoken';
 import { JwtPayload as CustomJwtPayload } from '../types';
 import { logger } from '@config/logger.config';
-import { config, authConfig } from '@config';
+import { config } from '@config';
 import { secretsManager } from '@secrets';
 
 /**
@@ -129,10 +129,6 @@ function validateJwtExpiresIn(): number {
   );
 }
 
-// Validate JWT configuration at module load time
-const JWT_SECRET = validateJwtSecret();
-const JWT_EXPIRES_IN = validateJwtExpiresIn();
-
 /**
  * Signs a JWT payload using HS256 and returns the serialized token.
  *
@@ -141,18 +137,18 @@ const JWT_EXPIRES_IN = validateJwtExpiresIn();
  * @returns The signed JWT as a string.
  * @throws If signing fails (errors from `jsonwebtoken` are propagated).
  */
-export function signJwt(
-  payload: JwtPayload,
-  expiresIn: number = JWT_EXPIRES_IN,
-): string {
+export function signJwt(payload: JwtPayload, expiresIn?: number): string {
+  const jwtSecret = validateJwtSecret();
+  const jwtExpiresIn = expiresIn || validateJwtExpiresIn();
+
   const options: SignOptions = {
-    expiresIn,
+    expiresIn: jwtExpiresIn,
     algorithm: 'HS256',
     audience: secretsManager.getJwtAudience(),
     issuer: secretsManager.getJwtIssuer(),
   };
 
-  return jwt.sign(payload, JWT_SECRET, options);
+  return jwt.sign(payload, jwtSecret, options);
 }
 
 /**
@@ -191,7 +187,8 @@ export function verifyJwt(
       return null;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const jwtSecret = validateJwtSecret();
+    const decoded = jwt.verify(token, jwtSecret, {
       algorithms,
       // Security: prevent algorithm confusion attacks
       ignoreExpiration: false,
@@ -208,7 +205,7 @@ export function verifyJwt(
     }
 
     // Security validation: check token age (prevent very old tokens)
-    const maxAge = authConfig.jwtMaxAge;
+    const maxAge = config.JWT_MAX_AGE;
     const issuedAt = (decoded as { iat?: number }).iat;
     if (issuedAt && Date.now() / 1000 - issuedAt > maxAge) {
       logger.warn('JWT verification failed: token too old');

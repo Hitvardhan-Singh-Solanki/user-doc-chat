@@ -102,6 +102,14 @@ function validateMinioConfig() {
   };
 }
 
-// Validate configuration and create client
-const minioConfig = validateMinioConfig();
-export const minioClient = new Client(minioConfig);
+let minioClient: Client | null = null;
+
+function getMinioClient(): Client {
+  if (!minioClient) {
+    const minioConfig = validateMinioConfig();
+    minioClient = new Client(minioConfig);
+  }
+  return minioClient;
+}
+
+export { getMinioClient as minioClient };

@@ -1,12 +1,13 @@
-import { fileTypeFromBuffer } from 'file-type';
-import { getSanitizer } from '@files/services/sanitization/file-sanitizer.factory';
-
 export async function sanitizeFile(fileBuffer: Buffer<ArrayBufferLike>) {
+  const { fileTypeFromBuffer } = await import('file-type');
   const type = await fileTypeFromBuffer(fileBuffer);
   if (!type) throw new Error('Unable to determine file type');
 
-  const sanitizationFactory = getSanitizer(type.mime);
+  const { getSanitizer } = await import(
+    '@files/services/sanitization/file-sanitizer.factory'
+  );
 
+  const sanitizationFactory = getSanitizer(type.mime);
   const sanitizedContent = await sanitizationFactory.sanitize(fileBuffer);
 
   if (!sanitizedContent) {

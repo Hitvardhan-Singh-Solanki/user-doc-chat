@@ -1,19 +1,20 @@
 import { Readable } from 'stream';
 import { minioClient } from '@database/repositories/minio.repo';
 
-import { storageConfig } from '@config';
+import { config } from '@config';
 
-const bucket = storageConfig.minio.defaultBucket;
+const bucket = config.MINIO_DEFAULT_BUCKET;
 
 if (!bucket || !bucket.trim()) {
   throw new Error(
-    'MINIO_DEFAULT_BUCKET is required (storageConfig.minio.defaultBucket)',
+    'MINIO_DEFAULT_BUCKET is required (config.MINIO_DEFAULT_BUCKET)',
   );
 }
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
+  const client = minioClient();
   try {
-    await minioClient.makeBucket(bucket);
+    await client.makeBucket(bucket);
   } catch (error: unknown) {
     // Ignore bucket already exists errors, rethrow others
     if (
@@ -27,11 +28,12 @@ export async function uploadFileToMinio(key: string, buffer: Buffer) {
     }
   }
 
-  await minioClient.putObject(bucket, key, buffer);
+  await client.putObject(bucket, key, buffer);
 }
 
 export async function downloadFile(key: string): Promise<Buffer> {
-  const stream: Readable = await minioClient.getObject(bucket, key);
+  const client = minioClient();
+  const stream: Readable = await client.getObject(bucket, key);
   const chunks: Buffer[] = [];
 
   return new Promise((resolve, reject) => {

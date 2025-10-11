@@ -21,5 +21,13 @@ export function createPineconeClient(apiKey?: string): Pinecone {
   });
 }
 
-// Default instance created using the factory function
-export const pinecone = createPineconeClient();
+let pineconeInstance: Pinecone | null = null;
+
+function getPineconeClient(): Pinecone {
+  if (!pineconeInstance) {
+    pineconeInstance = createPineconeClient();
+  }
+  return pineconeInstance;
+}
+
+export { getPineconeClient as pinecone };

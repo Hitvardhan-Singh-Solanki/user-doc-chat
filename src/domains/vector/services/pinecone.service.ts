@@ -17,7 +17,7 @@ export class PineconeVectorStore implements IVectorStore {
 
   async upsertVectors(vectors: Vector[]) {
     if (!vectors.length) return { upsertedCount: 0, failedBatches: [] };
-    const index = pinecone.index(this.indexName);
+    const index = pinecone().index(this.indexName);
 
     const batchSize = config.PINECONE_BATCH_SIZE;
     let total = 0;
@@ -70,7 +70,7 @@ export class PineconeVectorStore implements IVectorStore {
     fileId: string,
     topK = 5,
   ): Promise<VectorQueryResult> {
-    const index = pinecone.index(this.indexName);
+    const index = pinecone().index(this.indexName);
     const result = await index.query({
       vector: embedding,
       topK,
