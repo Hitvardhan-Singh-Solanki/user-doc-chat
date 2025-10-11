@@ -78,6 +78,169 @@ export class PromptService {
     return sanitized;
   }
 
+  /**
+   * Builds the prompt header with system instructions
+   */
+  private buildPromptHeader(config: PromptConfig): string {
+    return `=== SYSTEM INSTRUCTION ===
+Version: ${config.version}
+Role: You are an AI Legal Assistant for ${config.jurisdiction} law. Answer questions based solely on the provided CONTEXT and CHAT HISTORY.
+Constraints:
+- Do NOT use external knowledge or make assumptions.
+- Respond with "I don't know" if the answer is not in the context.
+- Never fabricate laws, clauses, or legal interpretations.
+- Quote laws, sections, or clauses verbatim when referenced.
+- Keep answers concise, accurate, and legally correct for Indian jurisdiction.
+- Use a ${config.tone} tone.
+- Only answer questions related to ${config.jurisdiction} law.
+- For ambiguous questions, ask for clarification within the response.
+- Respond in ${config.language}.
+- Temperature: ${config.temperature}.`;
+  }
+
+  /**
+   * Formats the context section of the prompt
+   */
+  private formatContextSection(sanitizedContext: string): string {
+    return `=== CONTEXT ===
+${sanitizedContext}`;
+  }
+
+  /**
+   * Formats the history section of the prompt
+   */
+  private formatHistorySection(sanitizedHistory: string): string {
+    return `=== CHAT HISTORY ===
+${sanitizedHistory}`;
+  }
+
+  /**
+   * Applies truncation logic to the prompt
+   */
+  private async applyTruncation(
+    prompt: string,
+    config: PromptConfig,
+    sanitizedHistory: string,
+    sanitizedContext: string,
+  ): Promise<string> {
+    const initialTokens = await this.countTokensCached(prompt);
+    if (initialTokens <= config.maxLength!) {
+      return prompt;
+    }
+
+    this.logger.warn(
+      { initialTokens, maxLength: config.maxLength },
+      'Prompt exceeds max length. Starting truncation.',
+    );
+
+    const overflow = initialTokens - config.maxLength!;
+    const buffer = config.truncateBuffer ?? 0;
+
+    let truncatedText: string;
+    if (config.truncateStrategy === 'truncate-history') {
+      truncatedText = await this.truncateHistorySection(
+        sanitizedHistory,
+        overflow,
+        buffer,
+      );
+      return this.replaceInPrompt(prompt, sanitizedHistory, truncatedText);
+    } else if (config.truncateStrategy === 'truncate-context') {
+      truncatedText = await this.truncateContextSection(
+        sanitizedContext,
+        overflow,
+        buffer,
+      );
+      return this.replaceInPrompt(prompt, sanitizedContext, truncatedText);
+    } else if (config.truncateStrategy === 'error') {
+      this.logger.error(
+        "Prompt exceeds max length with 'error' truncation strategy.",
+      );
+      throw new Error('Prompt exceeds max length');
+    }
+
+    return prompt;
+  }
+
+  /**
+   * Truncates the history section
+   */
+  private async truncateHistorySection(
+    sanitizedHistory: string,
+    overflow: number,
+    buffer: number,
+  ): Promise<string> {
+    const historyTokens = await this.countTokensCached(sanitizedHistory);
+    const estimatedCharLimit = Math.ceil(
+      (historyTokens - overflow - buffer) * this.CHARS_PER_TOKEN,
+    );
+    const preTruncatedHistory = this.preTruncateByCharacters(
+      sanitizedHistory,
+      estimatedCharLimit,
+      'truncate-history',
+    );
+
+    const preTruncatedTokens = await this.countTokensCached(preTruncatedHistory);
+    const targetTokens = Math.max(0, preTruncatedTokens - overflow - buffer);
+    return await this.truncateByTokens(
+      preTruncatedHistory,
+      targetTokens,
+      'truncate-history',
+    );
+  }
+
+  /**
+   * Truncates the context section
+   */
+  private async truncateContextSection(
+    sanitizedContext: string,
+    overflow: number,
+    buffer: number,
+  ): Promise<string> {
+    const contextTokens = await this.countTokensCached(sanitizedContext);
+    const estimatedCharLimit = Math.ceil(
+      (contextTokens - overflow - buffer) * this.CHARS_PER_TOKEN,
+    );
+    const preTruncatedContext = this.preTruncateByCharacters(
+      sanitizedContext,
+      estimatedCharLimit,
+      'truncate-context',
+    );
+
+    const preTruncatedTokens = await this.countTokensCached(preTruncatedContext);
+    const targetTokens = Math.max(0, preTruncatedTokens - overflow - buffer);
+    return await this.truncateByTokens(
+      preTruncatedContext,
+      targetTokens,
+      'truncate-context',
+    );
+  }
+
+  /**
+   * Safely replaces text in prompt
+   */
+  private replaceInPrompt(
+    prompt: string,
+    originalText: string,
+    replacementText: string,
+  ): string {
+    if (originalText.length === 0) {
+      return prompt;
+    }
+
+    let startIndex = 0;
+    while (true) {
+      const index = prompt.indexOf(originalText, startIndex);
+      if (index === -1) break;
+
+      prompt =
+        prompt.slice(0, index) +
+        replacementText +
+        prompt.slice(index + originalText.length);
+      startIndex = index + replacementText.length;
+    }
+    return prompt;
+  }
+
   public async mainPrompt(
     input: z.infer<typeof UserInputSchema>,
     config: PromptConfig = {},
@@ -119,27 +282,11 @@ export class PromptService {
       throw e;
     }
 
-    let prompt = `
-=== SYSTEM INSTRUCTION ===
-Version: ${finalConfig.version}
-Role: You are an AI Legal Assistant for ${finalConfig.jurisdiction} law. Answer questions based solely on the provided CONTEXT and CHAT HISTORY.
-Constraints:
-- Do NOT use external knowledge or make assumptions.
-- Respond with "I don't know" if the answer is not in the context.
-- Never fabricate laws, clauses, or legal interpretations.
-- Quote laws, sections, or clauses verbatim when referenced.
-- Keep answers concise, accurate, and legally correct for Indian jurisdiction.
-- Use a ${finalConfig.tone} tone.
-- Only answer questions related to ${finalConfig.jurisdiction} law.
-- For ambiguous questions, ask for clarification within the response.
-- Respond in ${finalConfig.language}.
-- Temperature: ${finalConfig.temperature}.
+    let prompt = `${this.buildPromptHeader(finalConfig)}
 
-=== CHAT HISTORY ===
-${sanitizedHistory}
+${this.formatHistorySection(sanitizedHistory)}
 
-=== CONTEXT ===
-${sanitizedContext}
+${this.formatContextSection(sanitizedContext)}
 
 === USER QUESTION ===
 ${sanitizedQuestion}
@@ -147,108 +294,23 @@ ${sanitizedQuestion}
 === ANSWER ===
 `.trim();
 
-    const initialTokens = await this.countTokensCached(prompt);
-    if (initialTokens > finalConfig.maxLength!) {
-      this.logger.warn(
-        { initialTokens, maxLength: finalConfig.maxLength },
-        'Prompt exceeds max length. Starting truncation.',
+    prompt = await this.applyTruncation(
+      prompt,
+      finalConfig,
+      sanitizedHistory,
+      sanitizedContext,
+    );
+
+    const finalTokens = await this.countTokensCached(prompt);
+    if (finalTokens > finalConfig.maxLength!) {
+      this.logger.error(
+        { finalTokens, maxLength: finalConfig.maxLength },
+        'Prompt still exceeds maxLength after truncation.',
       );
-      const overflow = initialTokens - finalConfig.maxLength!;
-      const buffer = finalConfig.truncateBuffer ?? 0;
-
-      let truncatedText: string;
-      if (finalConfig.truncateStrategy === 'truncate-history') {
-        const historyTokens = await this.countTokensCached(sanitizedHistory);
-        const estimatedCharLimit = Math.ceil(
-          (historyTokens - overflow - buffer) * this.CHARS_PER_TOKEN,
-        );
-        const preTruncatedHistory = this.preTruncateByCharacters(
-          sanitizedHistory,
-          estimatedCharLimit,
-          'truncate-history',
-        );
-
-        const preTruncatedTokens =
-          await this.countTokensCached(preTruncatedHistory);
-        const targetTokens = Math.max(
-          0,
-          preTruncatedTokens - overflow - buffer,
-        );
-        truncatedText = await this.truncateByTokens(
-          preTruncatedHistory,
-          targetTokens,
-          'truncate-history',
-        );
-        if (sanitizedHistory.length > 0) {
-          // Safe substring replacement to avoid regex/partial-match problems
-          let startIndex = 0;
-          while (true) {
-            const index = prompt.indexOf(sanitizedHistory, startIndex);
-            if (index === -1) break;
-
-            prompt =
-              prompt.slice(0, index) +
-              truncatedText +
-              prompt.slice(index + sanitizedHistory.length);
-            startIndex = index + truncatedText.length;
-          }
-        }
-      } else if (finalConfig.truncateStrategy === 'truncate-context') {
-        const contextTokens = await this.countTokensCached(sanitizedContext);
-        const estimatedCharLimit = Math.ceil(
-          (contextTokens - overflow - buffer) * this.CHARS_PER_TOKEN,
-        );
-        const preTruncatedContext = this.preTruncateByCharacters(
-          sanitizedContext,
-          estimatedCharLimit,
-          'truncate-context',
-        );
-
-        const preTruncatedTokens =
-          await this.countTokensCached(preTruncatedContext);
-        const targetTokens = Math.max(
-          0,
-          preTruncatedTokens - overflow - buffer,
-        );
-        truncatedText = await this.truncateByTokens(
-          preTruncatedContext,
-          targetTokens,
-          'truncate-context',
-        );
-        if (sanitizedContext.length > 0) {
-          // Safe substring replacement to avoid regex/partial-match problems
-          let startIndex = 0;
-          while (true) {
-            const index = prompt.indexOf(sanitizedContext, startIndex);
-            if (index === -1) break;
-
-            prompt =
-              prompt.slice(0, index) +
-              truncatedText +
-              prompt.slice(index + sanitizedContext.length);
-            startIndex = index + truncatedText.length;
-          }
-        }
-      } else if (finalConfig.truncateStrategy === 'error') {
-        this.logger.error(
-          "Prompt exceeds max length with 'error' truncation strategy.",
-        );
-        throw new Error('Prompt exceeds max length');
-      }
-
-      const finalTokens = await this.countTokensCached(prompt);
-      if (finalTokens > finalConfig.maxLength!) {
-        // FIX: Corrected log order
-        this.logger.error(
-          { finalTokens, maxLength: finalConfig.maxLength },
-          'Prompt still exceeds maxLength after truncation.',
-        );
-        throw new Error('Prompt still exceeds maxLength after truncation');
-      }
+      throw new Error('Prompt still exceeds maxLength after truncation');
     }
 
     if (finalConfig.logStats) {
-      const finalTokens = await this.countTokensCached(prompt);
       this.logger.info(
         {
           version: finalConfig.version,
@@ -264,6 +326,38 @@ ${sanitizedQuestion}
     }
 
     return prompt;
+  }
+
+  /**
+   * Formats low-level context for summarization
+   */
+  private formatLowLevelContext(sanitizedContent: string[]): string {
+    return sanitizedContent.length > 0
+      ? sanitizedContent.join('\n\n')
+      : '(No content provided)';
+  }
+
+  /**
+   * Builds low-level prompt structure
+   */
+  private buildLowLevelPrompt(config: PromptConfig, content: string): string {
+    return `=== SYSTEM INSTRUCTION ===
+Version: ${config.version}
+Role: Summarize the provided text into a concise, legally accurate context for a Q&A system focused on ${config.jurisdiction} law.
+Constraints:
+- Retain key facts, clauses, obligations, penalties, and definitions relevant to legal reasoning.
+- Remove redundancies and irrelevant details.
+- Preserve exact wording for legal citations, sections, or clauses.
+- Use a ${config.tone} tone.
+- Only summarize content relevant to ${config.jurisdiction} law.
+- Respond in ${config.language}.
+- Temperature: ${config.temperature}.
+
+=== CONTENT TO SUMMARIZE ===
+${content}
+
+=== SUMMARY ===
+`.trim();
   }
 
   public async lowPrompt(
@@ -302,29 +396,8 @@ ${sanitizedQuestion}
       throw e;
     }
 
-    const content =
-      sanitizedContent.length > 0
-        ? sanitizedContent.join('\n\n')
-        : '(No content provided)';
-
-    let prompt = `
-=== SYSTEM INSTRUCTION ===
-Version: ${finalConfig.version}
-Role: Summarize the provided text into a concise, legally accurate context for a Q&A system focused on ${finalConfig.jurisdiction} law.
-Constraints:
-- Retain key facts, clauses, obligations, penalties, and definitions relevant to legal reasoning.
-- Remove redundancies and irrelevant details.
-- Preserve exact wording for legal citations, sections, or clauses.
-- Use a ${finalConfig.tone} tone.
-- Only summarize content relevant to ${finalConfig.jurisdiction} law.
-- Respond in ${finalConfig.language}.
-- Temperature: ${finalConfig.temperature}.
-
-=== CONTENT TO SUMMARIZE ===
-${content}
-
-=== SUMMARY ===
-`.trim();
+    const content = this.formatLowLevelContext(sanitizedContent);
+    let prompt = this.buildLowLevelPrompt(finalConfig, content);
 
     const initialTokens = await this.countTokensCached(prompt);
     if (initialTokens > finalConfig.maxLength!) {
@@ -335,42 +408,11 @@ ${content}
       const overflow = initialTokens - finalConfig.maxLength!;
       const buffer = finalConfig.truncateBuffer ?? 0;
 
-      const contentTokens = await this.countTokensCached(content);
-      const estimatedCharLimit = Math.ceil(
-        (contentTokens - overflow - buffer) * this.CHARS_PER_TOKEN,
-      );
-      const preTruncatedContent = this.preTruncateByCharacters(
-        content,
-        estimatedCharLimit,
-        'truncate-context',
-      );
-
-      const preTruncatedTokens =
-        await this.countTokensCached(preTruncatedContent);
-      const targetTokens = Math.max(0, preTruncatedTokens - overflow - buffer);
-      const truncated = await this.truncateByTokens(
-        preTruncatedContent,
-        targetTokens,
-        'truncate-context',
-      );
-      if (content.length > 0) {
-        // Safe substring replacement to avoid regex/partial-match problems
-        let startIndex = 0;
-        while (true) {
-          const index = prompt.indexOf(content, startIndex);
-          if (index === -1) break;
-
-          prompt =
-            prompt.slice(0, index) +
-            truncated +
-            prompt.slice(index + content.length);
-          startIndex = index + truncated.length;
-        }
-      }
+      const truncated = await this.truncateContextSection(content, overflow, buffer);
+      prompt = this.replaceInPrompt(prompt, content, truncated);
 
       const finalTokens = await this.countTokensCached(prompt);
       if (finalTokens > finalConfig.maxLength!) {
-        // FIX: Corrected log order
         this.logger.error(
           { finalTokens, maxLength: finalConfig.maxLength },
           'Low prompt still exceeds maxLength after truncation.',
@@ -531,10 +573,22 @@ Optimized search query:
   }
 
   /**
-   * Validates input size and content for security
+   * Validates question length
    */
-  private validateInput(input: string, context: string): void {
-    // Check input size
+  private validateQuestionLength(input: string): void {
+    if (input.length > MAX_INPUT_SIZE) {
+      throw new ResourceExhaustedError(
+        'input size',
+        MAX_INPUT_SIZE,
+        input.length,
+      );
+    }
+  }
+
+  /**
+   * Validates context length and content
+   */
+  private validateContextLength(input: string): void {
     if (input.length > MAX_INPUT_SIZE) {
       throw new ResourceExhaustedError(
         'input size',
@@ -560,6 +614,14 @@ Optimized search query:
         'Input contains zero-width characters that could be used for obfuscation',
       );
     }
+  }
+
+  /**
+   * Validates input size and content for security
+   */
+  private validateInput(input: string, context: string): void {
+    this.validateQuestionLength(input);
+    this.validateContextLength(input);
 
     // Check for suspicious patterns
     for (const pattern of SUSPICIOUS_PATTERNS) {
@@ -574,7 +636,6 @@ Optimized search query:
     }
 
     // Check for system keywords that could break prompt structure
-    // Only flag if they appear in suspicious patterns (not just anywhere in the text)
     const suspiciousPatterns = [
       /^SYSTEM\s+INSTRUCTION\s*:/i,
       /^CONTEXT\s*:/i,
@@ -798,7 +859,104 @@ Optimized search query:
     return text;
   }
 
-  private async truncateByTokens(
+  /**
+   * Truncates history by tokens
+   */
+  private async truncateHistoryByTokens(
+    text: string,
+    maxTokens: number,
+  ): Promise<string> {
+    const lines = text.split('\n').filter(Boolean);
+    const kept: string[] = [];
+    let used = 0;
+
+    // Process lines from newest to oldest (reverse order)
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      const lineTokens = await this.countTokensCached(line);
+
+      if (used + lineTokens <= maxTokens) {
+        kept.unshift(line);
+        used += lineTokens;
+      } else {
+        break;
+      }
+    }
+
+    const result = kept.join('\n') || '(Truncated to empty history)';
+    this.logger.debug(
+      {
+        truncatedLength: result.length,
+        keptLines: kept.length,
+        totalLines: lines.length,
+        usedTokens: used,
+      },
+      'History truncated by tokens.',
+    );
+    return result;
+  }
+
+  /**
+   * Truncates context by tokens with priority preservation
+   */
+  private async truncateContextByTokens(
+    text: string,
+    maxTokens: number,
+  ): Promise<string> {
+    const priorityRegex =
+      /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+    const kept: string[] = [];
+    let used = 0;
+    let hasPriorityContent = false;
+
+    // Check if even the first sentence exceeds the token limit
+    if (sentences.length > 0) {
+      const firstSentenceTokens = await this.countTokensCached(sentences[0]);
+
+      if (firstSentenceTokens > maxTokens) {
+        return '(Content truncated - first sentence exceeded token limit)';
+      }
+    }
+
+    // Process sentences in reverse order to prioritize recent content
+    for (let i = sentences.length - 1; i >= 0; i--) {
+      const sentence = sentences[i];
+      const sentenceTokens = await this.countTokensCached(sentence);
+
+      const isPriority = sentence.match(priorityRegex);
+
+      if (used + sentenceTokens <= maxTokens) {
+        kept.unshift(sentence);
+        used += sentenceTokens;
+        if (isPriority) hasPriorityContent = true;
+      } else if (isPriority && used + sentenceTokens <= maxTokens + 50) {
+        kept.unshift(sentence);
+        used += sentenceTokens;
+        hasPriorityContent = true;
+      } else {
+        break;
+      }
+    }
+
+    const result = kept.join(' ').trim() || '(Truncated to empty context)';
+    this.logger.debug(
+      {
+        truncatedLength: result.length,
+        keptSentences: kept.length,
+        totalSentences: sentences.length,
+        usedTokens: used,
+        hasPriorityContent,
+      },
+      'Context truncated by tokens with priority preservation.',
+    );
+    return result;
+  }
+
+  /**
+   * Encodes and truncates text by tokens
+   */
+  private async encodeAndTruncate(
     text: string,
     maxTokens: number,
     strategy: 'truncate-history' | 'truncate-context',
@@ -809,91 +967,23 @@ Optimized search query:
     );
 
     if (strategy === 'truncate-history') {
-      // For chat history, remove oldest messages first (line-based approach)
-      const lines = text.split('\n').filter(Boolean);
-      const kept: string[] = [];
-      let used = 0;
-
-      // Process lines from newest to oldest (reverse order)
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i];
-        const lineTokens = await this.countTokensCached(line);
-
-        if (used + lineTokens <= maxTokens) {
-          kept.unshift(line);
-          used += lineTokens;
-        } else {
-          break;
-        }
-      }
-
-      const result = kept.join('\n') || '(Truncated to empty history)';
-      this.logger.debug(
-        {
-          truncatedLength: result.length,
-          keptLines: kept.length,
-          totalLines: lines.length,
-          usedTokens: used,
-        },
-        'History truncated by tokens.',
-      );
-      return result;
+      return await this.truncateHistoryByTokens(text, maxTokens);
     }
 
     if (strategy === 'truncate-context') {
-      // For context, prioritize legal citations/clauses like in truncateText
-      const priorityRegex =
-        /(Section|Clause|Article|Definition|Preamble)\s+\d+\.\d+/gi;
-      const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-      const kept: string[] = [];
-      let used = 0;
-      let hasPriorityContent = false;
-
-      // Check if even the first sentence exceeds the token limit
-      if (sentences.length > 0) {
-        const firstSentenceTokens = await this.countTokensCached(sentences[0]);
-
-        if (firstSentenceTokens > maxTokens) {
-          return '(Content truncated - first sentence exceeded token limit)';
-        }
-      }
-
-      // Process sentences in reverse order to prioritize recent content
-      for (let i = sentences.length - 1; i >= 0; i--) {
-        const sentence = sentences[i];
-        const sentenceTokens = await this.countTokensCached(sentence);
-
-        const isPriority = sentence.match(priorityRegex);
-
-        if (used + sentenceTokens <= maxTokens) {
-          kept.unshift(sentence);
-          used += sentenceTokens;
-          if (isPriority) hasPriorityContent = true;
-        } else if (isPriority && used + sentenceTokens <= maxTokens + 50) {
-          kept.unshift(sentence);
-          used += sentenceTokens;
-          hasPriorityContent = true;
-        } else {
-          break;
-        }
-      }
-
-      const result = kept.join(' ').trim() || '(Truncated to empty context)';
-      this.logger.debug(
-        {
-          truncatedLength: result.length,
-          keptSentences: kept.length,
-          totalSentences: sentences.length,
-          usedTokens: used,
-          hasPriorityContent,
-        },
-        'Context truncated by tokens with priority preservation.',
-      );
-      return result;
+      return await this.truncateContextByTokens(text, maxTokens);
     }
 
     this.logger.warn({ strategy }, 'Unknown truncation strategy.');
     return text;
+  }
+
+  private async truncateByTokens(
+    text: string,
+    maxTokens: number,
+    strategy: 'truncate-history' | 'truncate-context',
+  ): Promise<string> {
+    return await this.encodeAndTruncate(text, maxTokens, strategy);
   }
 
   private validateConfig(config: PromptConfig) {
