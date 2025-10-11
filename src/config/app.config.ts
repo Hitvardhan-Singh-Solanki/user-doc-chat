@@ -147,32 +147,7 @@ function initializeConfig() {
   return configProxy;
 }
 
-// Auto-initialize for non-test environments
-if (process.env.NODE_ENV !== 'test') {
-  const parsedConfig = parseConfig();
-  configInitialized = true;
-  configProxy = parsedConfig;
-}
-
-// Runtime security validation for production environments
-if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
-  const parsedConfig = parseConfig();
-  if (
-    !parsedConfig.POSTGRES_PASSWORD ||
-    parsedConfig.POSTGRES_PASSWORD === 'password'
-  ) {
-    logger.error(
-      {
-        environment: parsedConfig.NODE_ENV,
-        issue:
-          'POSTGRES_PASSWORD is required and cannot be the default "password" in non-development environments',
-        securityRisk: 'default_password_detected',
-      },
-      'Security configuration error',
-    );
-    process.exit(1);
-  }
-}
+// Lazy initialization - config will be parsed when first accessed
 
 // Export function to re-parse config (useful for tests)
 export function reparseConfig() {

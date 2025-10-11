@@ -20,7 +20,15 @@ const DEFAULT_PROVIDER: VectorStoreType = 'pinecone';
  * @throws Error if an unsupported provider is specified
  */
 export function getVectorStoreProvider(): VectorStoreType {
-  const provider = config.VECTOR_STORE_PROVIDER as VectorStoreType;
+  // Access config lazily to avoid preemptive initialization
+  const provider = (() => {
+    try {
+      return config.VECTOR_STORE_PROVIDER as VectorStoreType;
+    } catch (error) {
+      // If config is not initialized yet, return default
+      return undefined;
+    }
+  })();
 
   // If no provider is specified or it's an empty string, return the default
   if (!provider || provider.trim() === '') {

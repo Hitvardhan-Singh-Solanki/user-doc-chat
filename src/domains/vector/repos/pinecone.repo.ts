@@ -1,6 +1,8 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import { secretsManager } from '@secrets';
 
+let pineconeClient: Pinecone | null = null;
+
 /**
  * Factory function to create a Pinecone client with proper validation
  * @param apiKey - Optional API key. If not provided, will use PINECONE_API_KEY environment variable
@@ -21,5 +23,12 @@ export function createPineconeClient(apiKey?: string): Pinecone {
   });
 }
 
-// Default instance created using the factory function
-export const pinecone = createPineconeClient();
+/**
+ * Get Pinecone client instance (lazy initialization)
+ */
+export function getPineconeClient(): Pinecone {
+  if (!pineconeClient) {
+    pineconeClient = createPineconeClient();
+  }
+  return pineconeClient;
+}

@@ -2,11 +2,22 @@ import { Client } from 'minio';
 import { config as appConfig } from '@config';
 import { secretsManager } from '@secrets';
 
+let minioClient: Client | null = null;
+
 /**
- * Validates and parses MinIO configuration from environment variables
- * @throws {Error} When required environment variables are missing or invalid
+ * Get MinIO client instance (lazy initialization)
  */
-function validateMinioConfig() {
+export function getMinioClient(): Client {
+  if (!minioClient) {
+    minioClient = createMinioClient();
+  }
+  return minioClient;
+}
+
+/**
+ * Creates MinIO client with configuration validation
+ */
+function createMinioClient(): Client {
   // Use centralized config
   const endpoint = appConfig.MINIO_ENDPOINT;
   const port = appConfig.MINIO_PORT;
@@ -92,7 +103,7 @@ function validateMinioConfig() {
     );
   }
 
-  return {
+  const minioConfig = {
     endPoint: endpoint.trim(),
     port: validatedPort,
     useSSL: validatedUseSSL,
@@ -100,8 +111,6 @@ function validateMinioConfig() {
     accessKey: credentials.accessKey,
     secretKey: credentials.secretKey,
   };
-}
 
-// Validate configuration and create client
-const minioConfig = validateMinioConfig();
-export const minioClient = new Client(minioConfig);
+  return new Client(minioConfig);
+}

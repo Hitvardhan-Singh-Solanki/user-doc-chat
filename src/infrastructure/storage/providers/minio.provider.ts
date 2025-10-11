@@ -1,5 +1,5 @@
 import { Readable } from 'stream';
-import { minioClient } from '@database/repositories/minio.repo';
+import { getMinioClient } from '@database/repositories/minio.repo';
 
 import { config } from '@config';
 
@@ -10,6 +10,8 @@ if (!bucket || !bucket.trim()) {
 }
 
 export async function uploadFileToMinio(key: string, buffer: Buffer) {
+  const minioClient = getMinioClient();
+
   try {
     await minioClient.makeBucket(bucket);
   } catch (error: unknown) {
@@ -29,6 +31,7 @@ export async function uploadFileToMinio(key: string, buffer: Buffer) {
 }
 
 export async function downloadFile(key: string): Promise<Buffer> {
+  const minioClient = getMinioClient();
   const stream: Readable = await minioClient.getObject(bucket, key);
   const chunks: Buffer[] = [];
 
