@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: user-doc-chat-production
+  labels:
+    name: user-doc-chat-production
+    environment: production
+    app: user-doc-chat

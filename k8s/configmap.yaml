@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: user-doc-chat-production
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  LOG_LEVEL: "info"
+  DB_HOST: "user-doc-chat-db-production.cluster-xyz.us-west-2.rds.amazonaws.com"
+  REDIS_HOST: "user-doc-chat-redis-production.abc123.cache.amazonaws.com"
+  S3_BUCKET: "user-doc-chat-bucket-production"
+  CORS_ORIGINS: "https://user-doc-chat.com"
+  JWT_EXPIRES_IN: "1h"
+  LLM_SERVICE_URL: "https://api-inference.huggingface.co/models"
+  CRAWLER_MAX_BYTES: "5242880"
+  CRAWLER_MAX_PAGES: "100"
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  CIRCUIT_BREAKER_THRESHOLD: "5"
+  CIRCUIT_BREAKER_TIMEOUT_MS: "30000"
+  VECTOR_DIMENSIONS: "1536"
+  VECTOR_DISTANCE_OPERATOR: "cosine"
+  EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+  CHUNK_SIZE: "1000"
+  CHUNK_OVERLAP: "200"

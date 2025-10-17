@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-doc-chat-service
+  namespace: user-doc-chat-production
+  labels:
+    app: user-doc-chat
+    environment: production
+spec:
+  selector:
+    app: user-doc-chat
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  type: ClusterIP
