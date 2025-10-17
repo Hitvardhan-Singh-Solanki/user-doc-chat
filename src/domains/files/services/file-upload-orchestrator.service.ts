@@ -10,7 +10,9 @@ import { FileAccessService } from './file-access.service';
 
 export class FileUploadOrchestratorService {
   private db: IDBStore;
-  private log = logger.child({ component: 'FileUploadOrchestratorService' }) as ReturnType<typeof logger.child>;
+  private log = logger.child({
+    component: 'FileUploadOrchestratorService',
+  }) as ReturnType<typeof logger.child>;
   private validationService: FileValidationService;
   private storageService: FileStorageService;
   private queueService: FileQueueService;

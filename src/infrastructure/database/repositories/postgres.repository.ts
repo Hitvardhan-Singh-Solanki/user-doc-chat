@@ -13,7 +13,7 @@ import { config, reparseConfig } from '@config';
 export class PostgresService implements IDBStore, IVectorStore {
   private static instance: PostgresService;
   private pool: typeof db;
-          private distanceOperator: string = 'cosine';
+  private distanceOperator: string = 'cosine';
 
   private constructor() {
     this.pool = db;

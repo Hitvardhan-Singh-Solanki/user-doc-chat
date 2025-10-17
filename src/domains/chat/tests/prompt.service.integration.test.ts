@@ -83,19 +83,19 @@ describe('PromptService Integration Tests', () => {
   });
 
   describe('Main Prompt Generation', () => {
-            it('should generate prompt for large legal document', async () => {
-              const largeContext = generateLegalDocument(40 * 1024); // 40KB (under 50k char limit)
-              const input = {
-                context: largeContext,
-                question: 'What are the key terms of this agreement?',
-                chatHistory: generateChatHistory(50),
-              };
+    it('should generate prompt for large legal document', async () => {
+      const largeContext = generateLegalDocument(40 * 1024); // 40KB (under 50k char limit)
+      const input = {
+        context: largeContext,
+        question: 'What are the key terms of this agreement?',
+        chatHistory: generateChatHistory(50),
+      };
 
-              const prompt = await promptService.mainPrompt(input);
+      const prompt = await promptService.mainPrompt(input);
 
-              expect(prompt).toBeDefined();
-              expect(prompt.length).toBeGreaterThan(0);
-            });
+      expect(prompt).toBeDefined();
+      expect(prompt.length).toBeGreaterThan(0);
+    });
 
     it('should generate prompt with long chat history', async () => {
       const input = {
