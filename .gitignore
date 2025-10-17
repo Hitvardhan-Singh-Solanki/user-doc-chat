@@ -100,6 +100,10 @@ python_service/coverage.*
 python_service/safety-report.json
 python_service/bandit-report.json
 python_service/semgrep-report.json
+# MyPy cache directories
+.mypy_cache/
+**/.mypy_cache/
+python_service/.mypy_cache
 safety-report*
 semgrep-report*
 trivy-report*
