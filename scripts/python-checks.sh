@@ -47,8 +47,8 @@ fi
 # Install Python dependencies if requirements.txt exists
 if [ -f "requirements.txt" ]; then
     log "Installing Python dependencies..."
-    pip3 install -r requirements.txt
-    pip3 install pytest pytest-cov pytest-asyncio grpcio-testing flake8 black isort mypy safety bandit
+    pip3 install -r requirements.txt --quiet
+    pip3 install pytest pytest-cov pytest-asyncio grpcio-testing flake8 black isort mypy safety bandit --quiet
     log_success "Python dependencies installed"
 else
     log_warning "requirements.txt not found, skipping dependency installation"
@@ -57,7 +57,7 @@ fi
 # Run Python tests
 log "Running Python tests..."
 if [ -d "tests" ]; then
-    python3 -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html || {
+    python3 -m pytest tests/ -v --tb=short || {
         log_warning "Some Python tests failed or no tests found"
     }
     log_success "Python tests completed"
@@ -99,13 +99,13 @@ log "Running Python security checks..."
 
 # Safety check for known vulnerabilities
 log "Running safety check..."
-safety check --json --output-file safety-report.json || {
+safety check --json --save-json safety-report.json || {
     log_warning "Safety found security vulnerabilities"
 }
 
-# Bandit security linter
+# Bandit security linter (optimized for speed)
 log "Running bandit security linter..."
-bandit -r . -f json -o bandit-report.json || {
+bandit -r . -f json -o bandit-report.json -x tests/,venv/,__pycache__/ || {
     log_warning "Bandit found security issues"
 }
 

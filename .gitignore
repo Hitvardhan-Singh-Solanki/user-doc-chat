@@ -17,12 +17,171 @@ yarn-error.log*
 .env.dev
 .env.example
 
-# Secrets directory
+# Security-sensitive files and directories
 secrets/
 *.secret
 *.key
 *.pem
 *.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+
+# Certificates and SSL/TLS files
+certs/
+certificates/
+ssl/
+tls/
+*.cert
+*.cer
+*.der
+*.csr
+*.p7b
+*.p7s
+*.spc
+*.crt
+*.pem
+*.key
+*.p12
+*.pfx
+
+# JWT and authentication secrets
+jwt-secret*
+auth-secret*
+session-secret*
+api-key*
+access-token*
+refresh-token*
+
+# Database credentials and connection strings
+db-password*
+database-password*
+connection-string*
+connection-url*
+
+# Redis credentials
+redis-password*
+redis-secret*
+
+# MinIO/S3 credentials
+minio-*
+s3-*
+aws-*
+access-key*
+secret-key*
+
+# Grafana and monitoring secrets
+grafana-*
+prometheus-*
+monitoring-*
+
+# Kubernetes secrets
+k8s-secrets*
+kubernetes-secrets*
+*.kubeconfig
+
+# Docker secrets
+docker-secrets*
+.docker-secrets
+
+# CI/CD secrets
+ci-secrets*
+cd-secrets*
+github-secrets*
+gitlab-secrets*
+
+# Security reports and scans
+security-report*
+vulnerability-report*
+bandit-report*
+safety-report*
+semgrep-report*
+trivy-report*
+snyk-report*
+
+# Backup files that might contain secrets
+*.backup
+*.bak
+*.old
+*.orig
+
+# Temporary security files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Additional security patterns
+# SSH keys and configs
+.ssh/
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+known_hosts
+authorized_keys
+
+# GPG keys
+*.gpg
+*.asc
+.gnupg/
+
+# Hash files and checksums
+*.md5
+*.sha1
+*.sha256
+*.sha512
+checksums.txt
+hashes.txt
+
+# Configuration files that might contain secrets
+config.json
+settings.json
+credentials.json
+auth.json
+secrets.json
+*.conf
+*.config
+
+# Log files that might contain sensitive data
+*.log
+logs/
+log/
+
+# Database dumps and exports
+*.sql
+*.dump
+*.export
+database-*
+db-*
+
+# Cloud provider credentials
+.aws/
+.azure/
+.gcp/
+.terraform/
+terraform.tfstate*
+*.tfvars
+
+# Local development files
+.local/
+local/
+dev-*
+development-*
+
+# IDE and editor files that might contain secrets
+.vscode/settings.json
+.idea/workspace.xml
+*.sublime-project
+*.sublime-workspace
+
+# Package manager files that might contain tokens
+.npmrc
+.yarnrc
+pip.conf
+pypirc
 
 # Build outputs
 dist/
