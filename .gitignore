@@ -104,6 +104,7 @@ python_service/semgrep-report.json
 .mypy_cache/
 **/.mypy_cache/
 python_service/.mypy_cache
+**/.pytest_cache/
 safety-report*
 semgrep-report*
 trivy-report*
