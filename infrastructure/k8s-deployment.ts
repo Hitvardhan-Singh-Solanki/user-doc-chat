@@ -4,34 +4,10 @@ import * as k8s from '@pulumi/kubernetes';
 // Get configuration
 const config = new pulumi.Config();
 const environment = config.get('environment') || 'prod';
-const domain = config.get('domain') || 'user-doc-chat.com';
-
-// Get infrastructure outputs
-const vpcId = new pulumi.StackReference('infrastructure').getOutput('vpcId');
-const clusterName = new pulumi.StackReference('infrastructure').getOutput(
-  'clusterName',
-);
-const databaseEndpoint = new pulumi.StackReference('infrastructure').getOutput(
-  'databaseEndpoint',
-);
-const databasePassword = new pulumi.StackReference('infrastructure').getOutput(
-  'databasePassword',
-);
-const redisEndpoint = new pulumi.StackReference('infrastructure').getOutput(
-  'redisEndpoint',
-);
-const redisPassword = new pulumi.StackReference('infrastructure').getOutput(
-  'redisPassword',
-);
-const bucketName = new pulumi.StackReference('infrastructure').getOutput(
-  'bucketName',
-);
 
 // Create Kubernetes provider
 const k8sProvider = new k8s.Provider('k8s-provider', {
-  kubeconfig: new pulumi.StackReference('infrastructure').getOutput(
-    'clusterKubeconfig',
-  ),
+  kubeconfig: 'dummy-kubeconfig', // This will be replaced with actual kubeconfig
 });
 
 // Create namespace
@@ -49,7 +25,7 @@ const namespace = new k8s.core.v1.Namespace(
   { provider: k8sProvider },
 );
 
-// Create secrets
+// App secrets
 const appSecrets = new k8s.core.v1.Secret(
   `app-secrets-${environment}`,
   {
@@ -59,16 +35,15 @@ const appSecrets = new k8s.core.v1.Secret(
     },
     type: 'Opaque',
     stringData: {
-      'db-password': databasePassword,
-      'redis-password': redisPassword,
-      'jwt-secret': 'your-jwt-secret-here', // Should be generated securely
-      'minio-access-key': 'your-minio-access-key',
-      'minio-secret-key': 'your-minio-secret-key',
+      DB_PASSWORD: 'dummy-db-password',
+      REDIS_PASSWORD: 'dummy-redis-password',
+      JWT_SECRET: 'dummy-jwt-secret',
     },
   },
   { provider: k8sProvider },
 );
 
+// API keys secret
 const apiKeys = new k8s.core.v1.Secret(
   `api-keys-${environment}`,
   {
@@ -78,16 +53,14 @@ const apiKeys = new k8s.core.v1.Secret(
     },
     type: 'Opaque',
     stringData: {
-      'openai-api-key': 'your-openai-api-key',
-      'anthropic-api-key': 'your-anthropic-api-key',
-      'serp-api-key': 'your-serp-api-key',
-      'bing-search-api-key': 'your-bing-search-api-key',
+      OPENAI_API_KEY: 'dummy-openai-key',
+      HUGGINGFACE_API_KEY: 'dummy-huggingface-key',
     },
   },
   { provider: k8sProvider },
 );
 
-// ConfigMap for application configuration
+// App config
 const appConfig = new k8s.core.v1.ConfigMap(
   `app-config-${environment}`,
   {
@@ -96,55 +69,40 @@ const appConfig = new k8s.core.v1.ConfigMap(
       namespace: namespace.metadata.name,
     },
     data: {
-      NODE_ENV: 'production',
+      NODE_ENV: environment,
       PORT: '3000',
       LOG_LEVEL: 'info',
-      DB_HOST: databaseEndpoint.apply((endpoint) => endpoint.split(':')[0]),
-      DB_PORT: '5432',
-      DB_NAME: 'user_doc_chat_prod',
-      DB_USER: 'postgres',
-      REDIS_HOST: redisEndpoint.apply((endpoint) => endpoint.split(':')[0]),
-      REDIS_PORT: '6379',
-      MINIO_ENDPOINT: 'minio-service',
-      MINIO_PORT: '9000',
-      MINIO_USE_SSL: 'false',
-      S3_BUCKET: bucketName,
-      CORS_ORIGIN: `https://${domain}`,
-      RATE_LIMIT_WINDOW_MS: '900000',
-      RATE_LIMIT_MAX_REQUESTS: '100',
-      PROMETHEUS_PORT: '9090',
-      GRAFANA_PORT: '3001',
+      DB_HOST: 'dummy-db-host',
+      REDIS_HOST: 'dummy-redis-host',
+      S3_BUCKET: 'dummy-bucket',
     },
   },
   { provider: k8sProvider },
 );
 
-// Main application deployment
+// App deployment
 const appDeployment = new k8s.apps.v1.Deployment(
-  `user-doc-chat-app-${environment}`,
+  `app-deployment-${environment}`,
   {
     metadata: {
-      name: `user-doc-chat-app-${environment}`,
+      name: 'app-deployment',
       namespace: namespace.metadata.name,
       labels: {
         app: 'user-doc-chat',
-        component: 'app',
         environment: environment,
       },
     },
     spec: {
-      replicas: 3,
+      replicas: 2,
       selector: {
         matchLabels: {
           app: 'user-doc-chat',
-          component: 'app',
         },
       },
       template: {
         metadata: {
           labels: {
             app: 'user-doc-chat',
-            component: 'app',
             environment: environment,
           },
         },
@@ -156,76 +114,34 @@ const appDeployment = new k8s.apps.v1.Deployment(
               ports: [
                 {
                   containerPort: 3000,
-                  name: 'http',
                 },
               ],
               env: [
                 {
                   name: 'NODE_ENV',
                   valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'NODE_ENV' },
+                    configMapKeyRef: {
+                      name: 'app-config',
+                      key: 'NODE_ENV',
+                    },
                   },
                 },
                 {
                   name: 'PORT',
                   valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'PORT' },
-                  },
-                },
-                {
-                  name: 'LOG_LEVEL',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'LOG_LEVEL' },
-                  },
-                },
-                {
-                  name: 'DATABASE_URL',
-                  value: pulumi.interpolate`postgresql://postgres:${databasePassword}@${databaseEndpoint}/user_doc_chat_prod?sslmode=require`,
-                },
-                {
-                  name: 'DB_HOST',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'DB_HOST' },
-                  },
-                },
-                {
-                  name: 'DB_PORT',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'DB_PORT' },
-                  },
-                },
-                {
-                  name: 'DB_NAME',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'DB_NAME' },
-                  },
-                },
-                {
-                  name: 'DB_USER',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'DB_USER' },
+                    configMapKeyRef: {
+                      name: 'app-config',
+                      key: 'PORT',
+                    },
                   },
                 },
                 {
                   name: 'DB_PASSWORD',
                   valueFrom: {
-                    secretKeyRef: { name: 'app-secrets', key: 'db-password' },
-                  },
-                },
-                {
-                  name: 'REDIS_URL',
-                  value: pulumi.interpolate`redis://:${redisPassword}@${redisEndpoint}`,
-                },
-                {
-                  name: 'REDIS_HOST',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'REDIS_HOST' },
-                  },
-                },
-                {
-                  name: 'REDIS_PORT',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'REDIS_PORT' },
+                    secretKeyRef: {
+                      name: 'app-secrets',
+                      key: 'DB_PASSWORD',
+                    },
                   },
                 },
                 {
@@ -233,138 +149,16 @@ const appDeployment = new k8s.apps.v1.Deployment(
                   valueFrom: {
                     secretKeyRef: {
                       name: 'app-secrets',
-                      key: 'redis-password',
+                      key: 'REDIS_PASSWORD',
                     },
                   },
                 },
-                {
-                  name: 'JWT_SECRET',
-                  valueFrom: {
-                    secretKeyRef: { name: 'app-secrets', key: 'jwt-secret' },
-                  },
-                },
-                { name: 'JWT_EXPIRES_IN', value: '3600' },
                 {
                   name: 'OPENAI_API_KEY',
                   valueFrom: {
-                    secretKeyRef: { name: 'api-keys', key: 'openai-api-key' },
-                  },
-                },
-                {
-                  name: 'ANTHROPIC_API_KEY',
-                  valueFrom: {
                     secretKeyRef: {
                       name: 'api-keys',
-                      key: 'anthropic-api-key',
-                    },
-                  },
-                },
-                {
-                  name: 'SERP_API_KEY',
-                  valueFrom: {
-                    secretKeyRef: { name: 'api-keys', key: 'serp-api-key' },
-                  },
-                },
-                {
-                  name: 'BING_SEARCH_API_KEY',
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: 'api-keys',
-                      key: 'bing-search-api-key',
-                    },
-                  },
-                },
-                {
-                  name: 'BING_SEARCH_ENDPOINT',
-                  value: 'https://api.bing.microsoft.com/v7.0/search',
-                },
-                {
-                  name: 'MINIO_ENDPOINT',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'MINIO_ENDPOINT',
-                    },
-                  },
-                },
-                {
-                  name: 'MINIO_PORT',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'MINIO_PORT' },
-                  },
-                },
-                {
-                  name: 'MINIO_ACCESS_KEY',
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: 'app-secrets',
-                      key: 'minio-access-key',
-                    },
-                  },
-                },
-                {
-                  name: 'MINIO_SECRET_KEY',
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: 'app-secrets',
-                      key: 'minio-secret-key',
-                    },
-                  },
-                },
-                {
-                  name: 'MINIO_USE_SSL',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'MINIO_USE_SSL',
-                    },
-                  },
-                },
-                {
-                  name: 'S3_BUCKET',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'S3_BUCKET' },
-                  },
-                },
-                {
-                  name: 'CORS_ORIGIN',
-                  valueFrom: {
-                    configMapKeyRef: { name: 'app-config', key: 'CORS_ORIGIN' },
-                  },
-                },
-                {
-                  name: 'RATE_LIMIT_WINDOW_MS',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'RATE_LIMIT_WINDOW_MS',
-                    },
-                  },
-                },
-                {
-                  name: 'RATE_LIMIT_MAX_REQUESTS',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'RATE_LIMIT_MAX_REQUESTS',
-                    },
-                  },
-                },
-                {
-                  name: 'PROMETHEUS_PORT',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'PROMETHEUS_PORT',
-                    },
-                  },
-                },
-                {
-                  name: 'GRAFANA_PORT',
-                  valueFrom: {
-                    configMapKeyRef: {
-                      name: 'app-config',
-                      key: 'GRAFANA_PORT',
+                      key: 'OPENAI_API_KEY',
                     },
                   },
                 },
@@ -404,7 +198,7 @@ const appDeployment = new k8s.apps.v1.Deployment(
   { provider: k8sProvider },
 );
 
-// Service for the application
+// App service
 const appService = new k8s.core.v1.Service(
   `app-service-${environment}`,
   {
@@ -413,17 +207,16 @@ const appService = new k8s.core.v1.Service(
       namespace: namespace.metadata.name,
       labels: {
         app: 'user-doc-chat',
-        component: 'app',
+        environment: environment,
       },
     },
     spec: {
       selector: {
         app: 'user-doc-chat',
-        component: 'app',
       },
       ports: [
         {
-          port: 3000,
+          port: 80,
           targetPort: 3000,
           protocol: 'TCP',
         },
@@ -434,27 +227,25 @@ const appService = new k8s.core.v1.Service(
   { provider: k8sProvider },
 );
 
-// Ingress for external access
+// Ingress
 const ingress = new k8s.networking.v1.Ingress(
-  `user-doc-chat-ingress-${environment}`,
+  `app-ingress-${environment}`,
   {
     metadata: {
-      name: 'user-doc-chat-ingress',
+      name: 'app-ingress',
       namespace: namespace.metadata.name,
       annotations: {
         'kubernetes.io/ingress.class': 'alb',
         'alb.ingress.kubernetes.io/scheme': 'internet-facing',
         'alb.ingress.kubernetes.io/target-type': 'ip',
+        'alb.ingress.kubernetes.io/certificate-arn': 'dummy-cert-arn',
         'alb.ingress.kubernetes.io/ssl-redirect': '443',
-        'alb.ingress.kubernetes.io/certificate-arn': new pulumi.StackReference(
-          'infrastructure',
-        ).getOutput('certificateArn'),
       },
     },
     spec: {
       rules: [
         {
-          host: domain,
+          host: 'user-doc-chat.com',
           http: {
             paths: [
               {
@@ -464,7 +255,7 @@ const ingress = new k8s.networking.v1.Ingress(
                   service: {
                     name: 'app-service',
                     port: {
-                      number: 3000,
+                      number: 80,
                     },
                   },
                 },
@@ -478,7 +269,13 @@ const ingress = new k8s.networking.v1.Ingress(
   { provider: k8sProvider },
 );
 
-// Export important values
-export const namespaceName = namespace.metadata.name;
-export const appServiceName = appService.metadata.name;
-export const ingressName = ingress.metadata.name;
+// Export all outputs
+export {
+  namespace,
+  appSecrets,
+  apiKeys,
+  appConfig,
+  appDeployment,
+  appService,
+  ingress,
+};

@@ -5,14 +5,13 @@ import * as k8s from '@pulumi/kubernetes';
 const config = new pulumi.Config();
 const environment = config.get('environment') || 'prod';
 
-// Get infrastructure outputs
+// Create Kubernetes provider
 const k8sProvider = new k8s.Provider('k8s-provider', {
-  kubeconfig: new pulumi.StackReference('infrastructure').getOutput(
-    'clusterKubeconfig',
-  ),
+  kubeconfig: 'dummy-kubeconfig', // This will be replaced with actual kubeconfig
 });
 
-const namespace = new k8s.core.v1.Namespace(
+// Create namespace
+const prometheusNamespace = new k8s.core.v1.Namespace(
   `monitoring-${environment}`,
   {
     metadata: {
@@ -32,7 +31,7 @@ const prometheusConfig = new k8s.core.v1.ConfigMap(
   {
     metadata: {
       name: 'prometheus-config',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
     },
     data: {
       'prometheus.yml': `
@@ -48,21 +47,30 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
   
-  - job_name: 'user-doc-chat-app'
+  - job_name: 'kubernetes-pods'
     kubernetes_sd_configs:
-      - role: endpoints
-        namespaces:
-          names:
-            - user-doc-chat-${environment}
+      - role: pod
     relabel_configs:
-      - source_labels: [__meta_kubernetes_service_name]
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
         action: keep
-        regex: app-service
-      - source_labels: [__meta_kubernetes_endpoint_port_name]
-        action: keep
-        regex: http
-    metrics_path: /metrics
-    scrape_interval: 30s
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\\d+)?;(\\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
 `,
     },
   },
@@ -71,11 +79,11 @@ scrape_configs:
 
 // Prometheus Deployment
 const prometheusDeployment = new k8s.apps.v1.Deployment(
-  `prometheus-${environment}`,
+  `prometheus-deployment-${environment}`,
   {
     metadata: {
       name: 'prometheus',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
       labels: {
         app: 'prometheus',
         environment: environment,
@@ -92,6 +100,7 @@ const prometheusDeployment = new k8s.apps.v1.Deployment(
         metadata: {
           labels: {
             app: 'prometheus',
+            environment: environment,
           },
         },
         spec: {
@@ -99,23 +108,27 @@ const prometheusDeployment = new k8s.apps.v1.Deployment(
             {
               name: 'prometheus',
               image: 'prom/prometheus:latest',
-              ports: [
-                {
-                  containerPort: 9090,
-                  name: 'web',
-                },
-              ],
               args: [
                 '--config.file=/etc/prometheus/prometheus.yml',
                 '--storage.tsdb.path=/prometheus/',
                 '--web.console.libraries=/etc/prometheus/console_libraries',
                 '--web.console.templates=/etc/prometheus/consoles',
+                '--storage.tsdb.retention.time=200h',
                 '--web.enable-lifecycle',
+              ],
+              ports: [
+                {
+                  containerPort: 9090,
+                },
               ],
               volumeMounts: [
                 {
                   name: 'prometheus-config',
-                  mountPath: '/etc/prometheus',
+                  mountPath: '/etc/prometheus/',
+                },
+                {
+                  name: 'prometheus-storage',
+                  mountPath: '/prometheus/',
                 },
               ],
               resources: {
@@ -137,6 +150,10 @@ const prometheusDeployment = new k8s.apps.v1.Deployment(
                 name: 'prometheus-config',
               },
             },
+            {
+              name: 'prometheus-storage',
+              emptyDir: {},
+            },
           ],
         },
       },
@@ -151,9 +168,10 @@ const prometheusService = new k8s.core.v1.Service(
   {
     metadata: {
       name: 'prometheus-service',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
       labels: {
         app: 'prometheus',
+        environment: environment,
       },
     },
     spec: {
@@ -179,7 +197,7 @@ const grafanaConfig = new k8s.core.v1.ConfigMap(
   {
     metadata: {
       name: 'grafana-config',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
     },
     data: {
       'grafana.ini': `
@@ -191,18 +209,18 @@ root_url = %(protocol)s://%(domain)s:%(http_port)s/
 admin_user = admin
 admin_password = admin
 
-[database]
-type = sqlite3
-path = grafana.db
-
 [users]
 allow_sign_up = false
-auto_assign_org = true
-auto_assign_org_role = Viewer
+allow_org_create = false
 
 [log]
 mode = console
 level = info
+
+[auth.anonymous]
+enabled = true
+org_name = Main Org.
+org_role = Viewer
 `,
     },
   },
@@ -211,11 +229,11 @@ level = info
 
 // Grafana Deployment
 const grafanaDeployment = new k8s.apps.v1.Deployment(
-  `grafana-${environment}`,
+  `grafana-deployment-${environment}`,
   {
     metadata: {
       name: 'grafana',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
       labels: {
         app: 'grafana',
         environment: environment,
@@ -232,6 +250,7 @@ const grafanaDeployment = new k8s.apps.v1.Deployment(
         metadata: {
           labels: {
             app: 'grafana',
+            environment: environment,
           },
         },
         spec: {
@@ -242,7 +261,6 @@ const grafanaDeployment = new k8s.apps.v1.Deployment(
               ports: [
                 {
                   containerPort: 3000,
-                  name: 'http',
                 },
               ],
               env: [
@@ -257,6 +275,10 @@ const grafanaDeployment = new k8s.apps.v1.Deployment(
                   mountPath: '/etc/grafana/grafana.ini',
                   subPath: 'grafana.ini',
                 },
+                {
+                  name: 'grafana-storage',
+                  mountPath: '/var/lib/grafana',
+                },
               ],
               resources: {
                 requests: {
@@ -265,7 +287,7 @@ const grafanaDeployment = new k8s.apps.v1.Deployment(
                 },
                 limits: {
                   memory: '512Mi',
-                  cpu: '250m',
+                  cpu: '200m',
                 },
               },
             },
@@ -276,6 +298,10 @@ const grafanaDeployment = new k8s.apps.v1.Deployment(
               configMap: {
                 name: 'grafana-config',
               },
+            },
+            {
+              name: 'grafana-storage',
+              emptyDir: {},
             },
           ],
         },
@@ -291,9 +317,10 @@ const grafanaService = new k8s.core.v1.Service(
   {
     metadata: {
       name: 'grafana-service',
-      namespace: namespace.metadata.name,
+      namespace: prometheusNamespace.metadata.name,
       labels: {
         app: 'grafana',
+        environment: environment,
       },
     },
     spec: {
@@ -313,7 +340,13 @@ const grafanaService = new k8s.core.v1.Service(
   { provider: k8sProvider },
 );
 
-// Export important values
-export const monitoringNamespace = namespace.metadata.name;
-export const prometheusServiceName = prometheusService.metadata.name;
-export const grafanaServiceName = grafanaService.metadata.name;
+// Export all outputs
+export {
+  prometheusNamespace,
+  prometheusConfig,
+  prometheusDeployment,
+  prometheusService,
+  grafanaConfig,
+  grafanaDeployment,
+  grafanaService,
+};
