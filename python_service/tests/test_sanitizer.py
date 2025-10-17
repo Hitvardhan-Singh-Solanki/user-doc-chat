@@ -24,13 +24,13 @@ class TestSanitizerService:
             
             request = sanitizer_pb2.SanitizeRequest(
                 document_data=b"test document",
-                document_type="pdf"
+                document_type="application/pdf"
             )
             
             response = service.SanitizeDocument(request, context)
             
             assert response.sanitized_content == "sanitized content"
-            mock_sanitize.assert_called_once_with(b"test document", "pdf")
+            mock_sanitize.assert_called_once_with(b"test document", "application/pdf")
 
     def test_sanitize_document_value_error(self):
         """Test handling of ValueError in document sanitization."""
@@ -63,7 +63,7 @@ class TestSanitizerService:
             
             request = sanitizer_pb2.SanitizeRequest(
                 document_data=b"test document",
-                document_type="pdf"
+                document_type="application/pdf"
             )
             
             with pytest.raises(grpc.RpcError):
@@ -82,39 +82,53 @@ class TestSanitizeFile:
         """Test sanitization of PDF documents."""
         # Mock document data
         document_data = b"PDF document content"
-        document_type = "pdf"
+        document_type = "application/pdf"
         
-        # This is a basic test - in a real scenario, you'd test actual sanitization
-        result = sanitize_file(document_data, document_type)
-        
-        # For now, just ensure the function doesn't crash
-        assert isinstance(result, str)
-
-    def test_sanitize_docx_document(self):
-        """Test sanitization of DOCX documents."""
-        document_data = b"DOCX document content"
-        document_type = "docx"
-        
-        result = sanitize_file(document_data, document_type)
-        
-        assert isinstance(result, str)
-
-    def test_sanitize_txt_document(self):
-        """Test sanitization of TXT documents."""
-        document_data = b"TXT document content"
-        document_type = "txt"
-        
-        result = sanitize_file(document_data, document_type)
-        
-        assert isinstance(result, str)
+        # Mock the DocumentConverter to avoid actual processing
+        with patch('services.sanitizer.DocumentConverter') as mock_converter:
+            mock_conv_res = Mock()
+            mock_document = Mock()
+            mock_document.export_to_markdown.return_value = "Mock PDF content"
+            mock_conv_res.document = mock_document
+            mock_converter.return_value.convert.return_value = mock_conv_res
+            
+            result = sanitize_file(document_data, document_type)
+            
+            assert isinstance(result, str)
+            assert result == "Mock PDF content"
 
     def test_sanitize_unsupported_document_type(self):
         """Test handling of unsupported document types."""
         document_data = b"Document content"
         document_type = "unsupported"
         
-        with pytest.raises(ValueError, match="Unsupported document type"):
+        with pytest.raises(ValueError, match="Unsupported file type"):
             sanitize_file(document_data, document_type)
+
+    def test_sanitize_file_too_large(self):
+        """Test handling of files that are too large."""
+        # Create a large document that exceeds MAX_BYTES
+        large_document = b"x" * (26 * 1024 * 1024)  # 26MB, exceeds 25MB limit
+        
+        with pytest.raises(ValueError, match="File too large"):
+            sanitize_file(large_document, "application/pdf")
+
+    def test_sanitize_file_success(self):
+        """Test successful file sanitization."""
+        document_data = b"Small PDF content"
+        document_type = "application/pdf"
+        
+        # Mock the DocumentConverter
+        with patch('services.sanitizer.DocumentConverter') as mock_converter:
+            mock_conv_res = Mock()
+            mock_document = Mock()
+            mock_document.export_to_markdown.return_value = "  Cleaned content  "
+            mock_conv_res.document = mock_document
+            mock_converter.return_value.convert.return_value = mock_conv_res
+            
+            result = sanitize_file(document_data, document_type)
+            
+            assert result == "Cleaned content"  # Should be stripped
 
 
 if __name__ == "__main__":

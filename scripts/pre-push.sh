@@ -17,4 +17,7 @@ npm run lint
 echo "📝 Running type check..."
 npm run type-check
 
+echo "🐍 Running comprehensive Python checks..."
+npm run python:checks
+
 echo "✅ All pre-push checks passed!"

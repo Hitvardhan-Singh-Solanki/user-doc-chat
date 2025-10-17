@@ -1,4 +1,18 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
+echo "🔍 Running pre-commit checks..."
+
+echo "📋 Running tests..."
 CI=1 npm test
+
+echo "🔧 Running linter..."
+npm run lint
+
+echo "📝 Running type check..."
+npm run type-check
+
+echo "🐍 Running Python checks (if Python files changed)..."
+./.husky/pre-commit-python
+
+echo "✅ All pre-commit checks passed!"
