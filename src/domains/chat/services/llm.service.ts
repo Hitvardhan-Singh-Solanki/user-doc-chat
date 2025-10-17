@@ -1,7 +1,7 @@
 import { InferenceClient } from '@huggingface/inference';
 import { z } from 'zod';
 import CircuitBreaker from 'opossum';
-import { PromptConfig } from '@shared/types';
+import type { PromptConfig } from '@shared/types';
 import { PromptService } from './prompt.service';
 import { UserInputSchema } from '@auth/validators/user-input.validator';
 import { LowContentSchema } from '@files/validators/file-input.validator';

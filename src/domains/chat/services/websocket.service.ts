@@ -13,7 +13,13 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
-import { AuthenticatedSocket } from '@shared/types';
+import type {
+  AuthenticatedSocket,
+  QuestionPayload,
+  SocketHandshake,
+  DecodedToken,
+  LegacyTokenData,
+} from '@shared/types';
 
 const QuestionPayloadSchema = z.object({
   fileId: z
@@ -22,7 +28,7 @@ const QuestionPayloadSchema = z.object({
   question: z
     .string()
     .min(1, 'question is required and must be a non-empty string'),
-});
+}) satisfies z.ZodType<QuestionPayload>;
 
 export class WebsocketService {
   public io: Server;
@@ -95,11 +101,7 @@ export class WebsocketService {
   }
 
   private extractToken(socket: {
-    handshake: {
-      headers: { authorization?: string };
-      auth?: { token?: string };
-      address: string;
-    };
+    handshake: SocketHandshake;
   }): string | undefined {
     const authHeader = socket.handshake.headers.authorization;
 
@@ -141,13 +143,7 @@ export class WebsocketService {
   }
 
   private extractUserId(
-    decoded: {
-      sub?: string;
-      id?: string;
-      userId?: string;
-      iat?: number;
-      exp?: number;
-    },
+    decoded: DecodedToken,
     socket: { handshake: { address: string } },
   ): string | undefined {
     let userId = (decoded as { sub?: string }).sub;
@@ -160,15 +156,10 @@ export class WebsocketService {
   }
 
   private handleLegacyToken(
-    decoded: { id?: string; userId?: string; iat?: number; exp?: number },
+    decoded: LegacyTokenData,
     socket: { handshake: { address: string } },
   ): string | undefined {
-    const decodedWithLegacy = decoded as {
-      id?: string;
-      userId?: string;
-      iat?: number;
-      exp?: number;
-    };
+    const decodedWithLegacy = decoded as LegacyTokenData;
     const legacyId = decodedWithLegacy.id ?? decodedWithLegacy.userId;
 
     if (legacyId) {

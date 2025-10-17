@@ -1,5 +1,10 @@
 import { uploadFileToMinio } from '@storage/providers/minio.provider';
-import { FileJob, MulterFile, UserFileRecord } from '@shared/types';
+import type {
+  FileJob,
+  MulterFile,
+  UserFileRecord,
+  AcceptedMimeType,
+} from '@shared/types';
 import { fileQueueName, queueAdapter } from '@queue/providers/bullmq.provider';
 import { v4 as uuid } from 'uuid';
 import createHttpError from 'http-errors';
@@ -8,7 +13,7 @@ import { logger } from '@config/logger.config';
 import { config } from '@config';
 import pino from 'pino';
 
-const acceptedMimeTypes = [
+const acceptedMimeTypes: AcceptedMimeType[] = [
   'application/pdf',
   'text/plain',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -134,7 +139,7 @@ export class FileUploadService {
       return detected.mime;
     }
 
-    if (acceptedMimeTypes.includes(file.mimetype)) {
+    if (acceptedMimeTypes.includes(file.mimetype as AcceptedMimeType)) {
       log.warn(
         { claimedMime: file.mimetype },
         'File signature detection inconclusive - falling back to declared MIME type',
@@ -157,7 +162,7 @@ export class FileUploadService {
     claimedMime: string,
     log: pino.Logger,
   ) {
-    if (!acceptedMimeTypes.includes(finalMimeType)) {
+    if (!acceptedMimeTypes.includes(finalMimeType as AcceptedMimeType)) {
       log.warn({ finalMimeType, claimedMime }, 'Unsupported file type');
       throw createHttpError({
         status: 400,

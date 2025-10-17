@@ -24,3 +24,9 @@ export interface PromptConfigOptions {
   ALLOWED_JURISDICTIONS: string[];
   ALLOWED_TONES: string[];
 }
+
+export type PromptConfigParsed = PromptConfigOptions;
+
+export type ConfigAllowedLanguage = string;
+export type ConfigAllowedJurisdiction = string;
+export type ConfigAllowedTone = string;
