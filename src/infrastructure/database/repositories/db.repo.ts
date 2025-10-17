@@ -22,21 +22,43 @@ if (!DATABASE_URL) {
  * - Custom CA: Use PG_SSL_CA if provided
  */
 function buildSSLConfig(): boolean | object {
-  const isProduction = NODE_ENV === 'production';
-  const isDevelopment = NODE_ENV === 'development' || NODE_ENV === 'test';
-
-  // If SSL is explicitly disabled, return false
   if (PG_SSL === 'false') {
     return false;
   }
 
-  // Production environment: Always enforce strict SSL
+  const isProduction = NODE_ENV === 'production';
+  const isDevelopment = NODE_ENV === 'development' || NODE_ENV === 'test';
+
   if (isProduction) {
+    return buildDefaultSSLConfig();
+  }
+
+  if (isDevelopment) {
+    return buildDevelopmentSSLConfig();
+  }
+
+  return buildDefaultSSLConfig();
+}
+
+function buildDevelopmentSSLConfig(): object {
+  const allowRelaxedSSL =
+    DEV_SSL_ALLOW === 'true' || PG_SSL_REJECT_UNAUTHORIZED === 'false';
+
+  if (allowRelaxedSSL) {
+    logger.warn(
+      {
+        environment: 'development',
+        securityRisk: 'relaxed_ssl_settings',
+        warning:
+          'Using relaxed SSL settings in development. This is insecure for production!',
+      },
+      'Development SSL configuration warning',
+    );
+
     const sslConfig: { rejectUnauthorized: boolean; ca?: string } = {
-      rejectUnauthorized: true,
+      rejectUnauthorized: false,
     };
 
-    // Add custom CA if provided
     if (PG_SSL_CA) {
       sslConfig.ca = PG_SSL_CA;
     }
@@ -44,42 +66,14 @@ function buildSSLConfig(): boolean | object {
     return sslConfig;
   }
 
-  // Development/Test environment: Allow relaxed settings only with explicit flag
-  if (isDevelopment) {
-    // Check for explicit development SSL bypass flag
-    const allowRelaxedSSL =
-      DEV_SSL_ALLOW === 'true' || PG_SSL_REJECT_UNAUTHORIZED === 'false';
+  return buildDefaultSSLConfig();
+}
 
-    if (allowRelaxedSSL) {
-      logger.warn(
-        {
-          environment: 'development',
-          securityRisk: 'relaxed_ssl_settings',
-          warning:
-            'Using relaxed SSL settings in development. This is insecure for production!',
-        },
-        'Development SSL configuration warning',
-      );
-
-      const sslConfig: { rejectUnauthorized: boolean; ca?: string } = {
-        rejectUnauthorized: false,
-      };
-
-      // Add custom CA if provided
-      if (PG_SSL_CA) {
-        sslConfig.ca = PG_SSL_CA;
-      }
-
-      return sslConfig;
-    }
-  }
-
-  // Default: Use strict SSL settings
+function buildDefaultSSLConfig(): object {
   const sslConfig: { rejectUnauthorized: boolean; ca?: string } = {
     rejectUnauthorized: true,
   };
 
-  // Add custom CA if provided
   if (PG_SSL_CA) {
     sslConfig.ca = PG_SSL_CA;
   }

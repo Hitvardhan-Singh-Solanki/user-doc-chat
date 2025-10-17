@@ -76,7 +76,6 @@ export class FileWorkerService {
 
   /** Main job processor */
   private async processJob(job: Job) {
-    // 🔍 Create a child logger with job-specific context
     const jobLogger = logger.child({
       jobId: job.id,
       jobName: job.name,
@@ -85,12 +84,7 @@ export class FileWorkerService {
       correlationId: job.data.correlationId,
     });
 
-    const payload = job.data as FileJob;
-    if (!payload?.fileId || !payload?.userId || !payload?.key) {
-      jobLogger.error('Invalid job data received');
-      throw new Error('Invalid job data');
-    }
-
+    const payload = this.validateJobPayload(job.data as FileJob, jobLogger);
     jobLogger.info('Starting file processing job');
 
     try {
@@ -108,63 +102,9 @@ export class FileWorkerService {
       );
       jobLogger.info({ chunkCount: chunks.length }, 'Document chunked');
 
-      // Upsert vectors in batches with retry logic
-      const batch: Vector[] = [];
-      for (let i = 0; i < chunks.length; i++) {
-        const embedding = await retry(
-          () => this.llmService.getEmbedding(chunks[i]), // 🚨 Use circuit breaker protected method
-          {
-            retries: 3,
-            factor: 2,
-            onRetry: (error, attempt) => {
-              jobLogger.warn(
-                { attempt, error: (error as Error).message },
-                'Embedding failed, retrying...',
-              );
-            },
-          },
-        );
-
-        batch.push(
-          this.createVector(payload, chunks[i], uuid(), embedding, {
-            type: 'full-document',
-          }),
-        );
-
-        if (batch.length >= 50) {
-          // 🔄 Retry upsert operation
-          await retry(() => this.vectorStore.upsertVectors(batch.splice(0)), {
-            retries: 3,
-            factor: 2,
-            onRetry: (error, attempt) => {
-              jobLogger.warn(
-                { attempt, error: (error as Error).message },
-                'Vector upsert failed, retrying...',
-              );
-            },
-          });
-        }
-
-        const progress = 40 + Math.floor(((i + 1) / chunks.length) * 50);
-        await job.updateProgress(progress);
-        jobLogger.debug({ progress }, 'Processing chunk');
-      }
-
-      // Final batch upsert
-      if (batch.length) {
-        await retry(() => this.vectorStore.upsertVectors(batch), {
-          retries: 3,
-          factor: 2,
-          onRetry: (error, attempt) => {
-            jobLogger.warn(
-              { attempt, error: (error as Error).message },
-              'Final vector upsert failed, retrying...',
-            );
-          },
-        });
-      }
-
+      await this.processChunksInBatches(chunks, payload, job, jobLogger);
       await this.markFileProcessed(payload.fileId, jobLogger);
+
       jobLogger.info('File processing job completed successfully');
       await job.updateProgress(100);
 
@@ -177,6 +117,73 @@ export class FileWorkerService {
       await this.markFileFailed(payload.fileId, error as Error, jobLogger);
       throw error;
     }
+  }
+
+  private validateJobPayload(payload: FileJob, jobLogger: Logger): FileJob {
+    if (!payload?.fileId || !payload?.userId || !payload?.key) {
+      jobLogger.error('Invalid job data received');
+      throw new Error('Invalid job data');
+    }
+    return payload;
+  }
+
+  private async processChunksInBatches(
+    chunks: string[],
+    payload: FileJob,
+    job: Job,
+    jobLogger: Logger,
+  ) {
+    const batch: Vector[] = [];
+
+    for (let i = 0; i < chunks.length; i++) {
+      const embedding = await this.getEmbeddingWithRetry(chunks[i], jobLogger);
+      const vector = this.createVector(payload, chunks[i], uuid(), embedding, {
+        type: 'full-document',
+      });
+
+      batch.push(vector);
+
+      if (batch.length >= 50) {
+        await this.upsertBatchWithRetry(batch.splice(0), jobLogger);
+      }
+
+      const progress = 40 + Math.floor(((i + 1) / chunks.length) * 50);
+      await job.updateProgress(progress);
+      jobLogger.debug({ progress }, 'Processing chunk');
+    }
+
+    if (batch.length) {
+      await this.upsertBatchWithRetry(batch, jobLogger);
+    }
+  }
+
+  private async getEmbeddingWithRetry(
+    text: string,
+    jobLogger: Logger,
+  ): Promise<number[]> {
+    return await retry(() => this.llmService.getEmbedding(text), {
+      retries: 3,
+      factor: 2,
+      onRetry: (error, attempt) => {
+        jobLogger.warn(
+          { attempt, error: (error as Error).message },
+          'Embedding failed, retrying...',
+        );
+      },
+    });
+  }
+
+  private async upsertBatchWithRetry(batch: Vector[], jobLogger: Logger) {
+    await retry(() => this.vectorStore.upsertVectors(batch), {
+      retries: 3,
+      factor: 2,
+      onRetry: (error, attempt) => {
+        jobLogger.warn(
+          { attempt, error: (error as Error).message },
+          'Vector upsert failed, retrying...',
+        );
+      },
+    });
   }
 
   // ------------------ Private helpers ------------------

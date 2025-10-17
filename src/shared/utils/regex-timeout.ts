@@ -8,6 +8,7 @@ import { join } from 'path';
 import { logger } from '@config/logger.config';
 import { REGEX_TIMEOUT_MS } from '@config/prompt.config';
 import { RegexValidator, UnsafeRegexError } from './regex-validator';
+import type { RegexWorkerData, RegexWorkerResult } from '@shared/types';
 
 export class RegexTimeoutError extends Error {
   constructor(pattern: string, timeout: number) {
@@ -16,21 +17,6 @@ export class RegexTimeoutError extends Error {
     );
     this.name = 'RegexTimeoutError';
   }
-}
-
-interface RegexWorkerData {
-  operation: 'test' | 'match' | 'replace' | 'exec';
-  pattern: string;
-  flags: string;
-  text: string;
-  replacement?: string;
-  maxIterations?: number;
-}
-
-interface RegexWorkerResult {
-  success: boolean;
-  result?: string | RegExpExecArray | RegExpExecArray[] | null;
-  error?: string;
 }
 
 /**
@@ -48,93 +34,138 @@ export async function withRegexTimeout<T>(
   text: string,
   operation: (regex: RegExp, text: string) => T,
   timeout: number = REGEX_TIMEOUT_MS,
+  replacement?: string,
+  maxIterations?: number,
 ): Promise<T> {
-  // Check if Workers are available or if we're in a test environment
   if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
     return withRegexTimeoutFallback(regex, text, operation, timeout);
   }
 
   try {
-    // Determine operation type
-    let operationType: 'test' | 'match' | 'replace' | 'exec';
-    let replacement: string | undefined;
-    let maxIterations: number | undefined;
-
-    if (operation.name === 'test' || operation.toString().includes('test')) {
-      operationType = 'test';
-    } else if (
-      operation.name === 'match' ||
-      operation.toString().includes('match')
-    ) {
-      operationType = 'match';
-    } else if (
-      operation.name === 'replace' ||
-      operation.toString().includes('replace')
-    ) {
-      operationType = 'replace';
-      // Extract replacement from operation if possible
-      const operationStr = operation.toString();
-      const replacementMatch = operationStr.match(
-        /replace\([^,]+,\s*['"`]([^'"`]*)['"`]/,
-      );
-      if (replacementMatch) {
-        replacement = replacementMatch[1];
-      }
-    } else {
-      operationType = 'exec';
-      maxIterations = 1000;
-    }
-
-    return new Promise<T>((resolve, reject) => {
-      const workerPath = join(__dirname, 'regex-worker.js');
-      const worker = new Worker(workerPath, {
-        workerData: {
-          operation: operationType,
-          pattern: regex.source,
-          flags: regex.flags,
-          text,
-          replacement,
-          maxIterations,
-        } as RegexWorkerData,
-      });
-
-      const timeoutId = setTimeout(() => {
-        worker.terminate();
-        reject(new RegexTimeoutError(regex.source, timeout));
-      }, timeout);
-
-      worker.on('message', (result: RegexWorkerResult) => {
-        clearTimeout(timeoutId);
-        worker.terminate();
-
-        if (result.success) {
-          resolve(result.result as T);
-        } else {
-          reject(new Error(result.error || 'Unknown worker error'));
-        }
-      });
-
-      worker.on('error', (error) => {
-        clearTimeout(timeoutId);
-        worker.terminate();
-        reject(error);
-      });
-
-      worker.on('exit', (code) => {
-        if (code !== 0) {
-          clearTimeout(timeoutId);
-          reject(new Error(`Worker stopped with exit code ${code}`));
-        }
-      });
-    });
+    const operationData = determineOperationType(
+      operation,
+      replacement,
+      maxIterations,
+    );
+    return await executeWorkerOperation(regex, text, operationData, timeout);
   } catch (error) {
-    // Fallback to validation + setTimeout approach if Workers are not available
     logger.warn(
       { error: error instanceof Error ? error.message : String(error) },
       'Workers not available, falling back to validation-based protection',
     );
     return withRegexTimeoutFallback(regex, text, operation, timeout);
   }
+}
+
+function determineOperationType(
+  operation: (regex: RegExp, text: string) => unknown,
+  replacement?: string,
+  maxIterations?: number,
+): RegexWorkerData {
+  const iterations = maxIterations || 1000;
+  const operationType = getOperationType(operation);
+  const extractedReplacement = getReplacementValue(operation, replacement);
+
+  return {
+    operation: operationType,
+    pattern: '',
+    flags: '',
+    text: '',
+    replacement: extractedReplacement,
+    maxIterations: iterations,
+  };
+}
+
+function getOperationType(
+  operation: (regex: RegExp, text: string) => unknown,
+): 'test' | 'match' | 'replace' | 'exec' {
+  if (operation.name === 'test' || operation.toString().includes('test')) {
+    return 'test';
+  }
+  if (operation.name === 'match' || operation.toString().includes('match')) {
+    return 'match';
+  }
+  if (
+    operation.name === 'replace' ||
+    operation.toString().includes('replace')
+  ) {
+    return 'replace';
+  }
+  return 'exec';
+}
+
+function getReplacementValue(
+  operation: (regex: RegExp, text: string) => unknown,
+  replacement?: string,
+): string | undefined {
+  if (replacement) {
+    return replacement;
+  }
+  if (
+    operation.name === 'replace' ||
+    operation.toString().includes('replace')
+  ) {
+    return extractReplacementFromOperation(operation);
+  }
+  return undefined;
+}
+
+function extractReplacementFromOperation(
+  operation: (regex: RegExp, text: string) => unknown,
+): string | undefined {
+  const operationStr = operation.toString();
+  const replacementMatch = operationStr.match(
+    /replace\([^,]+,\s*['"`]([^'"`]*)['"`]/,
+  );
+  return replacementMatch ? replacementMatch[1] : undefined;
+}
+
+async function executeWorkerOperation<T>(
+  regex: RegExp,
+  text: string,
+  operationData: RegexWorkerData,
+  timeout: number,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const workerPath = join(__dirname, 'regex-worker.js');
+    const worker = new Worker(workerPath, {
+      workerData: {
+        ...operationData,
+        pattern: regex.source,
+        flags: regex.flags,
+        text,
+      } as RegexWorkerData,
+    });
+
+    const timeoutId = setTimeout(() => {
+      worker.terminate();
+      reject(new RegexTimeoutError(regex.source, timeout));
+    }, timeout);
+
+    worker.on('message', (result: RegexWorkerResult) => {
+      clearTimeout(timeoutId);
+      worker.terminate();
+
+      if (result.success) {
+        resolve(result.result as T);
+      } else {
+        reject(new Error(result.error || 'Unknown worker error'));
+      }
+    });
+
+    worker.on('error', (error) => {
+      clearTimeout(timeoutId);
+      worker.terminate();
+      reject(error);
+    });
+
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        clearTimeout(timeoutId);
+        reject(new Error(`Worker stopped with exit code ${code}`));
+      }
+    });
+  });
 }
 
 /**
@@ -210,6 +241,7 @@ export async function safeRegexReplace(
       text,
       (r, t) => t.replace(r, replacement as string),
       timeout,
+      typeof replacement === 'string' ? replacement : undefined,
     );
   } catch (error) {
     if (error instanceof RegexTimeoutError) {
@@ -268,6 +300,8 @@ export async function safeRegexExec(
         return results;
       },
       timeout,
+      undefined,
+      maxIterations,
     );
   } catch (error) {
     if (error instanceof RegexTimeoutError) {

@@ -320,7 +320,7 @@ describe('FileUploadService', () => {
 
       expect(mockDb.query).toHaveBeenCalledTimes(2);
       expect(mockDb.query).toHaveBeenLastCalledWith(
-        'UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3',
+        'UPDATE user_files\n                 SET status = $1,\n                     error_message = $2\n                 WHERE id = $3',
         ['failed', 'Queue processing failed', 'file123'],
       );
     });
@@ -440,7 +440,7 @@ describe('FileUploadService', () => {
       );
 
       expect(mockDb.query).toHaveBeenCalledWith(
-        'UPDATE user_files SET status = $1, error_message = $2 WHERE id = $3',
+        'UPDATE user_files\n                 SET status = $1,\n                     error_message = $2\n                 WHERE id = $3',
         ['failed', 'Queue connection failed', 'file123'],
       );
     });

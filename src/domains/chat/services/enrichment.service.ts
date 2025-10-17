@@ -12,6 +12,7 @@ import { IEnrichmentService } from '@interfaces/enrichment.interface';
 import { logger } from '@config/logger.config';
 import { circuitBreakerService } from '@utils/circuit-breaker';
 import { config } from '@config';
+import pino from 'pino';
 
 export class EnrichmentService implements IEnrichmentService {
   private readonly vectorStore: VectorStoreService;
@@ -89,36 +90,11 @@ export class EnrichmentService implements IEnrichmentService {
     const optimizedQuery = await this.generateOptimizedQuery(query);
     log.info({ optimizedQuery }, 'Generated optimized search query.');
 
-    const searchBreaker = circuitBreakerService.getBreaker(
-      'search',
-      async (...args: unknown[]) => {
-        const [query, maxResults, signal] = args as [
-          string,
-          number?,
-          AbortSignal?,
-        ];
-        return await this.searchAdapter.search(query, maxResults, signal);
-      },
-      { timeout: 10000, errorThresholdPercentage: 50, resetTimeout: 30000 },
+    const results = await this.performWebSearch(
+      optimizedQuery,
+      opts.maxResults || 10,
+      log,
     );
-
-    let results: SearchResult[] = [];
-    try {
-      results = (await searchBreaker.fire(
-        optimizedQuery,
-        opts.maxResults,
-      )) as SearchResult[];
-    } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err as { code: string }).code === 'EOPENBREAKER'
-      ) {
-        log.warn('Search service unavailable, skipping enrichment');
-        return [];
-      }
-      throw err;
-    }
 
     if (!results || results.length === 0) {
       log.warn('No search results found. Returning empty array.');
@@ -129,35 +105,7 @@ export class EnrichmentService implements IEnrichmentService {
       'Search results retrieved. Starting HTML fetching.',
     );
 
-    const fetchBreaker = circuitBreakerService.getBreaker(
-      'fetch',
-      async (...args: unknown[]) => {
-        const [results, options] = args as [SearchResult[], EnrichmentOptions?];
-        return await this.fetchHTML.fetchHTML(results, options);
-      },
-      { timeout: 15000, errorThresholdPercentage: 50, resetTimeout: 30000 },
-    );
-
-    let sourceText: (string | undefined)[] = [];
-    try {
-      sourceText = (await fetchBreaker.fire(results, {
-        maxPagesToFetch: opts.maxPagesToFetch,
-        fetchConcurrency: opts.fetchConcurrency,
-        minContentLength: opts.minContentLength,
-      })) as (string | undefined)[];
-    } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err as { code: string }).code === 'EOPENBREAKER'
-      ) {
-        log.warn(
-          'HTML fetch service unavailable, returning search results without content',
-        );
-        return results;
-      }
-      throw err;
-    }
+    const sourceText = await this.fetchSearchResults(results, opts, log);
 
     if (!sourceText || sourceText.length === 0) {
       log.warn(
@@ -166,80 +114,14 @@ export class EnrichmentService implements IEnrichmentService {
       return results;
     }
 
-    log.info('HTML content fetched. Starting embedding process.');
-    for (let i = 0; i < results.length; i++) {
-      const text = sourceText?.[i];
-      if (!text || text.length < 50) {
-        log.debug(
-          { url: results[i].url },
-          'Skipping embedding for short or empty content.',
-        );
-        continue;
-      }
-
-      let deepSummary: string | null = null;
-      try {
-        deepSummary = await this.deepResearch.summarize(text);
-        log.debug(
-          { url: results[i].url, summaryLength: deepSummary?.length },
-          'Deep summary generated successfully.',
-        );
-      } catch (err) {
-        log.warn(
-          {
-            err,
-            stack: (err as Error).stack,
-            url: results[i].url,
-            textLength: text.length,
-          },
-          'Failed to generate deep summary. Continuing without deep summary.',
-        );
-        deepSummary = null;
-      }
-      const sanitized = this.promptService.sanitizeText(text);
-      const chunks = this.chunkText(
-        sanitized,
-        opts.chunkSize,
-        opts.chunkOverlap,
-      );
-      log.debug(
-        { url: results[i].url, chunkCount: chunks.length },
-        'Chunking text for embedding.',
-      );
-
-      for (const chunk of chunks) {
-        try {
-          const embedding = await this.llmService.getEmbedding(chunk);
-          await this.vectorStore.upsertVectors([
-            {
-              id: `search-${uuid()}`,
-              values: embedding,
-              metadata: {
-                text: chunk,
-                source: results[i].url,
-                title: results[i].title,
-                snippet: results[i].snippet,
-                fileId: opts.fileId,
-                userId: opts.userId,
-                crawledAt: new Date().toISOString(),
-                deepSummary,
-              },
-            },
-          ]);
-          log.debug(
-            { url: results[i].url },
-            'Chunk embedded and upserted successfully.',
-          );
-        } catch (err) {
-          log.error(
-            { err, stack: (err as Error).stack, url: results[i].url },
-            'Failed to embed or upsert search result chunk.',
-          );
-        }
-      }
-    }
+    const embeddedResults = await this.combineEmbeddedResults(
+      results,
+      sourceText,
+      opts,
+      log,
+    );
     log.info('Search and embed process completed.');
-    return results;
+    return embeddedResults;
   }
 
   public async enrichIfUnknown(
@@ -267,6 +149,184 @@ export class EnrichmentService implements IEnrichmentService {
     }
     log.info('LLM answer is confident. No enrichment needed.');
     return null;
+  }
+
+  /**
+   * Performs web search using circuit breaker
+   */
+  private async performWebSearch(
+    query: string,
+    maxResults: number,
+    log: pino.Logger,
+  ): Promise<SearchResult[]> {
+    const searchBreaker = circuitBreakerService.getBreaker(
+      'search',
+      async (...args: unknown[]) => {
+        const [query, maxResults, signal] = args as [
+          string,
+          number?,
+          AbortSignal?,
+        ];
+        return await this.searchAdapter.search(query, maxResults, signal);
+      },
+      { timeout: 10000, errorThresholdPercentage: 50, resetTimeout: 30000 },
+    );
+
+    try {
+      return (await searchBreaker.fire(query, maxResults)) as SearchResult[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
+        log.warn('Search service unavailable, skipping enrichment');
+        return [];
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Fetches HTML content for search results
+   */
+  private async fetchSearchResults(
+    results: SearchResult[],
+    options: EnrichmentOptions,
+    log: pino.Logger,
+  ): Promise<(string | undefined)[]> {
+    const fetchBreaker = circuitBreakerService.getBreaker(
+      'fetch',
+      async (...args: unknown[]) => {
+        const [results, options] = args as [SearchResult[], EnrichmentOptions?];
+        return await this.fetchHTML.fetchHTML(results, options);
+      },
+      { timeout: 15000, errorThresholdPercentage: 50, resetTimeout: 30000 },
+    );
+
+    try {
+      return (await fetchBreaker.fire(results, {
+        maxPagesToFetch: options.maxPagesToFetch,
+        fetchConcurrency: options.fetchConcurrency,
+        minContentLength: options.minContentLength,
+      })) as (string | undefined)[];
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === 'EOPENBREAKER'
+      ) {
+        log.warn(
+          'HTML fetch service unavailable, returning search results without content',
+        );
+        return [];
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Embeds a single search result
+   */
+  private async embedSearchResult(
+    result: SearchResult,
+    text: string,
+    options: EnrichmentOptions,
+    log: pino.Logger,
+  ): Promise<void> {
+    let deepSummary: string | null = null;
+    try {
+      deepSummary = await this.deepResearch.summarize(text);
+      log.debug(
+        { url: result.url, summaryLength: deepSummary?.length },
+        'Deep summary generated successfully.',
+      );
+    } catch (err) {
+      log.warn(
+        {
+          err,
+          stack: (err as Error).stack,
+          url: result.url,
+          textLength: text.length,
+        },
+        'Failed to generate deep summary. Continuing without deep summary.',
+      );
+      deepSummary = null;
+    }
+
+    const sanitized = this.promptService.sanitizeText(text);
+    const chunks = this.chunkText(
+      sanitized,
+      options.chunkSize,
+      options.chunkOverlap,
+    );
+    log.debug(
+      { url: result.url, chunkCount: chunks.length },
+      'Chunking text for embedding.',
+    );
+
+    for (const chunk of chunks) {
+      try {
+        const embedding = await this.llmService.getEmbedding(chunk);
+        await this.vectorStore.upsertVectors([
+          {
+            id: `search-${uuid()}`,
+            values: embedding,
+            metadata: {
+              text: chunk,
+              source: result.url,
+              title: result.title,
+              snippet: result.snippet,
+              fileId: options.fileId,
+              userId: options.userId,
+              crawledAt: new Date().toISOString(),
+              deepSummary,
+            },
+          },
+        ]);
+        log.debug(
+          { url: result.url },
+          'Chunk embedded and upserted successfully.',
+        );
+      } catch (err) {
+        log.error(
+          { err, stack: (err as Error).stack, url: result.url },
+          'Failed to embed or upsert search result chunk.',
+        );
+      }
+    }
+  }
+
+  /**
+   * Combines embedded results with original search results
+   */
+  private async combineEmbeddedResults(
+    results: SearchResult[],
+    sourceText: (string | undefined)[],
+    options: EnrichmentOptions,
+    log: pino.Logger,
+  ): Promise<SearchResult[]> {
+    if (!sourceText || sourceText.length === 0) {
+      log.warn(
+        'No useful HTML content fetched. Returning search results without embedding.',
+      );
+      return results;
+    }
+
+    log.info('HTML content fetched. Starting embedding process.');
+    for (let i = 0; i < results.length; i++) {
+      const text = sourceText?.[i];
+      if (!text || text.length < 50) {
+        log.debug(
+          { url: results[i].url },
+          'Skipping embedding for short or empty content.',
+        );
+        continue;
+      }
+
+      await this.embedSearchResult(results[i], text, options, log);
+    }
+    return results;
   }
 
   private defaultOptions(): EnrichmentOptions {

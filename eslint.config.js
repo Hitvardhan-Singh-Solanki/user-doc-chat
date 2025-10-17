@@ -1,6 +1,7 @@
 const eslintRecommended = require('@eslint/js');
 const prettierRecommended = require('eslint-plugin-prettier/recommended');
 const tseslint = require('typescript-eslint');
+const complexity = require('eslint-plugin-complexity');
 
 module.exports = [
   {
@@ -30,11 +31,15 @@ module.exports = [
   eslintRecommended.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    plugins: {
+      complexity,
+    },
     rules: {
       eqeqeq: 'error',
       'no-console': 'warn',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'warn',
+      'complexity': ['error', 8],
     },
   },
   prettierRecommended,

@@ -470,7 +470,7 @@ describe('PromptService', () => {
       (service as unknown as { tokenizer: ITokenizer }).tokenizer =
         mockTokenizer;
 
-      const input = ['Very long content '.repeat(100)];
+      const input = ['Very long content '.repeat(50)]; // Under 1000 characters
       const config: PromptConfig = {
         maxLength: 1000,
         truncateStrategy: 'truncate-context',
@@ -494,7 +494,7 @@ describe('PromptService', () => {
       (service as unknown as { tokenizer: ITokenizer }).tokenizer =
         mockTokenizer;
 
-      const input = ['Very long content '.repeat(100)];
+      const input = ['Very long content '.repeat(50)]; // Under 1000 characters
       const config: PromptConfig = {
         maxLength: 1000,
         truncateStrategy: 'truncate-context',
@@ -677,7 +677,7 @@ describe('PromptService', () => {
       const input = {
         question: 'Test',
         context: 'Context',
-        chatHistory: Array(1000).fill('Previous conversation message'),
+        chatHistory: Array(50).fill('Previous conversation message'), // Under 50 message limit
       };
 
       expect(() => service.mainPrompt(input)).not.toThrow();

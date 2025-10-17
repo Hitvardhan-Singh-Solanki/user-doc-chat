@@ -3,6 +3,158 @@ import { logger } from '@config/logger.config';
 import { config } from '@config';
 
 /**
+ * Builds Redis socket connection configuration
+ */
+function buildSocketConfig(): object {
+  const socketOptions: {
+    socket: { path: string; tls?: boolean };
+    database?: number;
+    username?: string;
+    password?: string;
+  } = {
+    socket: {
+      path: config.REDIS_SOCKET!,
+    },
+  };
+
+  // Add TLS for socket if enabled
+  if (config.REDIS_TLS) {
+    socketOptions.socket.tls = true;
+  }
+
+  // Add database index if not default
+  if (
+    config.REDIS_DB !== null &&
+    config.REDIS_DB !== undefined &&
+    config.REDIS_DB !== 0
+  ) {
+    socketOptions.database = config.REDIS_DB;
+  }
+
+  // Add credentials if provided
+  if (config.REDIS_USERNAME) {
+    socketOptions.username = config.REDIS_USERNAME;
+  }
+  if (config.REDIS_PASSWORD) {
+    socketOptions.password = config.REDIS_PASSWORD;
+  }
+
+  logger.info(
+    {
+      socketPath: config.REDIS_SOCKET,
+      tls: config.REDIS_TLS,
+      db: config.REDIS_DB,
+      hasAuth: !!(config.REDIS_USERNAME || config.REDIS_PASSWORD),
+    },
+    'Built Redis socket connection options',
+  );
+
+  return socketOptions;
+}
+
+/**
+ * Validates Redis host and port configuration
+ */
+function validateRedisConfig(): { host: string; port: number } {
+  // Validate Redis host configuration
+  if (!config.REDIS_HOST || config.REDIS_HOST.trim() === '') {
+    throw new Error(
+      'REDIS_HOST environment variable is required and cannot be empty',
+    );
+  }
+
+  // Validate Redis port configuration
+  if (config.REDIS_PORT === undefined || config.REDIS_PORT === null) {
+    throw new Error('REDIS_PORT environment variable is required');
+  }
+
+  const port = Number(config.REDIS_PORT);
+  if (isNaN(port) || port <= 0 || port > 65535) {
+    throw new Error(
+      `REDIS_PORT must be a valid port number (1-65535), got: ${config.REDIS_PORT}`,
+    );
+  }
+
+  return {
+    host: config.REDIS_HOST.trim(),
+    port,
+  };
+}
+
+/**
+ * Builds authentication string for Redis URL
+ */
+function buildRedisAuth(): string {
+  if (!config.REDIS_USERNAME && !config.REDIS_PASSWORD) {
+    return '';
+  }
+
+  const username = config.REDIS_USERNAME
+    ? encodeURIComponent(config.REDIS_USERNAME)
+    : '';
+  const password = config.REDIS_PASSWORD
+    ? encodeURIComponent(config.REDIS_PASSWORD)
+    : '';
+
+  return buildAuthString(username, password);
+}
+
+function buildAuthString(username: string, password: string): string {
+  if (username && password) {
+    return `${username}:${password}@`;
+  }
+
+  if (password) {
+    return `:${password}@`;
+  }
+
+  if (username) {
+    return `${username}@`;
+  }
+
+  return '';
+}
+
+/**
+ * Builds query parameters for Redis URL
+ */
+function buildRedisQueryParams(): string {
+  if (
+    config.REDIS_DB !== null &&
+    config.REDIS_DB !== undefined &&
+    config.REDIS_DB !== 0
+  ) {
+    return `?db=${config.REDIS_DB}`;
+  }
+  return '';
+}
+
+/**
+ * Builds Redis URL from host/port components
+ */
+function buildUrlConfig(): string {
+  const { host, port } = validateRedisConfig();
+  const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
+  const auth = buildRedisAuth();
+  const queryString = buildRedisQueryParams();
+  const url = `${scheme}://${auth}${host}:${port}${queryString}`;
+
+  logger.info(
+    {
+      scheme,
+      host,
+      port,
+      hasAuth: !!auth,
+      hasQuery: queryString.length > 0,
+      db: config.REDIS_DB,
+    },
+    'Built Redis URL from configuration components',
+  );
+
+  return url;
+}
+
+/**
  * Builds Redis connection configuration from settings.
  *
  * Priority:
@@ -24,113 +176,11 @@ function buildRedisConfig(): string | object {
 
   // Handle Unix socket connection
   if (config.REDIS_SOCKET) {
-    const socketOptions: {
-      socket: { path: string; tls?: boolean };
-      database?: number;
-      username?: string;
-      password?: string;
-    } = {
-      socket: {
-        path: config.REDIS_SOCKET,
-      },
-    };
-
-    // Add TLS for socket if enabled
-    if (config.REDIS_TLS) {
-      socketOptions.socket.tls = true;
-    }
-
-    // Add database index if not default
-    if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
-      socketOptions.database = config.REDIS_DB;
-    }
-
-    // Add credentials if provided
-    if (config.REDIS_USERNAME) {
-      socketOptions.username = config.REDIS_USERNAME;
-    }
-    if (config.REDIS_PASSWORD) {
-      socketOptions.password = config.REDIS_PASSWORD;
-    }
-
-    logger.info(
-      {
-        socketPath: config.REDIS_SOCKET,
-        tls: config.REDIS_TLS,
-        db: config.REDIS_DB,
-        hasAuth: !!(config.REDIS_USERNAME || config.REDIS_PASSWORD),
-      },
-      'Built Redis socket connection options',
-    );
-
-    return socketOptions;
+    return buildSocketConfig();
   }
 
   // Build URL from host/port components
-  const scheme = config.REDIS_TLS ? 'rediss' : 'redis';
-
-  // Validate Redis host configuration
-  if (!config.REDIS_HOST || config.REDIS_HOST.trim() === '') {
-    throw new Error(
-      'REDIS_HOST environment variable is required and cannot be empty',
-    );
-  }
-
-  // Validate Redis port configuration
-  if (config.REDIS_PORT === undefined || config.REDIS_PORT === null) {
-    throw new Error('REDIS_PORT environment variable is required');
-  }
-
-  const port = Number(config.REDIS_PORT);
-  if (isNaN(port) || port <= 0 || port > 65535) {
-    throw new Error(
-      `REDIS_PORT must be a valid port number (1-65535), got: ${config.REDIS_PORT}`,
-    );
-  }
-
-  const host = config.REDIS_HOST.trim();
-
-  // Handle credentials
-  let auth = '';
-  if (config.REDIS_USERNAME || config.REDIS_PASSWORD) {
-    const username = config.REDIS_USERNAME
-      ? encodeURIComponent(config.REDIS_USERNAME)
-      : '';
-    const password = config.REDIS_PASSWORD
-      ? encodeURIComponent(config.REDIS_PASSWORD)
-      : '';
-
-    if (username && password) {
-      auth = `${username}:${password}@`;
-    } else if (password) {
-      auth = `:${password}@`;
-    } else if (username) {
-      auth = `${username}@`;
-    }
-  }
-
-  // Build query parameters
-  const queryParams: string[] = [];
-  if (config.REDIS_DB !== null && config.REDIS_DB !== 0) {
-    queryParams.push(`db=${config.REDIS_DB}`);
-  }
-
-  const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
-  const url = `${scheme}://${auth}${host}:${port}${queryString}`;
-
-  logger.info(
-    {
-      scheme,
-      host,
-      port,
-      hasAuth: !!auth,
-      hasQuery: queryParams.length > 0,
-      db: config.REDIS_DB,
-    },
-    'Built Redis URL from configuration components',
-  );
-
-  return url;
+  return buildUrlConfig();
 }
 
 // Build Redis configuration from config

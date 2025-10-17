@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Client, SSEData } from '@shared/types';
 import { redisPub, redisSub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
+import { SafeStringifyChunk } from '@utils/safe-json';
 
 class SSEEmitter {
   private clients: Map<string, Client[]> = new Map();
@@ -9,10 +10,90 @@ class SSEEmitter {
   private isInitialized = false;
   private retryCount = 0;
   private readonly maxRetries = 5;
-  private readonly retryDelay = 1000; // 1 second base delay
+  private readonly retryDelay = 1000;
 
   constructor() {
     this.init();
+  }
+
+  /** Add new SSE connection for a user */
+  addClient(userId: string, res: Response) {
+    this.log.info({ userId }, 'Adding new client to SSE emitter.');
+    if (!this.clients.has(userId)) {
+      this.clients.set(userId, []);
+      this.log.debug({ userId }, 'Created new client array for user.');
+    }
+    this.clients.get(userId)!.push({ res });
+  }
+
+  /** Remove SSE connection for a user */
+  removeClient(userId: string, res: Response) {
+    this.log.info({ userId }, 'Removing client from SSE emitter.');
+    const arr = this.clients.get(userId) || [];
+    const filtered = arr.filter((c) => c.res !== res);
+
+    if (filtered.length === 0) {
+      this.clients.delete(userId);
+      this.log.debug(
+        { userId },
+        'Removed user entry from clients Map (no remaining connections).',
+      );
+    } else {
+      this.clients.set(userId, filtered);
+    }
+  }
+
+  /** Send message to all Node instances (publishes to Redis) */
+  async send(userId: string, event: string, data: SSEData): Promise<boolean> {
+    this.log.info(
+      { userId, event, data },
+      'Publishing message to Redis for all SSE instances.',
+    );
+
+    try {
+      const result = await redisPub.publish(
+        'sse-events',
+        SafeStringifyChunk({ userId, event, data }),
+      );
+      this.log.debug(
+        { userId, event, result },
+        'Successfully published message to Redis.',
+      );
+      return true;
+    } catch (error) {
+      this.log.error(
+        {
+          userId,
+          event,
+          data,
+          error: (error as Error).message,
+          stack: (error as Error).stack,
+        },
+        'Failed to publish message to Redis. Falling back to local delivery.',
+      );
+
+      // Fallback: send to local clients only
+      try {
+        this.sendLocal(userId, event, data);
+        this.log.warn(
+          { userId, event },
+          'Message delivered locally as fallback after Redis publish failure.',
+        );
+        return false; // Indicate partial success (local only)
+      } catch (fallbackError) {
+        this.log.error(
+          {
+            userId,
+            event,
+            fallbackError: (fallbackError as Error).message,
+          },
+          'Both Redis publish and local fallback failed.',
+        );
+        throw new Error(
+          `Failed to deliver message: Redis error - ${(error as Error).message}, Local fallback error - ${(fallbackError as Error).message}`,
+        );
+      }
+    }
   }
 
   private async init(): Promise<void> {
@@ -127,86 +208,6 @@ class SSEEmitter {
     }, delay);
   }
 
-  /** Add new SSE connection for a user */
-  addClient(userId: string, res: Response) {
-    this.log.info({ userId }, 'Adding new client to SSE emitter.');
-    if (!this.clients.has(userId)) {
-      this.clients.set(userId, []);
-      this.log.debug({ userId }, 'Created new client array for user.');
-    }
-    this.clients.get(userId)!.push({ res });
-  }
-
-  /** Remove SSE connection for a user */
-  removeClient(userId: string, res: Response) {
-    this.log.info({ userId }, 'Removing client from SSE emitter.');
-    const arr = this.clients.get(userId) || [];
-    const filtered = arr.filter((c) => c.res !== res);
-
-    if (filtered.length === 0) {
-      this.clients.delete(userId);
-      this.log.debug(
-        { userId },
-        'Removed user entry from clients Map (no remaining connections).',
-      );
-    } else {
-      this.clients.set(userId, filtered);
-    }
-  }
-
-  /** Send message to all Node instances (publishes to Redis) */
-  async send(userId: string, event: string, data: SSEData): Promise<boolean> {
-    this.log.info(
-      { userId, event, data },
-      'Publishing message to Redis for all SSE instances.',
-    );
-
-    try {
-      const result = await redisPub.publish(
-        'sse-events',
-        JSON.stringify({ userId, event, data }),
-      );
-      this.log.debug(
-        { userId, event, result },
-        'Successfully published message to Redis.',
-      );
-      return true;
-    } catch (error) {
-      this.log.error(
-        {
-          userId,
-          event,
-          data,
-          error: (error as Error).message,
-          stack: (error as Error).stack,
-        },
-        'Failed to publish message to Redis. Falling back to local delivery.',
-      );
-
-      // Fallback: send to local clients only
-      try {
-        this.sendLocal(userId, event, data);
-        this.log.warn(
-          { userId, event },
-          'Message delivered locally as fallback after Redis publish failure.',
-        );
-        return false; // Indicate partial success (local only)
-      } catch (fallbackError) {
-        this.log.error(
-          {
-            userId,
-            event,
-            fallbackError: (fallbackError as Error).message,
-          },
-          'Both Redis publish and local fallback failed.',
-        );
-        throw new Error(
-          `Failed to deliver message: Redis error - ${(error as Error).message}, Local fallback error - ${(fallbackError as Error).message}`,
-        );
-      }
-    }
-  }
-
   /** Send message to only local clients connected to this Node */
   private sendLocal(userId: string, event: string, data: SSEData) {
     this.log.debug({ userId, event }, 'Sending message to local SSE clients.');
@@ -215,113 +216,176 @@ class SSEEmitter {
     // Create shallow copy to avoid race conditions during iteration
     const clientsToProcess = [...arr];
     const clientsToRemove: Client[] = [];
-    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    const message = `event: ${event}\ndata: ${SafeStringifyChunk(data)}\n\n`;
 
     for (const client of clientsToProcess) {
-      const { res } = client;
-
-      // Check if stream is still writable
-      if (!res.writable || res.destroyed) {
-        this.log.debug(
-          { userId },
-          'Client stream is not writable, marking for removal.',
-        );
-        clientsToRemove.push(client);
-        continue;
-      }
-
-      try {
-        // Attempt to write the message
-        const writeSuccess = res.write(message);
-
-        if (!writeSuccess) {
-          // Stream is backpressured, queue the message
-          this.log.debug(
-            { userId },
-            'Client stream is backpressured, queuing message.',
-          );
-
-          // Initialize queue if it doesn't exist
-          if (!client.queue) {
-            client.queue = [];
-          }
-          client.queue.push(message);
-
-          // Only set up handlers if not already present
-          if (!client.hasDrainHandler) {
-            client.hasDrainHandler = true;
-
-            const drainHandler = () => {
-              this.log.debug(
-                { userId },
-                'Client stream drained, flushing queue.',
-              );
-
-              // Flush queued messages
-              if (client.queue && client.queue.length > 0) {
-                while (client.queue.length > 0) {
-                  const queuedMessage = client.queue.shift()!;
-                  const writeSuccess = res.write(queuedMessage);
-
-                  if (!writeSuccess) {
-                    // Still backpressured, stop flushing
-                    break;
-                  }
-                }
-              }
-
-              // Clean up handlers
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-            };
-
-            const errorHandler = (err: Error) => {
-              this.log.error(
-                { userId, err: err.message },
-                'Client stream error during drain wait, clearing queue and marking for removal.',
-              );
-
-              // Clear queue and clean up
-              client.queue = [];
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-              clientsToRemove.push(client);
-            };
-
-            const closeHandler = () => {
-              this.log.debug(
-                { userId },
-                'Client stream closed during drain wait, clearing queue and marking for removal.',
-              );
-
-              // Clear queue and clean up
-              client.queue = [];
-              client.hasDrainHandler = false;
-              res.removeListener('drain', drainHandler);
-              res.removeListener('error', errorHandler);
-              res.removeListener('close', closeHandler);
-              clientsToRemove.push(client);
-            };
-
-            res.once('drain', drainHandler);
-            res.once('error', errorHandler);
-            res.once('close', closeHandler);
-          }
-        }
-      } catch (err) {
-        this.log.error(
-          { userId, err: (err as Error).message },
-          'Failed to write to client response stream. Marking for removal.',
-        );
-        clientsToRemove.push(client);
+      if (this.isClientWritable(client, userId, clientsToRemove)) {
+        this.processClientMessage(client, message, userId, clientsToRemove);
       }
     }
 
-    // Remove clients that are no longer writable or had errors
+    this.removeUnwritableClients(userId, arr, clientsToRemove);
+  }
+
+  private isClientWritable(
+    client: Client,
+    userId: string,
+    clientsToRemove: Client[],
+  ): boolean {
+    const { res } = client;
+
+    if (!res.writable || res.destroyed) {
+      this.log.debug(
+        { userId },
+        'Client stream is not writable, marking for removal.',
+      );
+      clientsToRemove.push(client);
+      return false;
+    }
+
+    return true;
+  }
+
+  private processClientMessage(
+    client: Client,
+    message: string,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    const { res } = client;
+
+    try {
+      const writeSuccess = res.write(message);
+
+      if (!writeSuccess) {
+        this.handleBackpressuredClient(
+          client,
+          message,
+          userId,
+          clientsToRemove,
+        );
+      }
+    } catch (err) {
+      this.log.error(
+        { userId, err: (err as Error).message },
+        'Failed to write to client response stream. Marking for removal.',
+      );
+      clientsToRemove.push(client);
+    }
+  }
+
+  private handleBackpressuredClient(
+    client: Client,
+    message: string,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    this.log.debug(
+      { userId },
+      'Client stream is backpressured, queuing message.',
+    );
+
+    // Initialize queue if it doesn't exist
+    if (!client.queue) {
+      client.queue = [];
+    }
+    client.queue.push(message);
+
+    // Only set up handlers if not already present
+    if (!client.hasDrainHandler) {
+      this.setupDrainHandlers(client, userId, clientsToRemove);
+    }
+  }
+
+  private setupDrainHandlers(
+    client: Client,
+    userId: string,
+    clientsToRemove: Client[],
+  ): void {
+    const { res } = client;
+    client.hasDrainHandler = true;
+
+    const drainHandler = () => {
+      this.log.debug({ userId }, 'Client stream drained, flushing queue.');
+
+      this.flushClientQueue(client, userId);
+      this.cleanupDrainHandlers(client, res);
+    };
+
+    const errorHandler = (err: Error) => {
+      this.log.error(
+        { userId, err: err.message },
+        'Client stream error during drain wait, clearing queue and marking for removal.',
+      );
+
+      this.clearClientQueue(client);
+      this.cleanupDrainHandlers(client, res);
+      this.removeClient(userId, res);
+    };
+
+    const closeHandler = () => {
+      this.log.debug(
+        { userId },
+        'Client stream closed during drain wait, clearing queue and marking for removal.',
+      );
+
+      this.clearClientQueue(client);
+      this.cleanupDrainHandlers(client, res);
+      this.removeClient(userId, res);
+    };
+
+    // Store references for cleanup
+    client.drainHandler = drainHandler;
+    client.errorHandler = errorHandler;
+    client.closeHandler = closeHandler;
+
+    res.once('drain', drainHandler);
+    res.once('error', errorHandler);
+    res.once('close', closeHandler);
+  }
+
+  private flushClientQueue(client: Client, userId: string): void {
+    if (client.queue && client.queue.length > 0) {
+      while (client.queue.length > 0) {
+        const queuedMessage = client.queue.shift()!;
+        const writeSuccess = client.res.write(queuedMessage);
+
+        if (!writeSuccess) {
+          // Re-queue the message that couldn't be written
+          client.queue.unshift(queuedMessage);
+          // Still backpressured, stop flushing
+          break;
+        }
+      }
+    }
+  }
+
+  private clearClientQueue(client: Client): void {
+    client.queue = [];
+    client.hasDrainHandler = false;
+  }
+
+  private cleanupDrainHandlers(client: Client, res: Response): void {
+    if (client.drainHandler) {
+      res.removeListener('drain', client.drainHandler);
+      client.drainHandler = undefined;
+    }
+    if (client.errorHandler) {
+      res.removeListener('error', client.errorHandler);
+      client.errorHandler = undefined;
+    }
+    if (client.closeHandler) {
+      res.removeListener('close', client.closeHandler);
+      client.closeHandler = undefined;
+    }
+    client.hasDrainHandler = false;
+  }
+
+  private removeUnwritableClients(
+    userId: string,
+    arr: Client[],
+    clientsToRemove: Client[],
+  ): void {
     if (clientsToRemove.length > 0) {
       const remainingClients = arr.filter(
         (client) => !clientsToRemove.includes(client),

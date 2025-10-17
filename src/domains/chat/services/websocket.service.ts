@@ -1,7 +1,6 @@
 import http from 'http';
 import { Application } from 'express';
-import { Server, Socket } from 'socket.io';
-import { z } from 'zod';
+import { Server } from 'socket.io';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
 import { VectorStoreService } from '@vector/services/vector-store.service';
@@ -13,20 +12,14 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
-
-interface AuthenticatedSocket extends Socket {
-  userId: string;
-  tokenExp?: number;
-}
-
-const QuestionPayloadSchema = z.object({
-  fileId: z
-    .string()
-    .min(1, 'fileId is required and must be a non-empty string'),
-  question: z
-    .string()
-    .min(1, 'question is required and must be a non-empty string'),
-});
+import { z } from 'zod';
+import { QuestionPayloadSchema } from '@shared/schemas';
+import type {
+  AuthenticatedSocket,
+  SocketHandshake,
+  DecodedToken,
+  LegacyTokenData,
+} from '@shared/types';
 
 export class WebsocketService {
   public io: Server;
@@ -78,81 +71,127 @@ export class WebsocketService {
 
   authVerification() {
     this.io.use((socket, next) => {
-      const authHeader = socket.handshake.headers.authorization;
-      let token: string | undefined;
-
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.substring(7);
-      } else {
-        token = socket.handshake.auth?.token;
-        if (token) {
-          this.logger.warn(
-            { ip: socket.handshake.address },
-            'Using deprecated auth object for WebSocket token. Please use Authorization header instead.',
-          );
-        }
-      }
-
+      const token = this.extractToken(socket);
       if (!token) {
-        this.logger.warn(
-          { ip: socket.handshake.address },
-          'No token provided in WebSocket handshake',
-        );
-        return next(new Error('No token provided'));
+        return this.handleMissingToken(socket, next);
       }
 
       const decoded = verifyJwt(token);
       if (!decoded) {
-        this.logger.warn(
-          { ip: socket.handshake.address },
-          'Invalid token provided in WebSocket handshake',
-        );
-        return next(new Error('Invalid token'));
+        return this.handleInvalidToken(socket, next);
       }
 
-      let userId = (decoded as { sub?: string }).sub;
-
+      const userId = this.extractUserId(decoded, socket);
       if (!userId) {
-        const decodedWithLegacy = decoded as {
-          id?: string;
-          userId?: string;
-          iat?: number;
-          exp?: number;
-        };
-        const legacyId = decodedWithLegacy.id ?? decodedWithLegacy.userId;
-        if (legacyId) {
-          this.logger.warn(
-            {
-              legacyClaim: decodedWithLegacy.id ? 'id' : 'userId',
-              tokenIssuedAt: decodedWithLegacy.iat,
-              tokenExpiresAt: decodedWithLegacy.exp,
-              ip: socket.handshake.address,
-            },
-            'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
-          );
-          userId = legacyId;
-        }
+        return this.handleMissingUserId(socket, next);
       }
 
-      if (!userId) {
-        this.logger.warn(
-          { ip: socket.handshake.address },
-          'Invalid token: missing subject claim',
-        );
-        return next(new Error('Invalid token: missing subject claim'));
-      }
-
-      const authenticatedSocket = socket as AuthenticatedSocket;
-      authenticatedSocket.userId = String(userId);
-      authenticatedSocket.tokenExp = (decoded as { exp?: number }).exp;
-
-      this.logger.info(
-        { userId, ip: socket.handshake.address },
-        'WebSocket authentication successful',
-      );
-
+      this.authenticateSocket(socket, userId, decoded);
       next();
     });
+  }
+
+  private extractToken(socket: {
+    handshake: SocketHandshake;
+  }): string | undefined {
+    const authHeader = socket.handshake.headers.authorization;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+
+    const token = socket.handshake.auth?.token;
+    if (token) {
+      this.logger.warn(
+        { ip: socket.handshake.address },
+        'Using deprecated auth object for WebSocket token. Please use Authorization header instead.',
+      );
+    }
+
+    return token;
+  }
+
+  private handleMissingToken(
+    socket: { handshake: { address: string } },
+    next: (error?: Error) => void,
+  ): void {
+    this.logger.warn(
+      { ip: socket.handshake.address },
+      'No token provided in WebSocket handshake',
+    );
+    next(new Error('No token provided'));
+  }
+
+  private handleInvalidToken(
+    socket: { handshake: { address: string } },
+    next: (error?: Error) => void,
+  ): void {
+    this.logger.warn(
+      { ip: socket.handshake.address },
+      'Invalid token provided in WebSocket handshake',
+    );
+    next(new Error('Invalid token'));
+  }
+
+  private extractUserId(
+    decoded: DecodedToken,
+    socket: { handshake: { address: string } },
+  ): string | undefined {
+    let userId = (decoded as { sub?: string }).sub;
+
+    if (!userId) {
+      userId = this.handleLegacyToken(decoded, socket);
+    }
+
+    return userId;
+  }
+
+  private handleLegacyToken(
+    decoded: LegacyTokenData,
+    socket: { handshake: { address: string } },
+  ): string | undefined {
+    const decodedWithLegacy = decoded as LegacyTokenData;
+    const legacyId = decodedWithLegacy.id ?? decodedWithLegacy.userId;
+
+    if (legacyId) {
+      this.logger.warn(
+        {
+          legacyClaim: decodedWithLegacy.id ? 'id' : 'userId',
+          tokenIssuedAt: decodedWithLegacy.iat,
+          tokenExpiresAt: decodedWithLegacy.exp,
+          ip: socket.handshake.address,
+        },
+        'Using legacy JWT claim for user identification. Please re-authenticate to receive RFC-7519 compliant token.',
+      );
+    }
+
+    return legacyId;
+  }
+
+  private handleMissingUserId(
+    socket: { handshake: { address: string } },
+    next: (error?: Error) => void,
+  ): void {
+    this.logger.warn(
+      { ip: socket.handshake.address },
+      'Invalid token: missing subject claim',
+    );
+    next(new Error('Invalid token: missing subject claim'));
+  }
+
+  private authenticateSocket(
+    socket: { handshake: { address: string } },
+    userId: string,
+    decoded: { exp?: number },
+  ): void {
+    const authenticatedSocket = socket as AuthenticatedSocket;
+    authenticatedSocket.userId = String(userId);
+    authenticatedSocket.tokenExp = (decoded as { exp?: number }).exp;
+
+    this.logger.info(
+      { userId, ip: socket.handshake.address },
+      'WebSocket authentication successful',
+    );
   }
 
   onConnection() {
@@ -212,6 +251,39 @@ export class WebsocketService {
     userId: string,
     fileId: string,
   ) {
+    this.validateQuestionInput(question, fileId);
+
+    try {
+      const chatId = await this.initializeChatSession(question, userId, fileId);
+      const results = await this.queryVectorStore(question, userId, fileId);
+
+      if (!results.matches.length) {
+        await this.handleNoContextResponse(userId, fileId, chatId);
+        return;
+      }
+
+      const context = await this.pineconeService.getContextWithSummarization(
+        results,
+        config.PINECONE_TOP_K,
+      );
+
+      const chatHistory = await this.getChatHistory(userId, fileId);
+      const fullPrompt = UserInputSchema.parse({
+        question,
+        chatHistory,
+        context,
+      });
+
+      await this.generateAndStreamAnswer(fullPrompt, userId, fileId, chatId);
+    } catch (err: unknown) {
+      this.logger.error({ err }, 'Error in processQuestion');
+      if (err instanceof Error) {
+        this.io.to(userId).emit('error', { message: 'Something went wrong' });
+      }
+    }
+  }
+
+  private validateQuestionInput(question: string, fileId: string): void {
     if (!question || typeof question !== 'string' || question.trim() === '') {
       throw new Error('Question cannot be empty');
     }
@@ -219,131 +291,208 @@ export class WebsocketService {
     if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
       throw new Error('File ID is required');
     }
+  }
+
+  private async initializeChatSession(
+    question: string,
+    userId: string,
+    fileId: string,
+  ): Promise<string> {
+    const chatId = await this.getOrCreateChat(userId, fileId);
+    await this.appendChatHistory(userId, fileId, `User: ${question}`);
+    await this.appendChatMessage(chatId, 'user', question);
+    return chatId;
+  }
+
+  private async queryVectorStore(
+    question: string,
+    userId: string,
+    fileId: string,
+  ) {
+    const qEmbedding = await this.llmService.getEmbedding(question);
+    const topK = config.PINECONE_TOP_K;
+    return await this.pineconeService.query(qEmbedding, userId, fileId, topK);
+  }
+
+  private async handleNoContextResponse(
+    userId: string,
+    fileId: string,
+    chatId: string,
+  ): Promise<void> {
+    const noContextMsg = "No relevant context found. I don't know the answer.";
+    this.io.to(userId).emit('answer_chunk', { token: noContextMsg });
+    this.io.to(userId).emit('answer_complete');
+
+    await this.appendChatHistory(userId, fileId, `AI: ${noContextMsg}`);
+    await this.appendChatMessage(chatId, 'ai', noContextMsg);
+  }
+
+  private async generateAndStreamAnswer(
+    fullPrompt: z.infer<typeof UserInputSchema>,
+    userId: string,
+    fileId: string,
+    chatId: string,
+  ): Promise<void> {
+    let fullAnswer = '';
 
     try {
-      const chatId = await this.getOrCreateChat(userId, fileId);
-      await this.appendChatHistory(userId, fileId, `User: ${question}`);
-      await this.appendChatMessage(chatId, 'user', question);
-
-      const qEmbedding = await this.llmService.getEmbedding(question);
-
-      const topK = config.PINECONE_TOP_K;
-      const results = await this.pineconeService.query(
-        qEmbedding,
+      fullAnswer = await this.streamAnswerTokens(fullPrompt, userId);
+      await this.handleAnswerResponse(
+        fullAnswer,
+        fullPrompt,
         userId,
         fileId,
-        topK,
+        chatId,
       );
+    } catch (err: unknown) {
+      await this.handleStreamError(err, fullAnswer, userId, chatId);
+    }
+  }
 
-      if (!results.matches.length) {
-        const noContextMsg =
-          "No relevant context found. I don't know the answer.";
-        this.io.to(userId).emit('answer_chunk', { token: noContextMsg });
-        this.io.to(userId).emit('answer_complete');
+  private async streamAnswerTokens(
+    fullPrompt: z.infer<typeof UserInputSchema>,
+    userId: string,
+  ): Promise<string> {
+    let fullAnswer = '';
 
-        await this.appendChatHistory(userId, fileId, `AI: ${noContextMsg}`);
-        await this.appendChatMessage(chatId, 'ai', noContextMsg);
+    for await (const token of this.llmService.generateAnswerStream(
+      fullPrompt,
+    )) {
+      this.io.to(userId).emit('answer_chunk', { token });
+      fullAnswer += token;
+    }
+
+    return fullAnswer;
+  }
+
+  private async handleAnswerResponse(
+    fullAnswer: string,
+    fullPrompt: z.infer<typeof UserInputSchema>,
+    userId: string,
+    fileId: string,
+    chatId: string,
+  ): Promise<void> {
+    if (fullAnswer.toLowerCase().includes("i don't know")) {
+      await this.handleEnrichmentFlow(
+        fullPrompt,
+        userId,
+        fileId,
+        chatId,
+        fullAnswer,
+      );
+      return;
+    }
+
+    await this.finalizeAnswer(fullAnswer, userId, fileId, chatId);
+  }
+
+  private async handleEnrichmentFlow(
+    fullPrompt: z.infer<typeof UserInputSchema>,
+    userId: string,
+    fileId: string,
+    chatId: string,
+    originalAnswer: string,
+  ): Promise<void> {
+    this.io.to(userId).emit('search_status', {
+      message: 'Searching external sources for more information...',
+    });
+
+    try {
+      this.validateServices();
+
+      const enrichedResults =
+        await this.llmService.enrichmentService!.searchAndEmbed(
+          fullPrompt.question,
+          {
+            fileId,
+            userId,
+            maxResults: 5,
+            maxPagesToFetch: 3,
+            fetchConcurrency: 2,
+            minContentLength: 200,
+          },
+        );
+
+      if (enrichedResults && enrichedResults.length > 0) {
+        await this.generateEnrichedAnswer(
+          fullPrompt,
+          enrichedResults,
+          userId,
+          fileId,
+          chatId,
+        );
         return;
       }
 
-      const context = await this.pineconeService.getContextWithSummarization(
-        results,
-        topK,
+      await this.finalizeAnswer(originalAnswer, userId, fileId, chatId);
+    } catch (enrichmentError) {
+      this.logger.warn(
+        { enrichmentError },
+        'Enrichment failed, using original answer',
       );
-
-      const chatHistory = await this.getChatHistory(userId, fileId);
-
-      const fullPrompt = UserInputSchema.parse({
-        question,
-        chatHistory,
-        context,
-      });
-
-      let fullAnswer = '';
-
-      try {
-        for await (const token of this.llmService.generateAnswerStream(
-          fullPrompt,
-        )) {
-          this.io.to(userId).emit('answer_chunk', { token });
-          fullAnswer += token;
-        }
-
-        if (fullAnswer.toLowerCase().includes("i don't know")) {
-          this.io.to(userId).emit('search_status', {
-            message: 'Searching external sources for more information...',
-          });
-
-          try {
-            this.validateServices();
-
-            const enrichedResults =
-              await this.llmService.enrichmentService!.searchAndEmbed(
-                question,
-                {
-                  fileId,
-                  userId,
-                  maxResults: 5,
-                  maxPagesToFetch: 3,
-                  fetchConcurrency: 2,
-                  minContentLength: 200,
-                },
-              );
-
-            if (enrichedResults && enrichedResults.length > 0) {
-              const enrichedContext = enrichedResults
-                .map((r) => `${r.title}: ${r.snippet}`)
-                .join('\n\n');
-
-              this.io.to(userId).emit('search_status', {
-                message:
-                  'Found additional information. Generating enhanced answer...',
-              });
-
-              fullAnswer = '';
-              for await (const token of this.llmService.generateAnswerStreamWithEnrichment(
-                fullPrompt,
-                enrichedContext,
-              )) {
-                this.io.to(userId).emit('answer_chunk', { token });
-                fullAnswer += token;
-              }
-            }
-          } catch (enrichmentError) {
-            this.logger.warn(
-              { enrichmentError },
-              'Enrichment failed, using original answer',
-            );
-          }
-        }
-
-        await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
-        await this.appendChatMessage(chatId, 'ai', fullAnswer);
-        await this.trimChatHistory(userId, fileId);
-
-        this.io.to(userId).emit('answer_complete');
-      } catch (err: unknown) {
-        this.logger.error(
-          { err, partialAnswer: fullAnswer.substring(0, 100) },
-          'Stream error',
-        );
-
-        this.io.to(userId).emit('error', {
-          message: 'Failed to generate complete answer. Please try again.',
-        });
-
-        await this.appendChatMessage(
-          chatId,
-          'ai',
-          `Error: ${(err as Error).message}`,
-        );
-      }
-    } catch (err: unknown) {
-      this.logger.error({ err }, 'Error in processQuestion');
-      if (err instanceof Error) {
-        this.io.to(userId).emit('error', { message: 'Something went wrong' });
-      }
+      await this.finalizeAnswer(originalAnswer, userId, fileId, chatId);
     }
+  }
+
+  private async generateEnrichedAnswer(
+    fullPrompt: z.infer<typeof UserInputSchema>,
+    enrichedResults: { title: string; snippet: string }[],
+    userId: string,
+    fileId: string,
+    chatId: string,
+  ): Promise<void> {
+    const enrichedContext = enrichedResults
+      .map((r) => `${r.title}: ${r.snippet}`)
+      .join('\n\n');
+
+    this.io.to(userId).emit('search_status', {
+      message: 'Found additional information. Generating enhanced answer...',
+    });
+
+    let fullAnswer = '';
+    for await (const token of this.llmService.generateAnswerStreamWithEnrichment(
+      fullPrompt,
+      enrichedContext,
+    )) {
+      this.io.to(userId).emit('answer_chunk', { token });
+      fullAnswer += token;
+    }
+
+    await this.finalizeAnswer(fullAnswer, userId, fileId, chatId);
+  }
+
+  private async finalizeAnswer(
+    fullAnswer: string,
+    userId: string,
+    fileId: string,
+    chatId: string,
+  ): Promise<void> {
+    await this.appendChatHistory(userId, fileId, `AI: ${fullAnswer}`);
+    await this.appendChatMessage(chatId, 'ai', fullAnswer);
+    await this.trimChatHistory(userId, fileId);
+    this.io.to(userId).emit('answer_complete');
+  }
+
+  private async handleStreamError(
+    err: unknown,
+    fullAnswer: string,
+    userId: string,
+    chatId: string,
+  ): Promise<void> {
+    this.logger.error(
+      { err, partialAnswer: fullAnswer.substring(0, 100) },
+      'Stream error',
+    );
+
+    this.io.to(userId).emit('error', {
+      message: 'Failed to generate complete answer. Please try again.',
+    });
+
+    await this.appendChatMessage(
+      chatId,
+      'ai',
+      `Error: ${(err as Error).message}`,
+    );
   }
 
   private async appendChatHistory(

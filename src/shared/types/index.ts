@@ -1,10 +1,18 @@
 import { Response } from 'express';
 
-export interface FileJob {
-  key: string;
-  userId: string;
-  fileId: string;
-}
+// Re-export all types from specialized type files
+export * from './websocket.types';
+export * from './config.types';
+export * from './regex.types';
+export * from './ai.types';
+export * from './file.types';
+export * from './chat.types';
+export * from './service.types';
+export * from './llm.types';
+export * from './database.types';
+export * from './authentication.types';
+export * from './timeout.types';
+export * from './validation.types';
 
 export interface User {
   id: string;
@@ -20,18 +28,6 @@ export type Vector = {
   metadata?: Record<string, unknown>;
 };
 
-export interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  destination?: string;
-  filename?: string;
-  path?: string;
-  buffer?: Buffer;
-}
-
 export interface JwtPayload {
   sub: string; // RFC-7519 compliant subject claim
   email: string;
@@ -45,6 +41,9 @@ export type Client = {
   res: Response;
   queue?: string[];
   hasDrainHandler?: boolean;
+  drainHandler?: () => void;
+  errorHandler?: (err: Error) => void;
+  closeHandler?: () => void;
 };
 
 export type SSEData = {
@@ -75,31 +74,6 @@ export interface LegalDocumentJobData {
   source_url: string;
   law_type?: string;
   jurisdiction?: string;
-}
-
-export interface UserFileRecord {
-  id: string;
-  file_name: string;
-  file_size: string;
-  owner_id: string;
-  status: 'uploaded' | 'processing' | 'processed' | 'failed';
-  error_message?: string | null;
-  processing_started_at?: string | null;
-  processing_finished_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PromptConfig {
-  version?: string;
-  maxLength?: number;
-  tone?: string;
-  temperature?: number;
-  truncateStrategy?: 'truncate-history' | 'truncate-context' | 'error';
-  language?: string;
-  jurisdiction?: string;
-  logStats?: boolean;
-  truncateBuffer?: number;
 }
 
 export interface SearchResult {
