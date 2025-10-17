@@ -2,47 +2,19 @@
 
 ## Overview
 
-This project implements a comprehensive CI/CD pipeline using GitHub Actions with automated testing, building, security scanning, and deployment capabilities.
+This project implements a **simplified, unified CI/CD pipeline** using a single GitHub Actions workflow that handles all testing, building, security scanning, and deployment capabilities.
 
 ## Pipeline Structure
 
-### 1. CI Pipeline (`ci.yml`)
-**Triggers:** Push to any branch, Pull Requests to main/develop
+### Single Main Pipeline (`main.yml`)
+**Triggers:** Push to any branch, Pull Requests, Manual workflow dispatch
 
 **Jobs:**
-- **Build and Test**: Runs linting, type checking, unit tests, integration tests, performance tests, and infrastructure tests
-- **Infrastructure Validation**: Validates Pulumi infrastructure configuration
-- **Docker Build**: Builds and pushes Docker images to GitHub Container Registry
-- **Security Scan**: Runs Trivy vulnerability scanner and CodeQL analysis
-- **Code Quality**: Runs SonarCloud analysis and coverage reporting
-
-### 2. CD Pipeline (`cd.yml`)
-**Triggers:** Push to main branch, Manual workflow dispatch
-
-**Jobs:**
-- **Deploy to Production**: Full production deployment with infrastructure provisioning
-- **Deploy to Staging**: Manual staging deployment
-- **Rollback**: Automatic rollback on deployment failure
-
-### 3. Security Pipeline (`security.yml`)
-**Triggers:** Push to main/develop, Pull Requests, Weekly schedule
-
-**Jobs:**
-- **Dependency Security Scan**: npm audit and Snyk scanning
-- **Code Security Scan**: Trivy and CodeQL analysis
-- **Infrastructure Security**: Pulumi and Checkov security scanning
-- **Container Security**: Docker image vulnerability scanning
-- **Secrets Detection**: TruffleHog secrets scanning
-
-### 4. Infrastructure Pipeline (`infrastructure.yml`)
-**Triggers:** Changes to infrastructure files, Manual dispatch
-
-**Jobs:**
-- **Validate Infrastructure**: Runs infrastructure tests and Pulumi preview
-- **Preview Infrastructure**: Shows infrastructure changes in PRs
-- **Deploy Infrastructure**: Provisions AWS infrastructure
-- **Destroy Infrastructure**: Manual infrastructure destruction
-- **Health Check**: Validates deployed infrastructure
+1. **Test and Build**: Runs all tests, linting, type checking, security audit, and builds the application
+2. **Security Scan**: Runs Trivy vulnerability scanner, CodeQL analysis, and Snyk security scanning
+3. **Docker Build**: Builds and pushes Docker images to GitHub Container Registry (on push/manual deploy)
+4. **Infrastructure**: Validates and previews Pulumi infrastructure (on feature branches/PRs/manual)
+5. **Deploy**: Full production deployment with infrastructure provisioning (on main branch/manual)
 
 ## Required Secrets
 
@@ -133,22 +105,19 @@ IMAGE_NAME: ${{ github.repository }}
 
 ## Manual Workflows
 
-### Infrastructure Management
+### All-in-One Management
 ```bash
-# Preview infrastructure changes
-gh workflow run infrastructure.yml -f environment=staging -f action=preview
+# Run tests only
+gh workflow run main.yml -f action=test
 
-# Deploy infrastructure
-gh workflow run infrastructure.yml -f environment=production -f action=up
-
-# Destroy infrastructure
-gh workflow run infrastructure.yml -f environment=staging -f action=destroy
-```
-
-### Staging Deployment
-```bash
 # Deploy to staging
-gh workflow run cd.yml -f environment=staging
+gh workflow run main.yml -f action=deploy -f environment=staging
+
+# Deploy to production
+gh workflow run main.yml -f action=deploy -f environment=production
+
+# Infrastructure management
+gh workflow run main.yml -f action=infrastructure -f environment=staging
 ```
 
 ## Monitoring and Observability
