@@ -209,7 +209,7 @@ jobs:
       - name: Run CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          languages: javascript
+          category: '/language:javascript'
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
@@ -395,8 +395,10 @@ jobs:
       - name: Notify deployment success
         uses: 8398a7/action-slack@v3
         if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
         with:
           status: ${{ job.status }}
           channel: '#deployments'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          text: 'Deployment ${{ job.status }}'
           fields: repo,message,commit,author,action,eventName,ref,workflow

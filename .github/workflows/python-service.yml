@@ -2,13 +2,13 @@ name: Python Service CI/CD
 
 on:
   push:
-    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+    branches: [main, develop, 'feature/*', 'hotfix/*']
     paths:
       - 'python_service/**'
       - 'Dockerfile.python'
       - 'docker-compose*.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
       - 'python_service/**'
       - 'Dockerfile.python'
@@ -35,51 +35,51 @@ jobs:
     name: Test Python Service
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.action == 'test' || github.event.inputs.action == 'deploy'
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('python_service/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('python_service/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    - name: Install dependencies
-      run: |
-        cd python_service
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov pytest-asyncio grpcio-testing
+      - name: Install dependencies
+        run: |
+          cd python_service
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio grpcio-testing
 
-    - name: Run Python linting
-      run: |
-        cd python_service
-        pip install flake8 black isort mypy
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        black --check .
-        isort --check-only .
-        mypy . --ignore-missing-imports
+      - name: Run Python linting
+        run: |
+          cd python_service
+          pip install flake8 black isort mypy
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          black --check .
+          isort --check-only .
+          mypy . --ignore-missing-imports
 
-    - name: Run Python tests
-      run: |
-        cd python_service
-        python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+      - name: Run Python tests
+        run: |
+          cd python_service
+          python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: python_service/coverage.xml
-        flags: python-service
-        name: python-service-coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: python_service/coverage.xml
+          flags: python-service
+          name: python-service-coverage
 
   # Build Python Service Docker Image
   build-python-service:
@@ -87,32 +87,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-python-service]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy')
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Python service Docker image
-      uses: docker/build-and-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.python
-        push: true
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Build and push Python service Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.python
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Security Scan for Python Service
   security-scan-python:
@@ -120,44 +120,44 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-python-service]
     if: always() # Run even if tests fail
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install security tools
-      run: |
-        cd python_service
-        pip install safety bandit semgrep
+      - name: Install security tools
+        run: |
+          cd python_service
+          pip install safety bandit semgrep
 
-    - name: Run safety check
-      run: |
-        cd python_service
-        safety check --json --output safety-report.json || true
+      - name: Run safety check
+        run: |
+          cd python_service
+          safety check --json --output safety-report.json || true
 
-    - name: Run bandit security linter
-      run: |
-        cd python_service
-        bandit -r . -f json -o bandit-report.json || true
+      - name: Run bandit security linter
+        run: |
+          cd python_service
+          bandit -r . -f json -o bandit-report.json || true
 
-    - name: Run Semgrep security scan
-      run: |
-        cd python_service
-        semgrep --config=auto --json --output=semgrep-report.json . || true
+      - name: Run Semgrep security scan
+        run: |
+          cd python_service
+          semgrep --config=auto --json --output=semgrep-report.json . || true
 
-    - name: Upload security reports
-      uses: actions/upload-artifact@v3
-      with:
-        name: python-security-reports
-        path: |
-          python_service/safety-report.json
-          python_service/bandit-report.json
-          python_service/semgrep-report.json
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-security-reports
+          path: |
+            python_service/safety-report.json
+            python_service/bandit-report.json
+            python_service/semgrep-report.json
 
   # Deploy Python Service
   deploy-python-service:
@@ -165,52 +165,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-python-service, security-scan-python]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy')
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-west-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
 
-    - name: Deploy to EKS
-      run: |
-        # Update Kubernetes deployment with new image
-        kubectl set image deployment/python-service python-service=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        kubectl rollout status deployment/python-service
+      - name: Deploy to EKS
+        run: |
+          # Update Kubernetes deployment with new image
+          kubectl set image deployment/python-service python-service=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          kubectl rollout status deployment/python-service
 
-    - name: Verify deployment
-      run: |
-        kubectl get pods -l app=python-service
-        kubectl get services python-service
+      - name: Verify deployment
+        run: |
+          kubectl get pods -l app=python-service
+          kubectl get services python-service
 
-    - name: Run health check
-      run: |
-        # Wait for service to be ready
-        kubectl wait --for=condition=ready pod -l app=python-service --timeout=300s
-        
-        # Test gRPC endpoint
-        kubectl port-forward service/python-service 50051:50051 &
-        sleep 10
-        
-        # Basic connectivity test (you might want to add a proper gRPC health check)
-        timeout 10 bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "Service not ready yet"
+      - name: Run health check
+        run: |
+          # Wait for service to be ready
+          kubectl wait --for=condition=ready pod -l app=python-service --timeout=300s
 
-    - name: Notify Slack on Success
-      uses: rtCamp/action-slack-notify@v2
-      env:
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-        SLACK_MESSAGE: "Python Service Deployed Successfully! Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-        SLACK_COLOR: "good"
+          # Test gRPC endpoint
+          kubectl port-forward service/python-service 50051:50051 &
+          sleep 10
 
-    - name: Notify Slack on Failure
-      if: failure()
-      uses: rtCamp/action-slack-notify@v2
-      env:
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-        SLACK_MESSAGE: "Python Service Deployment Failed for ${{ github.ref }} - ${{ github.sha }}"
-        SLACK_COLOR: "danger"
+          # Basic connectivity test (you might want to add a proper gRPC health check)
+          timeout 10 bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "Service not ready yet"
+
+      - name: Notify Slack on Success
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: 'Python Service Deployed Successfully! Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          SLACK_COLOR: 'good'
+
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: 'Python Service Deployment Failed for ${{ github.ref }} - ${{ github.sha }}'
+          SLACK_COLOR: 'danger'
