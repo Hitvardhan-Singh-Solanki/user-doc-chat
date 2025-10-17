@@ -1,64 +1,59 @@
 version: '3.9'
 
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    command: ['npm', 'run', 'start']
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
-      python_apis:
-        condition: service_started
+  # Main application
+  app:
+    build: .
     ports:
       - '3000:3000'
-    volumes:
-      # Mount TLS certificates for gRPC sanitizer service
-      - ./certs:/app/certs:ro
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health || exit 1']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    env_file:
-      - .env.prod
-
-  python_apis:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.python
-    volumes:
-      # Mount TLS certificates for gRPC server
-      - ./certs:/app/certs:ro
-    ports:
-      - '50051:50051'
-    env_file:
-      - .env.prod
+    environment:
+      - NODE_ENV=production
     depends_on:
       - db
       - redis
+      - minio
+      - python-service
+    volumes:
+      - ./certs:/app/certs:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Python gRPC service
+  python-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    ports:
+      - '50051:50051'
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - PYTHONPATH=/app/services
+
+  # PostgreSQL database
   db:
     image: postgres:16
     ports:
       - '5432:5432'
+    environment:
+      - POSTGRES_DB=user_doc_chat
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.d:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ai_chat']
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5
-    env_file:
-      - .env.prod
 
+  # Redis cache
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - '6379:6379'
     volumes:
@@ -69,33 +64,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # MinIO object storage
   minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
+    image: minio/minio:latest
     ports:
       - '9000:9000'
       - '9001:9001'
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
     volumes:
       - minio_data:/data
-    env_file:
-      - .env.prod
-
-  ollama:
-    build:
-      context: .
-      dockerfile: Dockerfile.ollama
-    ports:
-      - '11434:11434'
-    volumes:
-      - ollama_models:/root/.ollama
+    command: server /data --console-address ":9001"
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags || exit 1']
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
-      timeout: 10s
-      retries: 5
+      timeout: 20s
+      retries: 3
 
 volumes:
-  db_data:
+  postgres_data:
   redis_data:
   minio_data:
-  ollama_models:
