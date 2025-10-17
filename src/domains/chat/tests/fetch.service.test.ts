@@ -439,7 +439,8 @@ describe('FetchHTMLService', () => {
     });
 
     it('should return null if streamed content exceeds maxBytes', async () => {
-      const mockBody = 'a'.repeat(2_000_001);
+      // Create body that exceeds the 5MB CRAWLER_MAX_BYTES limit
+      const mockBody = 'a'.repeat(6 * 1024 * 1024); // 6MB, exceeds 5MB limit
       global.fetch = vi.fn(() =>
         Promise.resolve(
           makeFetchResponse({
