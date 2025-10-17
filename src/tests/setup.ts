@@ -8,6 +8,61 @@ config({ path: resolve(process.cwd(), 'env.test') });
 // Set NODE_ENV to test to ensure proper config loading
 process.env.NODE_ENV = 'test';
 
+// Polyfill for File API in Node.js environment
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = class File {
+    constructor(public chunks: any[], public filename: string, public options: any = {}) {
+      this.name = filename;
+      this.size = 0;
+      this.type = options.type || '';
+      this.lastModified = options.lastModified || Date.now();
+    }
+    name: string;
+    size: number;
+    type: string;
+    lastModified: number;
+  } as any;
+}
+
+// Polyfill for other browser APIs that might be needed
+if (typeof globalThis.Blob === 'undefined') {
+  globalThis.Blob = class Blob {
+    constructor(public chunks: any[] = [], public options: any = {}) {
+      this.size = 0;
+      this.type = options.type || '';
+    }
+    size: number;
+    type: string;
+  } as any;
+}
+
+if (typeof globalThis.FormData === 'undefined') {
+  globalThis.FormData = class FormData {
+    private data = new Map();
+    append(name: string, value: any) {
+      this.data.set(name, value);
+    }
+    get(name: string) {
+      return this.data.get(name);
+    }
+    has(name: string) {
+      return this.data.has(name);
+    }
+    delete(name: string) {
+      this.data.delete(name);
+    }
+    entries() {
+      return this.data.entries();
+    }
+    keys() {
+      return this.data.keys();
+    }
+    values() {
+      return this.data.values();
+    }
+  } as any;
+}
+
 import { vi } from 'vitest';
 import { logger } from '../config/logger.config';
 import { initializeConfig } from '../config/app.config';
