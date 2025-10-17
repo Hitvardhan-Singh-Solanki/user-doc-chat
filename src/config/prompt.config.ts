@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { AllowedLanguage, AllowedJurisdiction, AllowedTone } from '@shared/types';
 
 const parseEnvInt = (envVar: string | undefined): number | undefined => {
   if (!envVar) return undefined;
