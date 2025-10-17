@@ -11,35 +11,42 @@ process.env.NODE_ENV = 'test';
 // Polyfill for File API in Node.js environment
 if (typeof globalThis.File === 'undefined') {
   globalThis.File = class File {
-    constructor(public chunks: any[], public filename: string, public options: any = {}) {
+    constructor(
+      public chunks: unknown[],
+      public filename: string,
+      public options: Record<string, unknown> = {},
+    ) {
       this.name = filename;
       this.size = 0;
-      this.type = options.type || '';
-      this.lastModified = options.lastModified || Date.now();
+      this.type = (options.type as string) || '';
+      this.lastModified = (options.lastModified as number) || Date.now();
     }
     name: string;
     size: number;
     type: string;
     lastModified: number;
-  } as any;
+  } as unknown as typeof File;
 }
 
 // Polyfill for other browser APIs that might be needed
 if (typeof globalThis.Blob === 'undefined') {
   globalThis.Blob = class Blob {
-    constructor(public chunks: any[] = [], public options: any = {}) {
+    constructor(
+      public chunks: unknown[] = [],
+      public options: Record<string, unknown> = {},
+    ) {
       this.size = 0;
-      this.type = options.type || '';
+      this.type = (options.type as string) || '';
     }
     size: number;
     type: string;
-  } as any;
+  } as unknown as typeof Blob;
 }
 
 if (typeof globalThis.FormData === 'undefined') {
   globalThis.FormData = class FormData {
-    private data = new Map();
-    append(name: string, value: any) {
+    private data = new Map<string, unknown>();
+    append(name: string, value: unknown) {
       this.data.set(name, value);
     }
     get(name: string) {
@@ -60,7 +67,7 @@ if (typeof globalThis.FormData === 'undefined') {
     values() {
       return this.data.values();
     }
-  } as any;
+  } as unknown as typeof FormData;
 }
 
 import { vi } from 'vitest';
