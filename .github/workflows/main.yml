@@ -81,7 +81,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r python_service/requirements.txt
-          pip install pytest pytest-cov pytest-asyncio grpcio-testing flake8 black isort mypy safety bandit
+          pip install pytest pytest-cov pytest-asyncio grpcio-testing flake8 black isort mypy safety bandit semgrep
 
       - name: Run Python linting
         run: |
@@ -96,11 +96,19 @@ jobs:
           cd python_service
           safety check --json --output safety-report.json || echo "Safety issues found"
           bandit -r . -f json -o bandit-report.json || echo "Bandit issues found"
+          semgrep --config=auto --json --output=semgrep-report.json . || echo "Semgrep issues found"
 
       - name: Run Python tests
         run: |
           cd python_service
           python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html || echo "No tests found, continuing..."
+
+      - name: Upload Python coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: python_service/coverage.xml
+          flags: python-service
+          name: python-service-coverage
 
       - name: Start gRPC sanitizer
         run: |
@@ -172,6 +180,9 @@ jobs:
           path: |
             coverage/
             reports/
+            python_service/safety-report.json
+            python_service/bandit-report.json
+            python_service/semgrep-report.json
 
   # Security Scan Job
   security-scan:
