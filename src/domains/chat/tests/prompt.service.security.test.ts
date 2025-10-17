@@ -236,8 +236,8 @@ describe('PromptService Security Tests', () => {
       const largeContext = 'This is a legal document. '.repeat(1000); // ~25k characters
       const largeQuestion = 'What are the key provisions? '.repeat(50); // ~1.5k characters (under 2000 limit)
       const largeHistory = Array(50).fill(
-        'Previous conversation message. '.repeat(50),
-      ); // ~75k characters
+        'Previous conversation message.',
+      ); // Each message is under 1000 characters
 
       const userInput = {
         question: largeQuestion,

@@ -1,7 +1,6 @@
 import http from 'http';
 import { Application } from 'express';
 import { Server } from 'socket.io';
-import { z } from 'zod';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
 import { VectorStoreService } from '@vector/services/vector-store.service';
@@ -13,22 +12,14 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
+import { z } from 'zod';
+import { QuestionPayloadSchema } from '@shared/schemas';
 import type {
   AuthenticatedSocket,
-  QuestionPayload,
   SocketHandshake,
   DecodedToken,
   LegacyTokenData,
 } from '@shared/types';
-
-const QuestionPayloadSchema = z.object({
-  fileId: z
-    .string()
-    .min(1, 'fileId is required and must be a non-empty string'),
-  question: z
-    .string()
-    .min(1, 'question is required and must be a non-empty string'),
-}) satisfies z.ZodType<QuestionPayload>;
 
 export class WebsocketService {
   public io: Server;

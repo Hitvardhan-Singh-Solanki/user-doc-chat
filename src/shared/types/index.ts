@@ -10,6 +10,9 @@ export * from './chat.types';
 export * from './service.types';
 export * from './llm.types';
 export * from './database.types';
+export * from './authentication.types';
+export * from './timeout.types';
+export * from './validation.types';
 
 export interface User {
   id: string;

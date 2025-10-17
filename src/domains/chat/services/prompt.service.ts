@@ -88,9 +88,9 @@ export class PromptService {
 
     this.validateInput(parsedInput.question, 'mainPrompt-question');
     this.validateInput(parsedInput.context, 'mainPrompt-context');
-    parsedInput.chatHistory.forEach((msg, index) => {
-      this.validateInput(msg, `mainPrompt-history-${index}`);
-    });
+            parsedInput.chatHistory.forEach((msg: string, index: number) => {
+              this.validateInput(msg, `mainPrompt-history-${index}`);
+            });
 
     const sanitizedContext = this.sanitizeText(parsedInput.context);
     const sanitizedQuestion = this.sanitizeText(parsedInput.question);

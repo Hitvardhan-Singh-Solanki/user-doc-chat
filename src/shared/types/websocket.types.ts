@@ -1,7 +1,3 @@
-/**
- * WebSocket service types and interfaces
- */
-
 import type { Socket } from 'socket.io';
 import type { JwtPayload } from './index';
 
@@ -47,4 +43,30 @@ export interface WebSocketServiceConfig {
 export interface WebSocketError {
   message: string;
   code?: string;
+}
+
+export interface WebSocketAuthenticationResult {
+  success: boolean;
+  userId?: string;
+  error?: string;
+}
+
+export interface WebSocketMessageHandler {
+  handleMessage(
+    socket: AuthenticatedSocket,
+    payload: QuestionPayload,
+  ): Promise<void>;
+}
+
+export interface WebSocketConnectionManager {
+  addConnection(socket: AuthenticatedSocket): void;
+  removeConnection(socketId: string): void;
+  getConnection(socketId: string): AuthenticatedSocket | undefined;
+  getAllConnections(): AuthenticatedSocket[];
+}
+
+export interface WebSocketEventEmitter {
+  emitToUser(userId: string, event: string, data: unknown): void;
+  emitToSocket(socketId: string, event: string, data: unknown): void;
+  broadcast(event: string, data: unknown): void;
 }
