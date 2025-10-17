@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AllowedLanguage, AllowedJurisdiction, AllowedTone } from '@shared/types';
 
 const parseEnvInt = (envVar: string | undefined): number | undefined => {
   if (!envVar) return undefined;
@@ -27,9 +28,9 @@ const promptConfigSchema = z.object({
     .default(['formal', 'casual', 'professional']),
 });
 
-export type PromptConfig = z.infer<typeof promptConfigSchema>;
+export type PromptConfigParsed = z.infer<typeof promptConfigSchema>;
 
-export const promptConfig = promptConfigSchema.parse({
+export const promptConfig: PromptConfigParsed = promptConfigSchema.parse({
   MAX_INPUT_SIZE:
     parseEnvInt(process.env.PROMPT_MAX_INPUT_SIZE) ?? 50 * 1024 * 1024,
   MAX_SENTENCES: parseEnvInt(process.env.PROMPT_MAX_SENTENCES) ?? 10000,
@@ -87,9 +88,10 @@ export const {
   ALLOWED_TONES,
 } = promptConfig;
 
-export type AllowedLanguage = (typeof ALLOWED_LANGUAGES)[number];
-export type AllowedJurisdiction = (typeof ALLOWED_JURISDICTIONS)[number];
-export type AllowedTone = (typeof ALLOWED_TONES)[number];
+// Export type-safe versions of the allowed values
+export type ConfigAllowedLanguage = (typeof ALLOWED_LANGUAGES)[number];
+export type ConfigAllowedJurisdiction = (typeof ALLOWED_JURISDICTIONS)[number];
+export type ConfigAllowedTone = (typeof ALLOWED_TONES)[number];
 
 export const SUSPICIOUS_PATTERNS = [
   /^SYSTEM\s+INSTRUCTION\s*:/gim,

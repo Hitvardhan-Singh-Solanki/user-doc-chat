@@ -1,9 +1,5 @@
 import { ITokenizer } from '@interfaces/tokenizer.interface';
-
-interface XenovaTokenizer {
-  encode(text: string): number[];
-  decode(tokens: number[]): string;
-}
+import type { XenovaTokenizer } from '@shared/types';
 
 export class XenovaTokenizerAdapter implements ITokenizer {
   private tokenizer: XenovaTokenizer | null = null;

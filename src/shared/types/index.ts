@@ -1,5 +1,11 @@
 import { Response } from 'express';
 
+// Re-export all types from specialized type files
+export * from './websocket.types';
+export * from './config.types';
+export * from './regex.types';
+export * from './ai.types';
+
 export interface FileJob {
   key: string;
   userId: string;

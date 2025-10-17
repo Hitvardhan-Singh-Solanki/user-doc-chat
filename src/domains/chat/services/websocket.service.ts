@@ -1,6 +1,6 @@
 import http from 'http';
 import { Application } from 'express';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 import { z } from 'zod';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
@@ -13,11 +13,7 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
-
-interface AuthenticatedSocket extends Socket {
-  userId: string;
-  tokenExp?: number;
-}
+import { AuthenticatedSocket } from '@shared/types';
 
 const QuestionPayloadSchema = z.object({
   fileId: z

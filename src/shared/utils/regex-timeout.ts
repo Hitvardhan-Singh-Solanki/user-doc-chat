@@ -8,6 +8,7 @@ import { join } from 'path';
 import { logger } from '@config/logger.config';
 import { REGEX_TIMEOUT_MS } from '@config/prompt.config';
 import { RegexValidator, UnsafeRegexError } from './regex-validator';
+import type { RegexWorkerData, RegexWorkerResult } from '@shared/types';
 
 export class RegexTimeoutError extends Error {
   constructor(pattern: string, timeout: number) {
@@ -16,21 +17,6 @@ export class RegexTimeoutError extends Error {
     );
     this.name = 'RegexTimeoutError';
   }
-}
-
-interface RegexWorkerData {
-  operation: 'test' | 'match' | 'replace' | 'exec';
-  pattern: string;
-  flags: string;
-  text: string;
-  replacement?: string;
-  maxIterations?: number;
-}
-
-interface RegexWorkerResult {
-  success: boolean;
-  result?: string | RegExpExecArray | RegExpExecArray[] | null;
-  error?: string;
 }
 
 /**
