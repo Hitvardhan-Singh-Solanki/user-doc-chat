@@ -77,6 +77,15 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('python_service/requirements.txt') }}-tools
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ hashFiles('python_service/requirements.txt') }}-
+            ${{ runner.os }}-pip-
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
