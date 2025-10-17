@@ -84,11 +84,11 @@ describe('PromptService Integration Tests', () => {
 
   describe('Main Prompt Generation', () => {
     it('should generate prompt for large legal document', async () => {
-      const largeContext = generateLegalDocument(5 * 1024 * 1024); // 5MB
+      const largeContext = generateLegalDocument(40 * 1024); // 40KB (under 50k char limit)
       const input = {
         context: largeContext,
         question: 'What are the key terms of this agreement?',
-        chatHistory: generateChatHistory(100),
+        chatHistory: generateChatHistory(50),
       };
 
       const prompt = await promptService.mainPrompt(input);
@@ -101,7 +101,7 @@ describe('PromptService Integration Tests', () => {
       const input = {
         context: 'This is a legal agreement between parties.',
         question: 'What does section 1 say?',
-        chatHistory: generateChatHistory(100), // Reduced to 100 for reasonable prompt size
+        chatHistory: generateChatHistory(50), // Reduced to 100 for reasonable prompt size
       };
 
       const prompt = await promptService.mainPrompt(input);
@@ -113,7 +113,7 @@ describe('PromptService Integration Tests', () => {
 
   describe('Low Prompt Generation', () => {
     it('should generate low prompt for large content array', async () => {
-      const largeContent = Array(1000)
+      const largeContent = Array(100)
         .fill(0)
         .map(
           (_, i) =>

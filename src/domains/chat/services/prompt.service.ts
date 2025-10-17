@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PromptConfig } from '@shared/types';
+import type { PromptConfig } from '@shared/types';
 import { LowContentSchema } from '@files/validators/file-input.validator';
 import { UserInputSchema } from '@auth/validators/user-input.validator';
 import { logger } from '@config/logger.config';
@@ -9,15 +9,17 @@ import {
   ALLOWED_JURISDICTIONS,
   ALLOWED_LANGUAGES,
   ALLOWED_TONES,
-  type AllowedJurisdiction,
-  type AllowedLanguage,
-  type AllowedTone,
   MAX_INPUT_SIZE,
   MAX_TOKEN_OPERATIONS,
   SUSPICIOUS_PATTERNS,
   TOKEN_CACHE_SIZE,
   TOKEN_WINDOW_MS,
 } from '@config/prompt.config';
+import type {
+  ConfigAllowedJurisdiction as AllowedJurisdiction,
+  ConfigAllowedLanguage as AllowedLanguage,
+  ConfigAllowedTone as AllowedTone,
+} from '@shared/types';
 import {
   PromptInjectionError,
   ResourceExhaustedError,
@@ -86,7 +88,7 @@ export class PromptService {
 
     this.validateInput(parsedInput.question, 'mainPrompt-question');
     this.validateInput(parsedInput.context, 'mainPrompt-context');
-    parsedInput.chatHistory.forEach((msg, index) => {
+    parsedInput.chatHistory.forEach((msg: string, index: number) => {
       this.validateInput(msg, `mainPrompt-history-${index}`);
     });
 

@@ -5,6 +5,7 @@ import {
 } from 'rate-limiter-flexible';
 import { redisPub } from '../database/repositories/redis.repo';
 import { logger } from '@config/logger.config';
+import type { RateLimitInfo, RateLimiterTypeKey } from '@shared/types';
 
 export class RateLimiterService {
   private generalLimiter?: RateLimiterRedis | RateLimiterMemory;
@@ -55,7 +56,7 @@ export class RateLimiterService {
 
   async getRemainingPoints(
     key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
+    type: RateLimiterTypeKey,
   ): Promise<number> {
     const limiter = this.getLimiter(type);
     if (!limiter) {
@@ -65,10 +66,7 @@ export class RateLimiterService {
     return resConsume?.remainingPoints ?? Number(limiter.points);
   }
 
-  async getTotalHits(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ): Promise<number> {
+  async getTotalHits(key: string, type: RateLimiterTypeKey): Promise<number> {
     const limiter = this.getLimiter(type);
     if (!limiter) {
       throw new Error('RateLimiterService not initialized');
@@ -77,10 +75,7 @@ export class RateLimiterService {
     return resConsume?.consumedPoints || 0;
   }
 
-  async reset(
-    key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ): Promise<void> {
+  async reset(key: string, type: RateLimiterTypeKey): Promise<void> {
     const limiter = this.getLimiter(type);
     if (!limiter) {
       throw new Error('RateLimiterService not initialized');
@@ -91,8 +86,8 @@ export class RateLimiterService {
 
   async getRateLimitInfo(
     key: string,
-    type: 'general' | 'auth' | 'upload' | 'chat',
-  ) {
+    type: RateLimiterTypeKey,
+  ): Promise<RateLimitInfo> {
     const limiter = this.getLimiter(type);
     if (!limiter) {
       throw new Error('RateLimiterService not initialized');

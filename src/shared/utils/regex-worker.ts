@@ -4,22 +4,7 @@
  */
 
 import { parentPort } from 'worker_threads';
-// import { RegexTimeoutError } from './regex-timeout';
-
-interface RegexWorkerData {
-  operation: 'test' | 'match' | 'replace' | 'exec';
-  pattern: string;
-  flags: string;
-  text: string;
-  replacement?: string;
-  maxIterations?: number;
-}
-
-interface RegexWorkerResult {
-  success: boolean;
-  result?: string | RegExpExecArray | RegExpExecArray[] | null;
-  error?: string;
-}
+import type { RegexWorkerData, RegexWorkerResult } from '@shared/types';
 
 /**
  * Worker thread handler for regex operations

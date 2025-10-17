@@ -1,7 +1,6 @@
 import http from 'http';
 import { Application } from 'express';
-import { Server, Socket } from 'socket.io';
-import { z } from 'zod';
+import { Server } from 'socket.io';
 import { verifyJwt } from '@utils/jwt';
 import { LLMService } from './llm.service';
 import { VectorStoreService } from '@vector/services/vector-store.service';
@@ -13,20 +12,14 @@ import { DeepResearchService } from './deep-research.service';
 import { FetchHTMLService } from './fetch.service';
 import { logger } from '@config/logger.config';
 import { config } from '@config';
-
-interface AuthenticatedSocket extends Socket {
-  userId: string;
-  tokenExp?: number;
-}
-
-const QuestionPayloadSchema = z.object({
-  fileId: z
-    .string()
-    .min(1, 'fileId is required and must be a non-empty string'),
-  question: z
-    .string()
-    .min(1, 'question is required and must be a non-empty string'),
-});
+import { z } from 'zod';
+import { QuestionPayloadSchema } from '@shared/schemas';
+import type {
+  AuthenticatedSocket,
+  SocketHandshake,
+  DecodedToken,
+  LegacyTokenData,
+} from '@shared/types';
 
 export class WebsocketService {
   public io: Server;
@@ -99,11 +92,7 @@ export class WebsocketService {
   }
 
   private extractToken(socket: {
-    handshake: {
-      headers: { authorization?: string };
-      auth?: { token?: string };
-      address: string;
-    };
+    handshake: SocketHandshake;
   }): string | undefined {
     const authHeader = socket.handshake.headers.authorization;
 
@@ -145,13 +134,7 @@ export class WebsocketService {
   }
 
   private extractUserId(
-    decoded: {
-      sub?: string;
-      id?: string;
-      userId?: string;
-      iat?: number;
-      exp?: number;
-    },
+    decoded: DecodedToken,
     socket: { handshake: { address: string } },
   ): string | undefined {
     let userId = (decoded as { sub?: string }).sub;
@@ -164,15 +147,10 @@ export class WebsocketService {
   }
 
   private handleLegacyToken(
-    decoded: { id?: string; userId?: string; iat?: number; exp?: number },
+    decoded: LegacyTokenData,
     socket: { handshake: { address: string } },
   ): string | undefined {
-    const decodedWithLegacy = decoded as {
-      id?: string;
-      userId?: string;
-      iat?: number;
-      exp?: number;
-    };
+    const decodedWithLegacy = decoded as LegacyTokenData;
     const legacyId = decodedWithLegacy.id ?? decodedWithLegacy.userId;
 
     if (legacyId) {

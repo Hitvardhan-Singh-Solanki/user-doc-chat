@@ -468,7 +468,9 @@ export function corsSecurity(
   next: NextFunction,
 ): void {
   const origin = req.headers.origin;
-  const allowedOrigins = config.CORS_ORIGINS;
+  const allowedOrigins = config.CORS_ORIGINS
+    ? config.CORS_ORIGINS.split(',').map((o) => o.trim())
+    : [];
 
   // Allow requests with no Origin header (same-origin, CLI, health checks)
   if (!origin) {

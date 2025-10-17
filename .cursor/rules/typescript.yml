@@ -1,3 +1,6 @@
+# TypeScript Development Ruleset
+# Comprehensive standards for clean, shippable, enterprise-grade code
+
 rules:
   - match: '**/*.ts'
     behavior:
@@ -10,34 +13,22 @@ rules:
       enforce_git_safety: true
 
     custom_guidelines: |
-      # 🧠 TypeScript Project Standards
+      # TypeScript Development Standards
 
-      ## Architecture
-      - Modular by feature/domain (e.g., `/auth`, `/tasks`, `/cases`)
-      - Separation of concerns: controllers → services → repositories → models
-      - Centralized error handling with proper HTTP codes and structured logging
-      - Unit, integration, and e2e tests per module (Jest / Vitest)
-      - Secure handling of sensitive data: encryption at rest & in transit, CDR scanning
-      - API versioning (`/v1`, `/v2`) and consistent REST/GraphQL design
-      - Audit logging, RBAC, and multi-tenant isolation
-      - Scalability: async jobs, queues (BullMQ), caching (Redis)
-      - Observability: Prometheus metrics, centralized logs (ELK/Grafana)
-      - CI/CD pipelines: linting, type checks, tests, and security scans
+      ## Core Typing Principles
 
-      ## Code Style
-      - CamelCase for variables/functions/classes; PascalCase for types/interfaces
-      - Immutable data structures and pure functions
-      - Follow Prettier + ESLint formatting
-      - Keep cognitive complexity of functions below 8
-      - Input validation & sanitization on all user inputs
-      - Manage secrets via env vars and secure vaults
-      - Never use unsafe git commands (e.g., `--no-verify`)
-      - Make all variable and method names self-explanatory
-      - Always enable `async/await` for all async calls
-      - Thin controller layer; business logic resides in services
+      ### Type Organization
+      - All types live in `/types.ts` or `/src/types/` directory
+      - Force explicit annotations—no type inference for public APIs
+      - Function signatures: `getUser(id: string): User | null`
+      - `any` is forbidden—delete on sight
+      - `unknown` only for external/sketchy APIs; cast immediately after validation
+      - `never` for exhaustion checks only—don't overuse
+      - Use discriminated unions: `type Result<T> = { success: true; data: T } | { success: false; error: string }`
+      - No `enum`; prefer union types: `type Status = 'active' | 'inactive' | 'pending'`
 
-      ## TypeScript Compiler Settings
-      - Enable `strict: true` in `@tsconfig.json` with:
+      ### TypeScript Compiler Configuration
+      - Enable `strict: true` in `tsconfig.json` with all sub-flags:
         - `noImplicitAny: true`
         - `strictNullChecks: true`
         - `strictFunctionTypes: true`
@@ -46,29 +37,426 @@ rules:
         - `noImplicitThis: true`
         - `alwaysStrict: true`
         - `exactOptionalPropertyTypes: true`
-      - Never use `// @ts-ignore` or `// @ts-expect-error` without a clear justification
       - Use `--noEmitOnError` to prevent JS output when TS errors exist
+      - Never use `// @ts-ignore` or `// @ts-expect-error` without documented justification
 
-      ## Type Definitions
-      - Do **not** use `any`. Use `unknown` if unavoidable
-      - Explicitly type all function parameters, return values, and object literals
-      - Avoid `enum`; prefer union types (`'A' | 'B'`)
+      ### Advanced Type Patterns
+      - Implement proper generics with constraints: `function map<T, U>(items: T[], fn: (item: T) => U): U[]`
+      - Use mapped types: `type Optional<T> = { [K in keyof T]?: T[K] }`
+      - Use conditional types to reduce duplication
+      - Use `const` assertions for literal types: `const colors = ['red', 'blue'] as const`
+      - Implement branded types for domain validation: `type UserId = string & { readonly brand: unique symbol }`
       - Use `readonly` modifiers for immutable properties/arrays
-      - Leverage TypeScript utility types (`Partial`, `Required`, `Pick`, `Omit`, `Record`, etc.)
-      - Use discriminated unions and exhaustiveness checking for narrowing
+      - Leverage utility types: `Partial`, `Required`, `Pick`, `Omit`, `Record`, `Exclude`, `Extract`
+      - Use discriminated unions with exhaustiveness checking
 
-      ## Advanced Type Patterns
-      - Implement proper generics with constraints
-      - Use mapped and conditional types to minimize duplication
-      - Use `const` assertions for literal types
-      - Implement branded (nominal) types for safer domain-level validation
+      ### Type Documentation
+      - Document complex types using JSDoc
+      - Explicitly type all function parameters, return values, and object literals
+      - Create clear type aliases for complex types
+
+      ## Error Handling
+
+      - Throw descriptive errors: `throw new Error('User ID missing in request')`
+      - Check inputs upfront—fail fast
+      - Custom error classes for domain errors: `class ValidationError extends Error`
+      - Never swallow errors—always log or rethrow
+      - Async functions: use typed promises, prefer throwing over error unions
+      - Centralized error handling with proper HTTP status codes
+      - Structured logging for all errors
 
       ## Code Organization
-      - Organize types in dedicated files (`types.ts`) or alongside their modules
-      - Document complex types using JSDoc
-      - Create a central `src/types` directory for shared type definitions
+
+      ### File Structure
+      ```
+            src/
+            ├── types.ts              # All type definitions
+            ├── constants.ts          # App-wide constants
+            ├── schemas.ts            # Zod validation schemas
+            ├── controllers/          # HTTP layer
+            ├── services/             # Business logic
+            ├── repositories/         # Data access layer
+            ├── models/               # Domain models
+            ├── utils/                # Pure helper functions
+            ├── hooks/                # React hooks (frontend)
+            ├── components/           # UI components (frontend)
+            │   ├── common/          # Reusable UI components
+            │   ├── features/        # Feature-specific components
+            │   └── layouts/         # Page layouts
+            ├── store/                # Global state (frontend)
+            └── pages/                # Route components (frontend)
+      ```
+
+      ### Module Organization
+      - Organize by feature/domain: `/auth`, `/users`, `/orders`
+      - Keep functions max 20 lines—bite-sized and focused
+      - One responsibility per file
+      - No nesting hell or mega-functions
+      - Cognitive complexity below 8 per function
+      - Split large components into smaller sub-components (max 150 lines)
+
+      ### Code Documentation
+      - NO explainer comments in code—code should be self-documenting
+      - JSDoc only for public APIs: params, returns, throws
+      - Inline comments only for "why", never "what"
+      - README per module only if complex
+      - Never create unnecessary `*.md` files
+      - Always ask before creating any `*.md` files
+
+      ## Backend Architecture
+
+      ### 1. Controllers (`/controllers`)
+      - Handle HTTP concerns only: request parsing, response formatting, status codes
+      - Zero business logic—thin controller layer
+      - Call services, return responses
+      - Input validation and sanitization
+      - Example: `userController.ts` validates request, calls `userService.createUser()`, returns 201
+
+      ### 2. Services (`/services`)
+      - Pure business logic—no database calls, no HTTP knowledge
+      - Takes clean inputs, returns clean outputs
+      - Orchestrates repositories and other services
+      - Example: `userService.ts` has `validateUserData()`, `calculateUserScore()`
+      - Fully testable without mocks—pure functions
+      - Async/await for all async operations
+
+      ### 3. Repositories (`/repositories`)
+      - Database layer only—CRUD operations, queries, transactions
+      - Example: `userRepository.ts` has `findById()`, `create()`, `update()`
+      - Return domain types, never raw DB objects
+      - Abstract DB technology—swap implementations without touching services
+      - Use parameterized queries—never string concatenation for SQL
+
+      ### 4. Models (`/models`)
+      - Domain models with business rules
+      - Immutable data structures
+      - Pure functions for transformations
+
+      ### API Design
+      - RESTful or GraphQL consistency
+      - API versioning: `/v1`, `/v2`
+      - Proper HTTP status codes
+      - Pagination for lists: `getUsers(page: number, limit: number)`
+      - Rate limiting on all endpoints
+
+      ## Frontend Architecture
+
+      ### 1. Components (`/components`)
+      - Pure presentation—receive props, render UI, emit events
+      - Max 150 lines per component
+      - One component per file: `UserCard.tsx`, `UserCard.module.scss`
+      - No API calls, no business logic, no direct state mutations
+      - Semantic HTML: `<button>`, `<nav>`, `<main>` (not `<div>` for everything)
+        ```typescript
+              // ❌ BAD: Logic in component
+              function UserCard({ userId }: Props) {
+                const [user, setUser] = useState(null);
+                useEffect(() => {
+                  fetch(`/api/users/${userId}`).then(r => r.json()).then(setUser);
+                }, [userId]);
+                return <div>{user?.name}</div>;
+              }
+
+              // ✅ GOOD: Component is dumb
+              function UserCard({ user, onEdit }: Props) {
+                return <div onClick={() => onEdit(user.id)}>{user.name}</div>;
+              }
+        ```
+
+      ### 2. Hooks (`/hooks`)
+      - Encapsulate reusable stateful logic
+      - Custom hooks: `useUser(id)`, `useAuth()`, `useDebounce()`
+      - Handle side effects (API calls, subscriptions)
+      - Return data, loading state, errors
+        ```typescript
+              export function useUser(id: string) {
+                const [user, setUser] = useState<User | null>(null);
+                const [loading, setLoading] = useState(true);
+                const [error, setError] = useState<string | null>(null);
+
+                useEffect(() => {
+                  userService.getUser(id)
+                    .then(setUser)
+                    .catch((e) => setError(e.message))
+                    .finally(() => setLoading(false));
+                }, [id]);
+
+                return { user, loading, error };
+              }
+        ```
+
+      ### 3. Services (`/services`)
+      - Same as backend—pure business logic
+      - Data transformation, validation, calculations
+      - API clients: `apiService.ts` handles all HTTP calls
+      - No side effects in business logic
+
+      ### 4. State Management (`/store`)
+      - Global state only for truly global data (auth, theme, shared cache)
+      - Use Zustand, Jotai, or Context—keep it simple
+      - Slice per domain: `userStore.ts`, `cartStore.ts`
+      - Actions are pure functions
+      - Side effects remain in services
+
+      ### 5. Utils (`/utils`)
+      - Pure helper functions: formatting, parsing, sorting
+      - No side effects
+      - Easily testable
+      - Examples: `formatDate()`, `validateEmail()`, `sortByName()`
+
+      ### Component Patterns
+      - **Container/Presenter**: Container handles logic, presenter renders
+      - **Compound Components**: For complex UI with shared state
+      - **Render Props/Slots**: For flexible composition
+
+      ## Testing with Vitest
+
+      ### Setup
+      - Config in `vitest.config.ts` with path aliases matching `tsconfig.json`
+      - Test files: `*.test.ts` alongside source or in `__tests__/`
+      - Run: `vitest` for watch mode, `vitest run` for CI
+      - Unit, integration, and e2e tests per module
+
+      ### Backend Testing
+      - **Services**: Test business logic in isolation, mock repositories
+      - **Repositories**: Test with real DB (Docker/in-memory), no mocks
+      - **Utils**: Pure functions—easiest to test, no setup
+
+      ### Frontend Testing
+      - **Components**: Render, check output, test user interactions
+      - **Hooks**: Use `renderHook` from `@testing-library/react`
+      - Mock API calls with `msw` (Mock Service Worker)
+
+      ### Integration Tests
+      - Test full flows: Controller → Service → Repository → DB
+      - Use `supertest` for API testing
+      - Spin up test DB, seed data, tear down after
+
+      ### Coverage & Best Practices
+      - Aim for 80%+ coverage on services and utils
+      - Use `vitest --coverage` to track
+      - One assertion concept per test
+      - Descriptive names: `test('returns null when user email not found')`
+      - Use `beforeEach`, `afterEach` for clean state
+      - Mock external APIs, never internal code (except repositories in service tests)
+      - Test data factories: `createTestUser({ name: 'override' })`
+
+      ## Dependency Injection
+
+      - Pass dependencies explicitly—no hidden globals
+      - Services receive repositories as params
+      - Example: `createUser(data: CreateUserDTO, repo: UserRepository)`
+      - Makes testing trivial and swapping implementations easy
+
+      ## Validation
+
+      - Use `zod` for runtime validation at boundaries
+      - Define schemas in `/schemas.ts`
+      - Validate once at entry points (controllers, external APIs)
+      - Trust data internally after validation
+      - Input sanitization on all user inputs
+
+      ## Naming Conventions
+
+      - **Files**: `kebab-case.ts` (e.g., `user-service.ts`)
+      - **Classes/Types**: `PascalCase` (e.g., `UserService`, `CreateUserDTO`)
+      - **Functions/variables**: `camelCase` (e.g., `getUserById`, `isActive`)
+      - **Constants**: `UPPER_SNAKE_CASE` (e.g., `MAX_RETRIES`, `API_URL`)
+      - **Booleans**: prefix with `is`, `has`, `can` (e.g., `isValid`, `hasPermission`)
+      - Self-explanatory names—no cryptic abbreviations
+
+      ## Imports
+
+      - Absolute imports via path aliases: `@/types`, `@/services`, `@/utils`
+      - Group imports: external libraries, then internal, separated by blank line
+      - No default exports—named exports only for consistency
+
+      ## Performance & Scalability
+
+      ### Backend
+      - Async all I/O—never block the event loop
+      - Batch DB queries: `Promise.all`, not sequential awaits
+      - Use database indexes on queried fields
+      - Cache expensive computations (Redis, in-memory with TTL)
+      - Pagination for all list endpoints
+      - Async jobs and queues (BullMQ) for long-running tasks
+
+      ### Frontend
+      - Lazy load routes: `React.lazy()` for code splitting
+      - Memoize expensive computations: `useMemo`, `useCallback`
+      - Virtualize long lists: `react-window` or `@tanstack/react-virtual`
+      - Optimize images: Next.js Image, lazy loading
+      - Debounce/throttle frequent events (search, scroll, resize)
+
+      ## Security
+
+      - Sanitize all inputs—never trust user data
+      - Use parameterized queries—no SQL string concatenation
+      - Hash passwords with `bcrypt` or `argon2`
+      - Validate JWTs: check expiry and signature
+      - Rate limit all endpoints
+      - Encryption at rest and in transit
+      - CDR (Content Disarm & Reconstruction) scanning for file uploads
+      - RBAC (Role-Based Access Control)
+      - Multi-tenant isolation
+      - Audit logging for sensitive operations
+      - Manage secrets via environment variables and secure vaults
+      - Never commit secrets to version control
+
+      ## Accessibility (Frontend)
+
+      - Semantic HTML elements
+      - ARIA labels where needed: `aria-label`, `aria-describedby`
+      - Keyboard navigation: test with Tab, Enter, Escape
+      - Focus management: trap focus in modals, restore on close
+      - Color contrast: WCAG AA minimum (4.5:1 for text)
+      - Screen reader testing
+
+      ## Styling (Frontend)
+
+      - **Prefer SCSS over plain CSS**
+      - CSS Modules or Tailwind—stay consistent across project
+      - No inline styles except for dynamic values
+      - Theme variables in CSS custom properties
+      - Mobile-first responsive design
+      - **NEVER use `!important` under any circumstance**
+
+      ## Error Boundaries (Frontend)
+
+      - Wrap route components in error boundaries
+      - Log errors to monitoring service (Sentry, Datadog)
+      - Show friendly fallback UI, not white screen
+
+      ## Observability
+
+      - Prometheus metrics for key performance indicators
+      - Centralized logging (ELK stack, Grafana, CloudWatch)
+      - Distributed tracing for microservices
+      - Health check endpoints
+      - Performance monitoring
+
+      ## Git Standards & Best Practices
+
+      ### Git Hooks & Safety
+      - **ALWAYS wait for pre-commit and pre-push hooks to complete**
+      - **NEVER use `--no-verify` flag under any circumstance**
+      - **NEVER use `git commit --no-verify`**
+      - **NEVER use `git push --no-verify`**
+      - **NEVER bypass git hooks** - they exist to protect code quality
+      - All hooks must pass before commit/push is allowed
+      - If hooks fail, fix the issues—don't skip them
+      - Configure git hooks with Husky or similar tool
+      - Pre-commit: lint, format, type check
+      - Pre-push: run tests, coverage checks
+
+      ### Commit Message Format
+      - Use conventional commit format with tags
+      - Tag format: `[tag] commit message` (all lowercase tags)
+      - **Required tags:**
+        - `[feat]` - New feature or functionality
+        - `[fix]` - Bug fix or correction
+        - `[chore]` - Maintenance tasks (dependencies, config, etc.)
+        - `[refactor]` - Code restructuring without behavior change
+        - `[docs]` - Documentation changes only
+        - `[test]` - Adding or updating tests
+        - `[style]` - Code formatting, missing semicolons (no logic change)
+        - `[perf]` - Performance improvements
+        - `[ci]` - CI/CD pipeline changes
+        - `[build]` - Build system or external dependencies
+        - `[revert]` - Revert previous commit
+
+      ### Commit Message Best Practices
+      - **NEVER include emojis in commit messages**
+      - **NEVER include emojis anywhere in the project** (code, comments, docs, commits)
+      - Start with tag, followed by concise description
+      - Use imperative mood: "add feature" not "added feature"
+      - First line max 72 characters
+      - Separate subject from body with blank line
+      - Use body to explain what and why, not how
+      - Reference issue numbers when applicable
+
+      ### Commit Message Examples
+      ```
+            ✅ GOOD:
+            [feat] add user authentication with JWT tokens
+            [fix] resolve null pointer exception in user service
+            [chore] update dependencies to latest versions
+            [refactor] extract validation logic into separate utility
+            [test] add integration tests for payment flow
+            [docs] update API documentation for user endpoints
+            [perf] optimize database queries in order repository
+
+            ❌ BAD:
+            [feat] 🎉 add user auth  (no emojis)
+            fixed bug  (no tag, not imperative)
+            [FIX] Resolved issue  (tag should be lowercase)
+            updated stuff  (too vague, no tag)
+      ```
+
+      ### Branching Strategy
+      - Use feature branches: `feature/user-authentication`
+      - Use bugfix branches: `bugfix/payment-validation`
+      - Use hotfix branches: `hotfix/critical-security-patch`
+      - Branch naming: `type/descriptive-name` (kebab-case)
+      - Never commit directly to `main` or `master`
+      - Delete branches after merge
+
+      ### Pull Request Guidelines
+      - PR title follows commit message format: `[feat] add user authentication`
+      - Descriptive PR description explaining changes
+      - Link related issues
+      - Request reviews from appropriate team members
+      - All CI/CD checks must pass before merge
+      - Squash commits when merging to keep history clean
+
+      ### Git Workflow Rules
+      - Pull latest changes before starting new work: `git pull --rebase`
+      - Commit frequently with meaningful messages
+      - Push to remote regularly to backup work
+      - Never force push to shared branches without team agreement
+      - Use `git rebase` for clean history, not `git merge` for feature branches
+      - Resolve merge conflicts immediately—don't let them pile up
+
+      ### .gitignore Best Practices
+      - Always include `node_modules/`, `.env`, `.env.local`
+      - Ignore IDE-specific files: `.vscode/`, `.idea/`
+      - Ignore build artifacts: `dist/`, `build/`, `.next/`
+      - Ignore OS-specific files: `.DS_Store`, `Thumbs.db`
+      - Ignore log files: `*.log`, `npm-debug.log*`
+      - Never commit secrets, API keys, or credentials
+
+      ## CI/CD Pipeline
+
+      - Linting (`eslint`) enforces all rules
+      - Type checking: `tsc --noEmit`
+      - Tests: `vitest run` must pass
+      - Security scans (Snyk, npm audit)
+      - Coverage threshold: 80% minimum
+      - Automated deployment on merge to main
+      - All checks must pass before merge is allowed
 
       ## gRPC Standards
+
       - Always generate clients/servers from `.proto` files
       - Never manually modify generated gRPC code
       - Use strong typing for request/response DTOs
+      - Version `.proto` files properly
+
+      ## Code Quality Principles
+
+      - Immutable data structures wherever possible
+      - Pure functions over stateful code
+      - Follow Prettier + ESLint formatting (automate with pre-commit)
+      - DRY (Don't Repeat Yourself) but avoid premature abstraction
+      - SOLID principles for class design
+      - Composition over inheritance
+      - Fail fast—validate early, throw descriptive errors
+      - Make impossible states impossible with types
+
+      ## Project-Wide Emoji Ban
+
+      - **NEVER use emojis anywhere in the project**
+      - No emojis in: code, comments, documentation, commit messages, PR titles, branch names
+      - No emojis in: error messages, log output, user-facing text
+      - Exception: User-generated content (if applicable to your domain)
+      - Keep all text professional and emoji-free

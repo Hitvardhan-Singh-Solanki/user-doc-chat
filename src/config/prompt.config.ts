@@ -1,4 +1,5 @@
-import { z } from 'zod';
+import { PromptConfigSchema } from '@shared/schemas';
+import type { PromptConfigParsed } from '@shared/types';
 
 const parseEnvInt = (envVar: string | undefined): number | undefined => {
   if (!envVar) return undefined;
@@ -6,30 +7,7 @@ const parseEnvInt = (envVar: string | undefined): number | undefined => {
   return isNaN(parsed) ? undefined : parsed;
 };
 
-const promptConfigSchema = z.object({
-  MAX_INPUT_SIZE: z.number().default(50 * 1024 * 1024), // 50MB
-  MAX_SENTENCES: z.number().default(10000),
-  MAX_HISTORY_LINES: z.number().default(1000),
-  MAX_TOKEN_OPERATIONS: z.number().default(100),
-  TOKEN_WINDOW_MS: z.number().default(5 * 60 * 1000), // 5 minutes
-  PROMPT_TIMEOUT_MS: z.number().default(5000),
-  REGEX_TIMEOUT_MS: z.number().default(500),
-  PRIORITY_BUFFER: z.number().default(50),
-  OVERFLOW_BUFFER: z.number().default(100),
-  MAX_SANITIZATION_ITERATIONS: z.number().default(10),
-  MAX_REGEX_ITERATIONS: z.number().default(1000),
-  LARGE_DOCUMENT_THRESHOLD: z.number().default(1024 * 1024), // 1MB
-  TOKEN_CACHE_SIZE: z.number().default(1000),
-  ALLOWED_LANGUAGES: z.array(z.string()).default(['english']),
-  ALLOWED_JURISDICTIONS: z.array(z.string()).default(['india']),
-  ALLOWED_TONES: z
-    .array(z.string())
-    .default(['formal', 'casual', 'professional']),
-});
-
-export type PromptConfig = z.infer<typeof promptConfigSchema>;
-
-export const promptConfig = promptConfigSchema.parse({
+export const promptConfig: PromptConfigParsed = PromptConfigSchema.parse({
   MAX_INPUT_SIZE:
     parseEnvInt(process.env.PROMPT_MAX_INPUT_SIZE) ?? 50 * 1024 * 1024,
   MAX_SENTENCES: parseEnvInt(process.env.PROMPT_MAX_SENTENCES) ?? 10000,
@@ -86,10 +64,6 @@ export const {
   ALLOWED_JURISDICTIONS,
   ALLOWED_TONES,
 } = promptConfig;
-
-export type AllowedLanguage = (typeof ALLOWED_LANGUAGES)[number];
-export type AllowedJurisdiction = (typeof ALLOWED_JURISDICTIONS)[number];
-export type AllowedTone = (typeof ALLOWED_TONES)[number];
 
 export const SUSPICIOUS_PATTERNS = [
   /^SYSTEM\s+INSTRUCTION\s*:/gim,
