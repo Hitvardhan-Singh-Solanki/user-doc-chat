@@ -2,230 +2,188 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: user-doc-chat-app
-  namespace: user-doc-chat
+  namespace: user-doc-chat-production
   labels:
     app: user-doc-chat
-    component: app
+    environment: production
 spec:
   replicas: 3
   selector:
     matchLabels:
       app: user-doc-chat
-      component: app
   template:
     metadata:
       labels:
         app: user-doc-chat
-        component: app
+        environment: production
     spec:
       containers:
-        - name: app
-          image: user-doc-chat:latest
-          ports:
-            - containerPort: 3000
-          env:
-            # Application configuration
-            - name: NODE_ENV
-              value: 'production'
-            - name: PORT
-              value: '3000'
-            - name: LOG_LEVEL
-              value: 'info'
-
-            # Database configuration
-            - name: DATABASE_URL
-              value: 'postgresql://$(DB_USER):$(DB_PASSWORD)@postgres-service:5432/$(DB_NAME)?sslmode=require'
-            - name: DB_HOST
-              value: 'postgres-service'
-            - name: DB_PORT
-              value: '5432'
-            - name: DB_NAME
-              value: 'user_doc_chat_prod'
-            - name: DB_USER
-              value: 'postgres'
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: db-password
-
-            # Redis configuration
-            - name: REDIS_URL
-              value: 'redis://:$(REDIS_PASSWORD)@redis-service:6379'
-            - name: REDIS_HOST
-              value: 'redis-service'
-            - name: REDIS_PORT
-              value: '6379'
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: redis-password
-
-            # JWT configuration
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: jwt-secret
-            - name: JWT_EXPIRES_IN
-              value: '3600'
-
-            # External API keys
-            - name: OPENAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: api-keys
-                  key: openai-api-key
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: api-keys
-                  key: anthropic-api-key
-            - name: SERP_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: api-keys
-                  key: serp-api-key
-            - name: BING_SEARCH_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: api-keys
-                  key: bing-search-api-key
-            - name: BING_SEARCH_ENDPOINT
-              value: 'https://api.bing.microsoft.com/v7.0/search'
-
-            # Storage configuration
-            - name: MINIO_ENDPOINT
-              value: 'minio-service'
-            - name: MINIO_PORT
-              value: '9000'
-            - name: MINIO_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: minio-access-key
-            - name: MINIO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: minio-secret-key
-            - name: MINIO_USE_SSL
-              value: 'false'
-            - name: S3_BUCKET
-              value: 'user-doc-chat-prod'
-
-            # Security configuration
-            - name: CORS_ORIGIN
-              value: 'https://your-production-domain.com'
-            - name: RATE_LIMIT_WINDOW_MS
-              value: '900000'
-            - name: RATE_LIMIT_MAX_REQUESTS
-              value: '100'
-
-            # Monitoring
-            - name: PROMETHEUS_PORT
-              value: '9090'
-            - name: GRAFANA_PORT
-              value: '3001'
-
-          resources:
-            requests:
-              memory: '512Mi'
-              cpu: '250m'
-            limits:
-              memory: '1Gi'
-              cpu: '500m'
-
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 30
-            periodSeconds: 10
-
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 5
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: app-service
-  namespace: user-doc-chat
-  labels:
-    app: user-doc-chat
-    component: app
-spec:
-  selector:
-    app: user-doc-chat
-    component: app
-  ports:
-    - port: 3000
-      targetPort: 3000
-      protocol: TCP
-  type: ClusterIP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-service
-  namespace: user-doc-chat
-  labels:
-    app: user-doc-chat
-    component: postgres
-spec:
-  selector:
-    app: user-doc-chat
-    component: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
-      protocol: TCP
-  type: ClusterIP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis-service
-  namespace: user-doc-chat
-  labels:
-    app: user-doc-chat
-    component: redis
-spec:
-  selector:
-    app: user-doc-chat
-    component: redis
-  ports:
-    - port: 6379
-      targetPort: 6379
-      protocol: TCP
-  type: ClusterIP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: minio-service
-  namespace: user-doc-chat
-  labels:
-    app: user-doc-chat
-    component: minio
-spec:
-  selector:
-    app: user-doc-chat
-    component: minio
-  ports:
-    - port: 9000
-      targetPort: 9000
-      protocol: TCP
-    - port: 9001
-      targetPort: 9001
-      protocol: TCP
-  type: ClusterIP
+      - name: app
+        image: ghcr.io/hitvardhan-singh-solanki/user-doc-chat:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PORT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: LOG_LEVEL
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DB_HOST
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: REDIS_HOST
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: S3_BUCKET
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CORS_ORIGINS
+        - name: JWT_EXPIRES_IN
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: JWT_EXPIRES_IN
+        - name: LLM_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: LLM_SERVICE_URL
+        - name: CRAWLER_MAX_BYTES
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CRAWLER_MAX_BYTES
+        - name: CRAWLER_MAX_PAGES
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CRAWLER_MAX_PAGES
+        - name: RATE_LIMIT_WINDOW_MS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: RATE_LIMIT_WINDOW_MS
+        - name: RATE_LIMIT_MAX_REQUESTS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: RATE_LIMIT_MAX_REQUESTS
+        - name: CIRCUIT_BREAKER_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CIRCUIT_BREAKER_THRESHOLD
+        - name: CIRCUIT_BREAKER_TIMEOUT_MS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CIRCUIT_BREAKER_TIMEOUT_MS
+        - name: VECTOR_DIMENSIONS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: VECTOR_DIMENSIONS
+        - name: VECTOR_DISTANCE_OPERATOR
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: VECTOR_DISTANCE_OPERATOR
+        - name: EMBEDDING_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: EMBEDDING_MODEL
+        - name: CHUNK_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CHUNK_SIZE
+        - name: CHUNK_OVERLAP
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CHUNK_OVERLAP
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: REDIS_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: OPENAI_API_KEY
+        - name: HUGGINGFACE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: HUGGINGFACE_API_KEY
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: PINECONE_API_KEY
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1001
+      restartPolicy: Always

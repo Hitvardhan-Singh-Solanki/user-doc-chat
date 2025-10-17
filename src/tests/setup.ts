@@ -8,6 +8,68 @@ config({ path: resolve(process.cwd(), 'env.test') });
 // Set NODE_ENV to test to ensure proper config loading
 process.env.NODE_ENV = 'test';
 
+// Polyfill for File API in Node.js environment
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = class File {
+    constructor(
+      public chunks: unknown[],
+      public filename: string,
+      public options: Record<string, unknown> = {},
+    ) {
+      this.name = filename;
+      this.size = 0;
+      this.type = (options.type as string) || '';
+      this.lastModified = (options.lastModified as number) || Date.now();
+    }
+    name: string;
+    size: number;
+    type: string;
+    lastModified: number;
+  } as unknown as typeof File;
+}
+
+// Polyfill for other browser APIs that might be needed
+if (typeof globalThis.Blob === 'undefined') {
+  globalThis.Blob = class Blob {
+    constructor(
+      public chunks: unknown[] = [],
+      public options: Record<string, unknown> = {},
+    ) {
+      this.size = 0;
+      this.type = (options.type as string) || '';
+    }
+    size: number;
+    type: string;
+  } as unknown as typeof Blob;
+}
+
+if (typeof globalThis.FormData === 'undefined') {
+  globalThis.FormData = class FormData {
+    private data = new Map<string, unknown>();
+    append(name: string, value: unknown) {
+      this.data.set(name, value);
+    }
+    get(name: string) {
+      return this.data.get(name);
+    }
+    has(name: string) {
+      return this.data.has(name);
+    }
+    delete(name: string) {
+      this.data.delete(name);
+    }
+    entries() {
+      return this.data.entries();
+    }
+    keys() {
+      return this.data.keys();
+    }
+    values() {
+      return this.data.values();
+    }
+  } as unknown as typeof FormData;
+}
+
 import { vi } from 'vitest';
 import { logger } from '../config/logger.config';
 import { initializeConfig } from '../config/app.config';

@@ -1,82 +1,72 @@
+version: '3.9'
+
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.dev
+  # Development application with hot reload
+  app:
+    build: .
+    ports:
+      - '3000:3000'
     volumes:
       - .:/app
       - /app/node_modules
-      # Mount TLS certificates for gRPC sanitizer service
       - ./certs:/app/certs:ro
-    ports:
-      - '3000:3000'
-    env_file:
-      - .env.dev
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
     depends_on:
       - db
       - redis
       - minio
-      - python_apis
+      - python-service
 
-  python_apis:
+  # Python gRPC service (development)
+  python-service:
     build:
       context: .
-      dockerfile: docker/Dockerfile.python
-    volumes:
-      - ./python_service:/app
-      # Mount TLS certificates for gRPC server
-      - ./certs:/app/certs:ro
+      dockerfile: Dockerfile.python
     ports:
       - '50051:50051'
-    env_file:
-      - .env.dev
-    depends_on:
-      - db
-      - redis
+    volumes:
+      - ./python_service:/app
+      - ./certs:/app/certs:ro
+    environment:
+      - PYTHONPATH=/app/services
 
+  # PostgreSQL database
   db:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.pg
-    container_name: db
-    restart: unless-stopped
-    env_file:
-      - .env.dev
+    image: postgres:16
     ports:
       - '5432:5432'
+    environment:
+      - POSTGRES_DB=user_doc_chat_dev
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
       - ./docker/init-db.d:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
+  # Redis cache
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - '6379:6379'
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - redis_dev_data:/data
 
+  # MinIO object storage
   minio:
     image: minio/minio:latest
-    command: server /data --console-address ":9001"
     ports:
       - '9000:9000'
       - '9001:9001'
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
     volumes:
-      - minio_data:/data
-    env_file:
-      - .env.dev
+      - minio_dev_data:/data
+    command: server /data --console-address ":9001"
 
 volumes:
-  db_data:
-  redis_data:
-  minio_data:
+  postgres_dev_data:
+  redis_dev_data:
+  minio_dev_data:

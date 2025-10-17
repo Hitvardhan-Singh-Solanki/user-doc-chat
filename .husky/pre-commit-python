@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check if any Python files are staged
+if git diff --cached --name-only | grep -E '\.(py)$' > /dev/null; then
+    echo "🐍 Python files detected, running Python checks..."
+    npm run python:checks
+else
+    echo "ℹ️  No Python files in this commit, skipping Python checks"
+fi

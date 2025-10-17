@@ -13,7 +13,7 @@ export default defineConfig(async (): Promise<UserConfig> => {
         provider: 'v8',
         reporter: ['text', 'lcov', 'json', 'html'],
         reportsDirectory: './coverage',
-        include: ['src/**/*.ts'],
+        include: ['src/**/*.ts', 'infrastructure/**/*.ts'],
         exclude: [
           'src/**/*.test.ts',
           'src/**/*.spec.ts',
@@ -23,6 +23,7 @@ export default defineConfig(async (): Promise<UserConfig> => {
           'src/mocks/**',
           'src/fixtures/**',
           'src/**/*.d.ts',
+          'infrastructure/tests/**',
           'dist/**',
           'node_modules/**',
         ],
@@ -35,7 +36,7 @@ export default defineConfig(async (): Promise<UserConfig> => {
           },
         },
       },
-      setupFiles: ['./src/tests/setup.ts'],
+      setupFiles: ['./src/tests/setup.ts', './infrastructure/tests/setup.ts'],
       env: {
         NODE_ENV: 'test',
       },

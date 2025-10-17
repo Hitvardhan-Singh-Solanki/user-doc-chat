@@ -1,18 +1,29 @@
 import io
+from pathlib import Path
+
 from docling.document_converter import DocumentConverter
 
-MAX_BYTES = 25 * 1024 * 1024  
+MAX_BYTES = 25 * 1024 * 1024
+
 
 def sanitize_pdf(file_bytes: bytes) -> str:
-    temp_file = io.BytesIO(file_bytes)
-    converter = DocumentConverter()
-    conv_res = converter.convert(temp_file)
+    # Create a temporary file path for DocumentConverter
+    import tempfile
 
-    document = conv_res.document
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_file.write(file_bytes)
+        temp_path = Path(temp_file.name)
 
-    markdown_output = document.export_to_markdown()
-    
-    return markdown_output.strip()
+    try:
+        converter = DocumentConverter()
+        conv_res = converter.convert(temp_path)
+        document = conv_res.document
+        markdown_output = document.export_to_markdown()
+        return markdown_output.strip()
+    finally:
+        # Clean up temporary file
+        temp_path.unlink(missing_ok=True)
+
 
 def sanitize_file(file_data: bytes, file_type: str) -> str:
     """
