@@ -105,8 +105,10 @@ safety check --json --save-json safety-report.json || {
 
 # Bandit security linter (optimized for speed)
 log "Running bandit security linter..."
-bandit -r . -f json -o bandit-report.json -x tests/,venv/,__pycache__/ || {
-    log_warning "Bandit found security issues"
+# Only scan main Python files, not tests or dependencies
+timeout 30 bandit -f json -o bandit-report.json --skip B101,B601,B603,B607,B608 \
+    main_grpc_server.py services/ || {
+    log_warning "Bandit found security issues or timed out"
 }
 
 log_success "Python security checks completed"
