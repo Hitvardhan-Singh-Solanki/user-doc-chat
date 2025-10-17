@@ -23,8 +23,6 @@ export default defineConfig(async (): Promise<UserConfig> => {
           'src/mocks/**',
           'src/fixtures/**',
           'src/**/*.d.ts',
-          'infrastructure/**/*.test.ts',
-          'infrastructure/**/*.spec.ts',
           'infrastructure/tests/**',
           'dist/**',
           'node_modules/**',

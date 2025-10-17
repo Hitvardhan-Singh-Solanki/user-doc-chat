@@ -23,10 +23,10 @@
     "test:watch": "vitest",
     "test:memory": "vitest run --config vitest.performance.config.ts --grep memory",
     "test:blocking": "vitest run --config vitest.performance.config.ts --grep blocking",
-    "test:infrastructure": "vitest run infrastructure/tests/**/*.test.ts",
-    "test:infrastructure:watch": "vitest watch infrastructure/tests/**/*.test.ts",
-    "test:infrastructure:coverage": "vitest run --coverage infrastructure/tests/**/*.test.ts",
-    "test:infrastructure:ui": "vitest --ui infrastructure/tests/**/*.test.ts",
+    "test:infrastructure": "vitest run infrastructure/tests/",
+    "test:infrastructure:watch": "vitest watch infrastructure/tests/",
+    "test:infrastructure:coverage": "vitest run --coverage infrastructure/tests/",
+    "test:infrastructure:ui": "vitest --ui infrastructure/tests/",
     "infrastructure:preview": "./scripts/infra.sh preview",
     "infrastructure:up": "./scripts/infra.sh deploy",
     "infrastructure:destroy": "./scripts/infra.sh destroy",
@@ -152,6 +152,6 @@
     "zod": "^4.1.12"
   },
   "engines": {
-    "node": "22.11.0"
+    "node": "22.16.0"
   }
 }
