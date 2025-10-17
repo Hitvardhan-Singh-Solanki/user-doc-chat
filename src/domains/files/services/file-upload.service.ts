@@ -97,6 +97,9 @@ export class FileUploadService {
       );
       return fileRecord;
     } catch (error) {
+      if (error instanceof createHttpError.HttpError) {
+        throw error;
+      }
       return this.handleUploadError(error, log);
     }
   }

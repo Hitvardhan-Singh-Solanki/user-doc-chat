@@ -130,7 +130,7 @@ jobs:
           JWT_SECRET: e0TOvk20tSMFdV0VDzRbtYkn5o0Cr+xJ0Kg2QV31X64=
           JWT_AUDIENCE: test-audience
           JWT_ISSUER: test-issuer
-          JWT_EXPIRES_IN: 3600
+          JWT_EXPIRES_IN: 3600s
           JWT_MAX_AGE: 86400
           SANITIZER_HOST: 127.0.0.1:50051
           HUGGINGFACE_HUB_TOKEN: FAKE_TEST_TOKEN_DO_NOT_USE_IN_PRODUCTION
