@@ -193,7 +193,7 @@ jobs:
 
       - name: Create security report issue
         if: github.event_name == 'schedule'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
