@@ -103,7 +103,7 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "node-pg-migrate": "^8.0.3",
-    "opossum": "^8.5.0",
+    "opossum": "^9.0.0",
     "p-limit": "^7.1.1",
     "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
