@@ -100,7 +100,7 @@ services:
       retries: 3
 
   redis:
-    image: redis:6-alpine
+    image: redis:8-alpine
     command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
